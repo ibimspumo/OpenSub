@@ -11,6 +11,7 @@ import ExportProgress from './components/ExportProgress/ExportProgress'
 import TitleBar from './components/TitleBar/TitleBar'
 import { generateExportFrames } from './utils/subtitleFrameRenderer'
 import { useAutoSave } from './hooks/useAutoSave'
+import { loadGoogleFont } from './utils/fontLoader'
 import type { SubtitleFrame } from '../shared/types'
 
 function App() {
@@ -34,6 +35,13 @@ function App() {
   useEffect(() => {
     const timer = setTimeout(() => setIsAppMounted(true), 50)
     return () => clearTimeout(timer)
+  }, [])
+
+  // Preload default fonts (Poppins is the default, Montserrat also popular)
+  useEffect(() => {
+    // Load Poppins (default font) and Montserrat in background
+    loadGoogleFont('Poppins', [400, 500, 600, 700])
+    loadGoogleFont('Montserrat', [400, 500, 700])
   }, [])
 
   // Editor transition when project loads

@@ -1,6 +1,16 @@
 import type { Project, Subtitle, SubtitleStyle } from '../../shared/types'
 
 /**
+ * Apply text transform (uppercase) if configured
+ */
+function applyTextTransform(text: string, style: SubtitleStyle): string {
+  if (style.textTransform === 'uppercase') {
+    return text.toUpperCase()
+  }
+  return text
+}
+
+/**
  * Wrap text to fit within maxWidth, respecting maxLines limit
  * Uses \N for hard line breaks in ASS format
  * @param text - The text to wrap
@@ -201,7 +211,12 @@ export function generateASS(project: Project): string {
   )
 
   // Default style
-  const fontWeight = style.fontWeight === 'bold' ? -1 : 0
+  // ASS uses -1 for bold, 0 for normal
+  // For numeric weights, consider >= 600 as bold (Semi Bold and above)
+  const isBold = typeof style.fontWeight === 'number'
+    ? style.fontWeight >= 600
+    : style.fontWeight === 'bold'
+  const fontWeight = isBold ? -1 : 0
   const primaryColor = toASSColor(style.color)
   const secondaryColor = toASSColor(style.highlightColor)
   const outlineColor = toASSColor(style.outlineColor)
@@ -287,7 +302,9 @@ export function generateASS(project: Project): string {
 
       for (let i = 0; i < subtitle.words.length; i++) {
         const word = subtitle.words[i]
-        const wordWithSpace = word.text + ' '
+        // Apply text transform to word
+        const transformedWord = applyTextTransform(word.text, style)
+        const wordWithSpace = transformedWord + ' '
         const wordDuration = Math.round((word.endTime - word.startTime) * 100)
 
         // Check if we need to wrap to next line
@@ -302,9 +319,9 @@ export function generateASS(project: Project): string {
         if (karaokeBoxEnabled) {
           // Use transform tags to apply box styling when word becomes highlighted
           // \t applies transformation over time, coordinated with \kf timing
-          karaokeText += `{\\kf${wordDuration}${boxStartTag}}${word.text}{${boxEndTag}} `
+          karaokeText += `{\\kf${wordDuration}${boxStartTag}}${transformedWord}{${boxEndTag}} `
         } else {
-          karaokeText += `{\\kf${wordDuration}}${word.text} `
+          karaokeText += `{\\kf${wordDuration}}${transformedWord} `
         }
         currentLineLength += wordWithSpace.length
       }
@@ -312,13 +329,17 @@ export function generateASS(project: Project): string {
     } else if (style.animation === 'fade') {
       // Fade in/out effect with text wrapping
       const fadeMs = 300
-      const wrappedText = wrapTextForASS(subtitle.text, textBoxWidth, style.fontSize, maxLines)
+      // Apply text transform before wrapping
+      const transformedText = applyTextTransform(subtitle.text, style)
+      const wrappedText = wrapTextForASS(transformedText, textBoxWidth, style.fontSize, maxLines)
       lines.push(
         `Dialogue: 0,${start},${end},Default,,0,0,0,,${wrapTag}{\\fad(${fadeMs},${fadeMs})}${wrappedText}`
       )
     } else {
       // Static text with wrapping
-      const wrappedText = wrapTextForASS(subtitle.text, textBoxWidth, style.fontSize, maxLines)
+      // Apply text transform before wrapping
+      const transformedText = applyTextTransform(subtitle.text, style)
+      const wrappedText = wrapTextForASS(transformedText, textBoxWidth, style.fontSize, maxLines)
       lines.push(`Dialogue: 0,${start},${end},Default,,0,0,0,,${wrapTag}${wrappedText}`)
     }
   }
@@ -330,7 +351,7 @@ export function generateASS(project: Project): string {
  * Generate SRT subtitle file content (simpler format)
  */
 export function generateSRT(project: Project): string {
-  const { subtitles } = project
+  const { subtitles, style } = project
 
   const formatTime = (seconds: number): string => {
     const h = Math.floor(seconds / 3600)
@@ -345,7 +366,8 @@ export function generateSRT(project: Project): string {
   subtitles.forEach((subtitle, index) => {
     lines.push(`${index + 1}`)
     lines.push(`${formatTime(subtitle.startTime)} --> ${formatTime(subtitle.endTime)}`)
-    lines.push(subtitle.text)
+    // Apply text transform if configured
+    lines.push(applyTextTransform(subtitle.text, style))
     lines.push('')
   })
 

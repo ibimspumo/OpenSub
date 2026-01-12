@@ -47,11 +47,15 @@ export interface Word {
   confidence: number
 }
 
+// Font weight type - supports CSS keywords and numeric values (100-900)
+export type FontWeight = 'normal' | 'bold' | 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900
+
 // Styling Optionen
 export interface SubtitleStyle {
   fontFamily: string
   fontSize: number
-  fontWeight: 'normal' | 'bold'
+  fontWeight: FontWeight
+  textTransform: 'none' | 'uppercase'  // Text transformation (uppercase = Versalien)
   color: string
   highlightColor: string
   backgroundColor: string
@@ -116,16 +120,17 @@ export function getDefaultFontSizeForResolution(width: number, height: number): 
 
 // Default Style
 export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
-  fontFamily: 'Inter, system-ui, sans-serif',
+  fontFamily: 'Poppins, sans-serif',
   fontSize: 48,
-  fontWeight: 'bold',
+  fontWeight: 700,  // Bold weight (Poppins supports 400, 500, 600, 700)
+  textTransform: 'uppercase',    // Versalien als Standard
   color: '#FFFFFF',
   highlightColor: '#FFD700',
   backgroundColor: 'rgba(0, 0, 0, 0.5)',
   outlineColor: '#000000',
-  outlineWidth: 2,
+  outlineWidth: 10,              // Erhöhter Standard für bessere Lesbarkeit
   shadowColor: 'rgba(0, 0, 0, 0.8)',
-  shadowBlur: 4,
+  shadowBlur: 25,                // Erhöhter Standard für mehr Tiefe
   position: 'custom',
   positionX: 0.5,  // Centered horizontally
   positionY: 0.65, // TikTok safe zone (~65% from top, above UI elements)
@@ -136,8 +141,8 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   // Karaoke box settings (disabled by default)
   karaokeBoxEnabled: false,
   karaokeBoxColor: '#32CD32',    // Lime green (as shown in reference image)
-  karaokeBoxPadding: 4,          // 4px padding around the word
-  karaokeBoxBorderRadius: 4     // 4px border radius for slightly rounded corners
+  karaokeBoxPadding: 24,         // 24px padding around the word
+  karaokeBoxBorderRadius: 32    // 32px border radius for rounded corners
 }
 
 // Default Speaker Colors

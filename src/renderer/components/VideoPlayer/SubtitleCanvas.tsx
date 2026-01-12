@@ -29,6 +29,8 @@ export default function SubtitleCanvas({
   const [isDragging, setIsDragging] = useState(false)
   const [isHovering, setIsHovering] = useState(false)
   const dragStartRef = useRef<{ x: number; y: number; posX: number; posY: number } | null>(null)
+  // Local position during drag (to avoid triggering auto-save on every mouse move)
+  const [localDragPosition, setLocalDragPosition] = useState<{ x: number; y: number } | null>(null)
 
   const { updateStyle } = useProjectStore()
 
@@ -142,16 +144,24 @@ export default function SubtitleCanvas({
     return lines.slice(0, maxLines)
   }, [])
 
+  // Apply text transform if configured
+  const applyTextTransform = useCallback((text: string): string => {
+    if (style.textTransform === 'uppercase') {
+      return text.toUpperCase()
+    }
+    return text
+  }, [style.textTransform])
+
   // Get wrapped lines for current subtitle
   const getWrappedLines = useCallback((
     ctx: CanvasRenderingContext2D,
     subtitle: Subtitle,
     displayWidth: number
   ): string[] => {
-    const text = subtitle.words.map((w) => w.text).join(' ')
+    const text = applyTextTransform(subtitle.words.map((w) => w.text).join(' '))
     const maxWidthPx = displayWidth * style.maxWidth
     return wrapText(ctx, text, maxWidthPx, style.maxLines)
-  }, [style.maxWidth, style.maxLines, wrapText])
+  }, [style.maxWidth, style.maxLines, wrapText, applyTextTransform])
 
   // Get subtitle bounds for hit testing (supports multi-line text boxes)
   const getSubtitleBounds = useCallback(() => {
@@ -244,7 +254,7 @@ export default function SubtitleCanvas({
       setIsHovering(isOver)
     }
 
-    // Handle drag
+    // Handle drag - only update local state during drag, not the store
     if (isDragging && dragStartRef.current) {
       const deltaX = e.clientX - dragStartRef.current.x
       const deltaY = e.clientY - dragStartRef.current.y
@@ -257,31 +267,373 @@ export default function SubtitleCanvas({
         dragStartRef.current.posY + deltaY / canvasDimensions.height
       ))
 
-      // Apply snap
+      // Apply snap and store in local state (not in store yet)
       const snapped = applySnap(newPosX, newPosY)
-
-      updateStyle({
-        position: 'custom',
-        positionX: snapped.x,
-        positionY: snapped.y
-      })
+      setLocalDragPosition({ x: snapped.x, y: snapped.y })
     }
-  }, [isDragging, getSubtitleBounds, canvasDimensions, applySnap, updateStyle])
+  }, [isDragging, getSubtitleBounds, canvasDimensions, applySnap])
 
   const handleMouseUp = useCallback(() => {
+    // Commit the position to the store only when drag ends
+    if (localDragPosition) {
+      updateStyle({
+        position: 'custom',
+        positionX: localDragPosition.x,
+        positionY: localDragPosition.y
+      })
+      setLocalDragPosition(null)
+    }
     setIsDragging(false)
     dragStartRef.current = null
-  }, [])
+  }, [localDragPosition, updateStyle])
 
   const handleMouseLeave = useCallback(() => {
     setIsHovering(false)
     if (isDragging) {
+      // Commit the position to the store when leaving canvas during drag
+      if (localDragPosition) {
+        updateStyle({
+          position: 'custom',
+          positionX: localDragPosition.x,
+          positionY: localDragPosition.y
+        })
+        setLocalDragPosition(null)
+      }
       setIsDragging(false)
       dragStartRef.current = null
     }
-  }, [isDragging])
+  }, [isDragging, localDragPosition, updateStyle])
 
-  // Render subtitles
+  // Helper to wrap text for offscreen rendering (uses video width)
+  const wrapTextOffscreen = useCallback((
+    ctx: OffscreenCanvasRenderingContext2D,
+    text: string,
+    maxWidthPx: number,
+    maxLines: number
+  ): string[] => {
+    const words = text.split(' ')
+    const lines: string[] = []
+    let currentLine = ''
+
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word
+      const metrics = ctx.measureText(testLine)
+
+      if (metrics.width > maxWidthPx && currentLine) {
+        lines.push(currentLine)
+        currentLine = word
+        if (lines.length >= maxLines) {
+          return lines.slice(0, maxLines)
+        }
+      } else {
+        currentLine = testLine
+      }
+    }
+
+    if (currentLine) {
+      lines.push(currentLine)
+    }
+
+    return lines.slice(0, maxLines)
+  }, [])
+
+  const getWrappedLinesOffscreen = useCallback((
+    ctx: OffscreenCanvasRenderingContext2D,
+    subtitle: Subtitle,
+    width: number
+  ): string[] => {
+    const text = applyTextTransform(subtitle.words.map((w) => w.text).join(' '))
+    const maxWidthPx = width * style.maxWidth
+    return wrapTextOffscreen(ctx, text, maxWidthPx, style.maxLines)
+  }, [style.maxWidth, style.maxLines, wrapTextOffscreen, applyTextTransform])
+
+  // Offscreen rendering functions (render at video resolution)
+  const renderKaraokeOffscreen = useCallback((
+    ctx: OffscreenCanvasRenderingContext2D,
+    subtitle: Subtitle,
+    currentWordIndex: number,
+    x: number,
+    y: number,
+    fontSize: number,
+    width: number
+  ) => {
+    const lines = getWrappedLinesOffscreen(ctx, subtitle, width)
+    const lineHeight = fontSize * 1.4
+    const totalHeight = lines.length * lineHeight
+    const startY = y - (totalHeight - lineHeight) / 2
+
+    let wordIndex = 0
+    const wordLineMap: { line: number; wordInLine: number }[] = []
+
+    lines.forEach((line, lineIndex) => {
+      const lineWords = line.split(' ')
+      lineWords.forEach(() => {
+        wordLineMap.push({ line: lineIndex, wordInLine: wordIndex++ % lineWords.length })
+      })
+    })
+
+    // Reset word index for proper mapping
+    wordIndex = 0
+    lines.forEach((line, lineIndex) => {
+      const lineWords = line.split(' ')
+      lineWords.forEach((_, wordInLineIndex) => {
+        if (wordIndex < wordLineMap.length) {
+          wordLineMap[wordIndex] = { line: lineIndex, wordInLine: wordInLineIndex }
+        }
+        wordIndex++
+      })
+    })
+
+    const drawRoundedRect = (
+      ctx: OffscreenCanvasRenderingContext2D,
+      rx: number,
+      ry: number,
+      rwidth: number,
+      rheight: number,
+      radius: number
+    ) => {
+      ctx.beginPath()
+      ctx.moveTo(rx + radius, ry)
+      ctx.lineTo(rx + rwidth - radius, ry)
+      ctx.quadraticCurveTo(rx + rwidth, ry, rx + rwidth, ry + radius)
+      ctx.lineTo(rx + rwidth, ry + rheight - radius)
+      ctx.quadraticCurveTo(rx + rwidth, ry + rheight, rx + rwidth - radius, ry + rheight)
+      ctx.lineTo(rx + radius, ry + rheight)
+      ctx.quadraticCurveTo(rx, ry + rheight, rx, ry + rheight - radius)
+      ctx.lineTo(rx, ry + radius)
+      ctx.quadraticCurveTo(rx, ry, rx + radius, ry)
+      ctx.closePath()
+    }
+
+    let globalWordIdx = 0
+    lines.forEach((line, lineIndex) => {
+      const lineY = startY + lineIndex * lineHeight
+      const lineWords = line.split(' ')
+      const lineWidth = ctx.measureText(line).width
+      let currentX = x - lineWidth / 2
+
+      lineWords.forEach((wordText, wordInLineIndex) => {
+        const wordWidth = ctx.measureText(wordText).width
+        const spaceWidth = wordInLineIndex < lineWords.length - 1 ? ctx.measureText(' ').width : 0
+        const wordX = currentX + wordWidth / 2
+
+        const isPast = globalWordIdx < currentWordIndex
+        const isCurrent = globalWordIdx === currentWordIndex
+
+        if (isCurrent && style.karaokeBoxEnabled) {
+          ctx.save()
+          const padding = style.karaokeBoxPadding
+          const boxX = currentX - padding
+          const boxY = lineY - fontSize / 2 - padding
+          const boxWidth = wordWidth + padding * 2
+          const boxHeight = fontSize + padding * 2
+          const borderRadius = Math.min(style.karaokeBoxBorderRadius, boxHeight / 2, boxWidth / 2)
+
+          ctx.fillStyle = style.karaokeBoxColor
+          ctx.shadowColor = 'transparent'
+          ctx.shadowBlur = 0
+
+          drawRoundedRect(ctx, boxX, boxY, boxWidth, boxHeight, borderRadius)
+          ctx.fill()
+          ctx.restore()
+        }
+
+        ctx.strokeStyle = style.outlineColor
+        ctx.lineWidth = style.outlineWidth * 2
+        ctx.lineJoin = 'round'
+
+        if (isCurrent) {
+          ctx.shadowColor = style.highlightColor
+          ctx.shadowBlur = 10
+        } else {
+          ctx.shadowColor = style.shadowColor
+          ctx.shadowBlur = style.shadowBlur
+        }
+
+        ctx.strokeText(wordText, wordX, lineY)
+
+        ctx.fillStyle = isCurrent ? style.highlightColor : style.color
+        ctx.globalAlpha = isPast || isCurrent ? 1 : 0.6
+        ctx.fillText(wordText, wordX, lineY)
+        ctx.globalAlpha = 1
+
+        ctx.shadowBlur = 0
+        currentX += wordWidth + spaceWidth
+        globalWordIdx++
+      })
+    })
+  }, [style, getWrappedLinesOffscreen])
+
+  const renderAppearOffscreen = useCallback((
+    ctx: OffscreenCanvasRenderingContext2D,
+    subtitle: Subtitle,
+    currentWordIndex: number,
+    x: number,
+    y: number,
+    fontSize: number,
+    width: number
+  ) => {
+    const visibleWords = subtitle.words.slice(0, currentWordIndex + 1)
+    if (visibleWords.length === 0) return
+
+    const visibleSubtitle = { ...subtitle, words: visibleWords }
+    const lines = getWrappedLinesOffscreen(ctx, visibleSubtitle, width)
+    const lineHeight = fontSize * 1.4
+
+    const fullLines = getWrappedLinesOffscreen(ctx, subtitle, width)
+    const totalHeight = fullLines.length * lineHeight
+    const startY = y - (totalHeight - lineHeight) / 2
+
+    ctx.shadowColor = style.shadowColor
+    ctx.shadowBlur = style.shadowBlur
+    ctx.strokeStyle = style.outlineColor
+    ctx.lineWidth = style.outlineWidth * 2
+    ctx.lineJoin = 'round'
+
+    lines.forEach((line, index) => {
+      const lineY = startY + index * lineHeight
+      ctx.strokeText(line, x, lineY)
+      ctx.fillStyle = style.color
+      ctx.fillText(line, x, lineY)
+    })
+
+    ctx.shadowBlur = 0
+  }, [style, getWrappedLinesOffscreen])
+
+  const renderFadeOffscreen = useCallback((
+    ctx: OffscreenCanvasRenderingContext2D,
+    subtitle: Subtitle,
+    x: number,
+    y: number,
+    fontSize: number,
+    width: number
+  ) => {
+    const lines = getWrappedLinesOffscreen(ctx, subtitle, width)
+    const lineHeight = fontSize * 1.4
+    const totalHeight = lines.length * lineHeight
+    const startY = y - (totalHeight - lineHeight) / 2
+
+    const fadeInDuration = 0.3
+    const fadeOutDuration = 0.3
+
+    let alpha = 1
+    const elapsed = currentTime - subtitle.startTime
+    const remaining = subtitle.endTime - currentTime
+
+    if (elapsed < fadeInDuration) {
+      alpha = elapsed / fadeInDuration
+    } else if (remaining < fadeOutDuration) {
+      alpha = remaining / fadeOutDuration
+    }
+
+    ctx.globalAlpha = alpha
+    ctx.shadowColor = style.shadowColor
+    ctx.shadowBlur = style.shadowBlur
+    ctx.strokeStyle = style.outlineColor
+    ctx.lineWidth = style.outlineWidth * 2
+    ctx.lineJoin = 'round'
+
+    lines.forEach((line, index) => {
+      const lineY = startY + index * lineHeight
+      ctx.strokeText(line, x, lineY)
+      ctx.fillStyle = style.color
+      ctx.fillText(line, x, lineY)
+    })
+
+    ctx.globalAlpha = 1
+    ctx.shadowBlur = 0
+  }, [style, currentTime, getWrappedLinesOffscreen])
+
+  const renderScaleOffscreen = useCallback((
+    ctx: OffscreenCanvasRenderingContext2D,
+    subtitle: Subtitle,
+    currentWordIndex: number,
+    x: number,
+    y: number,
+    fontSize: number,
+    width: number
+  ) => {
+    const lines = getWrappedLinesOffscreen(ctx, subtitle, width)
+    const lineHeight = fontSize * 1.4
+    const totalHeight = lines.length * lineHeight
+    const startY = y - (totalHeight - lineHeight) / 2
+
+    let globalWordIdx = 0
+    lines.forEach((line, lineIndex) => {
+      const lineY = startY + lineIndex * lineHeight
+      const lineWords = line.split(' ')
+      const lineWidth = ctx.measureText(line).width
+      let currentX = x - lineWidth / 2
+
+      lineWords.forEach((wordText) => {
+        const wordWidth = ctx.measureText(wordText).width
+        const spaceWidth = ctx.measureText(' ').width
+        const wordX = currentX + wordWidth / 2
+
+        const isCurrent = globalWordIdx === currentWordIndex
+
+        ctx.save()
+
+        if (isCurrent) {
+          const word = subtitle.words[globalWordIdx]
+          if (word) {
+            const scaleProgress = Math.min(1, (currentTime - word.startTime) / 0.15)
+            const scale = 1 + 0.2 * Math.sin(scaleProgress * Math.PI)
+
+            ctx.translate(wordX, lineY)
+            ctx.scale(scale, scale)
+            ctx.translate(-wordX, -lineY)
+          }
+        }
+
+        ctx.shadowColor = style.shadowColor
+        ctx.shadowBlur = style.shadowBlur
+        ctx.strokeStyle = style.outlineColor
+        ctx.lineWidth = style.outlineWidth * 2
+        ctx.lineJoin = 'round'
+        ctx.strokeText(wordText, wordX, lineY)
+
+        ctx.fillStyle = isCurrent ? style.highlightColor : style.color
+        ctx.fillText(wordText, wordX, lineY)
+
+        ctx.restore()
+        currentX += wordWidth + spaceWidth
+        globalWordIdx++
+      })
+    })
+  }, [style, currentTime, getWrappedLinesOffscreen])
+
+  const renderStaticOffscreen = useCallback((
+    ctx: OffscreenCanvasRenderingContext2D,
+    subtitle: Subtitle,
+    x: number,
+    y: number,
+    fontSize: number,
+    width: number
+  ) => {
+    const lines = getWrappedLinesOffscreen(ctx, subtitle, width)
+    const lineHeight = fontSize * 1.4
+    const totalHeight = lines.length * lineHeight
+    const startY = y - (totalHeight - lineHeight) / 2
+
+    ctx.shadowColor = style.shadowColor
+    ctx.shadowBlur = style.shadowBlur
+    ctx.strokeStyle = style.outlineColor
+    ctx.lineWidth = style.outlineWidth * 2
+    ctx.lineJoin = 'round'
+
+    lines.forEach((line, index) => {
+      const lineY = startY + index * lineHeight
+      ctx.strokeText(line, x, lineY)
+      ctx.fillStyle = style.color
+      ctx.fillText(line, x, lineY)
+    })
+
+    ctx.shadowBlur = 0
+  }, [style, getWrappedLinesOffscreen])
+
+  // Render subtitles at video resolution, then scale to display
+  // This ensures the preview matches the export exactly
   const render = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas || canvasDimensions.width === 0) return
@@ -294,7 +646,7 @@ export default function SubtitleCanvas({
 
     ctx.clearRect(0, 0, displayWidth, displayHeight)
 
-    // Draw snap lines when dragging
+    // Draw snap lines when dragging (at display resolution)
     if (isDragging) {
       ctx.save()
       ctx.setLineDash([5, 5])
@@ -327,23 +679,57 @@ export default function SubtitleCanvas({
 
     const currentWordIndex = getCurrentWordIndex(currentSubtitle)
 
-    const scaleX = displayWidth / videoWidth
-    const scaleY = displayHeight / videoHeight
-    const scale = Math.min(scaleX, scaleY)
+    // Create an offscreen canvas at video resolution for pixel-perfect rendering
+    // This ensures the preview matches the export exactly
+    const offscreen = new OffscreenCanvas(videoWidth, videoHeight)
+    const offCtx = offscreen.getContext('2d')
+    if (!offCtx) return
 
-    const fontSize = style.fontSize * scale
-    ctx.font = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
+    // Render at video resolution (same as export)
+    const fontSize = style.fontSize
+    offCtx.font = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`
+    offCtx.textAlign = 'center'
+    offCtx.textBaseline = 'middle'
 
-    // Use custom position
-    const xCenter = displayWidth * style.positionX
-    const yPosition = displayHeight * style.positionY
+    // Use local drag position during drag, otherwise use style position
+    const posX = localDragPosition?.x ?? style.positionX
+    const posY = localDragPosition?.y ?? style.positionY
 
-    // Draw hover/drag indicator with multi-line support
+    const xCenter = videoWidth * posX
+    const yPosition = videoHeight * posY
+
+    // Render based on animation type (at video resolution)
+    switch (style.animation) {
+      case 'karaoke':
+        renderKaraokeOffscreen(offCtx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, videoWidth)
+        break
+      case 'appear':
+        renderAppearOffscreen(offCtx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, videoWidth)
+        break
+      case 'fade':
+        renderFadeOffscreen(offCtx, currentSubtitle, xCenter, yPosition, fontSize, videoWidth)
+        break
+      case 'scale':
+        renderScaleOffscreen(offCtx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, videoWidth)
+        break
+      default:
+        renderStaticOffscreen(offCtx, currentSubtitle, xCenter, yPosition, fontSize, videoWidth)
+    }
+
+    // Scale and draw the offscreen canvas to the display canvas
+    ctx.drawImage(offscreen, 0, 0, videoWidth, videoHeight, 0, 0, displayWidth, displayHeight)
+
+    // Draw hover/drag indicator (at display resolution, on top)
     if (isHovering || isDragging) {
+      const scaleX = displayWidth / videoWidth
+      const scaleY = displayHeight / videoHeight
+      const scale = Math.min(scaleX, scaleY)
+
+      const scaledFontSize = fontSize * scale
+      ctx.font = `${style.fontWeight} ${scaledFontSize}px ${style.fontFamily}`
+
       const lines = getWrappedLines(ctx, currentSubtitle, displayWidth)
-      const lineHeight = fontSize * 1.4
+      const lineHeight = scaledFontSize * 1.4
       const totalHeight = lines.length * lineHeight
       const maxLineWidth = Math.max(...lines.map(line => ctx.measureText(line).width))
       const padding = 15
@@ -353,32 +739,14 @@ export default function SubtitleCanvas({
       ctx.lineWidth = 2
       ctx.setLineDash(isDragging ? [] : [5, 5])
       ctx.strokeRect(
-        xCenter - maxLineWidth / 2 - padding,
-        yPosition - totalHeight / 2 - padding,
+        displayWidth * posX - maxLineWidth / 2 - padding,
+        displayHeight * posY - totalHeight / 2 - padding,
         maxLineWidth + padding * 2,
         totalHeight + padding * 2
       )
       ctx.restore()
     }
-
-    // Render based on animation type
-    switch (style.animation) {
-      case 'karaoke':
-        renderKaraoke(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, displayWidth)
-        break
-      case 'appear':
-        renderAppear(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, displayWidth)
-        break
-      case 'fade':
-        renderFade(ctx, currentSubtitle, xCenter, yPosition, fontSize, displayWidth)
-        break
-      case 'scale':
-        renderScale(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, displayWidth)
-        break
-      default:
-        renderStatic(ctx, currentSubtitle, xCenter, yPosition, fontSize, displayWidth)
-    }
-  }, [getCurrentSubtitle, getCurrentWordIndex, style, videoWidth, videoHeight, canvasDimensions, isDragging, isHovering, getWrappedLines])
+  }, [getCurrentSubtitle, getCurrentWordIndex, style, videoWidth, videoHeight, canvasDimensions, isDragging, isHovering, getWrappedLines, localDragPosition])
 
   // Karaoke animation - highlight current word with multi-line support
   const renderKaraoke = (

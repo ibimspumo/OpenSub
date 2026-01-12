@@ -87,31 +87,8 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 }
 
 /**
- * Scale factor for style values to match editor preview appearance.
- * The editor uses DPR (Device Pixel Ratio) scaling via canvas transform,
- * which makes outlines and shadows appear thicker. We apply the same
- * scaling to style values here to ensure export matches the preview.
- * Default: 2 for Retina displays (standard on modern Macs)
- */
-const STYLE_SCALE = 2
-
-/**
- * Create a scaled copy of the style for export rendering
- * This scales outline width, shadow blur, and karaoke box padding
- * to match the visual appearance in the editor (which uses DPR scaling)
- */
-function scaleStyleForExport(style: SubtitleStyle): SubtitleStyle {
-  return {
-    ...style,
-    outlineWidth: style.outlineWidth * STYLE_SCALE,
-    shadowBlur: style.shadowBlur * STYLE_SCALE,
-    karaokeBoxPadding: style.karaokeBoxPadding * STYLE_SCALE,
-    karaokeBoxBorderRadius: style.karaokeBoxBorderRadius * STYLE_SCALE
-  }
-}
-
-/**
  * Render a single frame and return base64 PNG data
+ * Renders at video resolution using the same style values as the editor preview
  */
 async function renderFrame(task: RenderTask): Promise<string | null> {
   const { width, height, currentTime, subtitles, style } = task
@@ -129,32 +106,29 @@ async function renderFrame(task: RenderTask): Promise<string | null> {
 
   const currentWordIndex = getCurrentWordIndex(currentSubtitle, currentTime)
 
-  // Scale style values to match editor DPR behavior
-  const scaledStyle = scaleStyleForExport(style)
-
-  const fontSize = scaledStyle.fontSize
-  ctx.font = `${scaledStyle.fontWeight} ${fontSize}px ${scaledStyle.fontFamily}`
+  const fontSize = style.fontSize
+  ctx.font = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
 
-  const xCenter = width * scaledStyle.positionX
-  const yPosition = height * scaledStyle.positionY
+  const xCenter = width * style.positionX
+  const yPosition = height * style.positionY
 
-  switch (scaledStyle.animation) {
+  switch (style.animation) {
     case 'karaoke':
-      renderKaraoke(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, width, scaledStyle)
+      renderKaraoke(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, width, style)
       break
     case 'appear':
-      renderAppear(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, width, scaledStyle)
+      renderAppear(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, width, style)
       break
     case 'fade':
-      renderFade(ctx, currentSubtitle, currentTime, xCenter, yPosition, fontSize, width, scaledStyle)
+      renderFade(ctx, currentSubtitle, currentTime, xCenter, yPosition, fontSize, width, style)
       break
     case 'scale':
-      renderScale(ctx, currentSubtitle, currentWordIndex, currentTime, xCenter, yPosition, fontSize, width, scaledStyle)
+      renderScale(ctx, currentSubtitle, currentWordIndex, currentTime, xCenter, yPosition, fontSize, width, style)
       break
     default:
-      renderStatic(ctx, currentSubtitle, xCenter, yPosition, fontSize, width, scaledStyle)
+      renderStatic(ctx, currentSubtitle, xCenter, yPosition, fontSize, width, style)
   }
 
   // Convert to base64
@@ -261,13 +235,23 @@ function wrapText(
   return lines.slice(0, maxLines)
 }
 
+/**
+ * Apply text transform (uppercase) if configured
+ */
+function applyTextTransform(text: string, style: SubtitleStyle): string {
+  if (style.textTransform === 'uppercase') {
+    return text.toUpperCase()
+  }
+  return text
+}
+
 function getWrappedLines(
   ctx: OffscreenCanvasRenderingContext2D,
   subtitle: Subtitle,
   displayWidth: number,
   style: SubtitleStyle
 ): string[] {
-  const text = subtitle.words.map((w) => w.text).join(' ')
+  const text = applyTextTransform(subtitle.words.map((w) => w.text).join(' '), style)
   const maxWidthPx = displayWidth * style.maxWidth
   return wrapText(ctx, text, maxWidthPx, style.maxLines)
 }

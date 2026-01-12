@@ -36,42 +36,47 @@ export const DEFAULT_FONTS: FontInfo[] = [
 /**
  * Top 50 Google Fonts curated for subtitle use
  * These fonts are popular, readable, and work well for video subtitles
+ * Weights are set to all available weights for each font family
  */
 export const GOOGLE_FONTS: FontInfo[] = [
-  { family: 'Roboto', category: 'google', value: 'Roboto, sans-serif', weights: [400, 500, 700] },
-  { family: 'Open Sans', category: 'google', value: 'Open Sans, sans-serif', weights: [400, 600, 700] },
-  { family: 'Lato', category: 'google', value: 'Lato, sans-serif', weights: [400, 700, 900] },
-  { family: 'Montserrat', category: 'google', value: 'Montserrat, sans-serif', weights: [400, 500, 700] },
-  { family: 'Oswald', category: 'google', value: 'Oswald, sans-serif', weights: [400, 500, 700] },
-  { family: 'Poppins', category: 'google', value: 'Poppins, sans-serif', weights: [400, 500, 600, 700] },
-  { family: 'Raleway', category: 'google', value: 'Raleway, sans-serif', weights: [400, 500, 700] },
-  { family: 'Nunito', category: 'google', value: 'Nunito, sans-serif', weights: [400, 600, 700] },
-  { family: 'Ubuntu', category: 'google', value: 'Ubuntu, sans-serif', weights: [400, 500, 700] },
-  { family: 'Playfair Display', category: 'google', value: 'Playfair Display, serif', weights: [400, 700] },
-  { family: 'Merriweather', category: 'google', value: 'Merriweather, serif', weights: [400, 700] },
-  { family: 'Rubik', category: 'google', value: 'Rubik, sans-serif', weights: [400, 500, 700] },
-  { family: 'Work Sans', category: 'google', value: 'Work Sans, sans-serif', weights: [400, 500, 700] },
-  { family: 'Noto Sans', category: 'google', value: 'Noto Sans, sans-serif', weights: [400, 700] },
-  { family: 'Fira Sans', category: 'google', value: 'Fira Sans, sans-serif', weights: [400, 500, 700] },
-  { family: 'Quicksand', category: 'google', value: 'Quicksand, sans-serif', weights: [400, 500, 700] },
-  { family: 'Barlow', category: 'google', value: 'Barlow, sans-serif', weights: [400, 500, 700] },
-  { family: 'Mulish', category: 'google', value: 'Mulish, sans-serif', weights: [400, 600, 700] },
-  { family: 'Josefin Sans', category: 'google', value: 'Josefin Sans, sans-serif', weights: [400, 600, 700] },
-  { family: 'Archivo', category: 'google', value: 'Archivo, sans-serif', weights: [400, 500, 700] },
+  // Variable weight fonts (100-900)
+  { family: 'Roboto', category: 'google', value: 'Roboto, sans-serif', weights: [100, 300, 400, 500, 700, 900] },
+  { family: 'Open Sans', category: 'google', value: 'Open Sans, sans-serif', weights: [300, 400, 500, 600, 700, 800] },
+  { family: 'Lato', category: 'google', value: 'Lato, sans-serif', weights: [100, 300, 400, 700, 900] },
+  { family: 'Montserrat', category: 'google', value: 'Montserrat, sans-serif', weights: [100, 200, 300, 400, 500, 600, 700, 800, 900] },
+  { family: 'Oswald', category: 'google', value: 'Oswald, sans-serif', weights: [200, 300, 400, 500, 600, 700] },
+  { family: 'Poppins', category: 'google', value: 'Poppins, sans-serif', weights: [100, 200, 300, 400, 500, 600, 700, 800, 900] },
+  { family: 'Raleway', category: 'google', value: 'Raleway, sans-serif', weights: [100, 200, 300, 400, 500, 600, 700, 800, 900] },
+  { family: 'Nunito', category: 'google', value: 'Nunito, sans-serif', weights: [200, 300, 400, 500, 600, 700, 800, 900] },
+  { family: 'Ubuntu', category: 'google', value: 'Ubuntu, sans-serif', weights: [300, 400, 500, 700] },
+  { family: 'Playfair Display', category: 'google', value: 'Playfair Display, serif', weights: [400, 500, 600, 700, 800, 900] },
+  { family: 'Merriweather', category: 'google', value: 'Merriweather, serif', weights: [300, 400, 700, 900] },
+  { family: 'Rubik', category: 'google', value: 'Rubik, sans-serif', weights: [300, 400, 500, 600, 700, 800, 900] },
+  { family: 'Work Sans', category: 'google', value: 'Work Sans, sans-serif', weights: [100, 200, 300, 400, 500, 600, 700, 800, 900] },
+  { family: 'Noto Sans', category: 'google', value: 'Noto Sans, sans-serif', weights: [100, 200, 300, 400, 500, 600, 700, 800, 900] },
+  { family: 'Fira Sans', category: 'google', value: 'Fira Sans, sans-serif', weights: [100, 200, 300, 400, 500, 600, 700, 800, 900] },
+  { family: 'Quicksand', category: 'google', value: 'Quicksand, sans-serif', weights: [300, 400, 500, 600, 700] },
+  { family: 'Barlow', category: 'google', value: 'Barlow, sans-serif', weights: [100, 200, 300, 400, 500, 600, 700, 800, 900] },
+  { family: 'Mulish', category: 'google', value: 'Mulish, sans-serif', weights: [200, 300, 400, 500, 600, 700, 800, 900] },
+  { family: 'Josefin Sans', category: 'google', value: 'Josefin Sans, sans-serif', weights: [100, 200, 300, 400, 500, 600, 700] },
+  { family: 'Archivo', category: 'google', value: 'Archivo, sans-serif', weights: [100, 200, 300, 400, 500, 600, 700, 800, 900] },
+  // Single weight fonts (display/decorative)
   { family: 'Bebas Neue', category: 'google', value: 'Bebas Neue, sans-serif', weights: [400] },
   { family: 'Anton', category: 'google', value: 'Anton, sans-serif', weights: [400] },
-  { family: 'Cabin', category: 'google', value: 'Cabin, sans-serif', weights: [400, 500, 700] },
-  { family: 'Karla', category: 'google', value: 'Karla, sans-serif', weights: [400, 700] },
-  { family: 'Manrope', category: 'google', value: 'Manrope, sans-serif', weights: [400, 500, 700] },
-  { family: 'Space Grotesk', category: 'google', value: 'Space Grotesk, sans-serif', weights: [400, 500, 700] },
-  { family: 'DM Sans', category: 'google', value: 'DM Sans, sans-serif', weights: [400, 500, 700] },
-  { family: 'Inter Tight', category: 'google', value: 'Inter Tight, sans-serif', weights: [400, 500, 700] },
-  { family: 'Plus Jakarta Sans', category: 'google', value: 'Plus Jakarta Sans, sans-serif', weights: [400, 500, 700] },
-  { family: 'Outfit', category: 'google', value: 'Outfit, sans-serif', weights: [400, 500, 700] },
-  { family: 'Sora', category: 'google', value: 'Sora, sans-serif', weights: [400, 500, 700] },
-  { family: 'Lexend', category: 'google', value: 'Lexend, sans-serif', weights: [400, 500, 700] },
-  { family: 'Figtree', category: 'google', value: 'Figtree, sans-serif', weights: [400, 500, 700] },
-  { family: 'Comfortaa', category: 'google', value: 'Comfortaa, cursive', weights: [400, 500, 700] },
+  // Variable weight fonts continued
+  { family: 'Cabin', category: 'google', value: 'Cabin, sans-serif', weights: [400, 500, 600, 700] },
+  { family: 'Karla', category: 'google', value: 'Karla, sans-serif', weights: [200, 300, 400, 500, 600, 700, 800] },
+  { family: 'Manrope', category: 'google', value: 'Manrope, sans-serif', weights: [200, 300, 400, 500, 600, 700, 800] },
+  { family: 'Space Grotesk', category: 'google', value: 'Space Grotesk, sans-serif', weights: [300, 400, 500, 600, 700] },
+  { family: 'DM Sans', category: 'google', value: 'DM Sans, sans-serif', weights: [100, 200, 300, 400, 500, 600, 700, 800, 900] },
+  { family: 'Inter Tight', category: 'google', value: 'Inter Tight, sans-serif', weights: [100, 200, 300, 400, 500, 600, 700, 800, 900] },
+  { family: 'Plus Jakarta Sans', category: 'google', value: 'Plus Jakarta Sans, sans-serif', weights: [200, 300, 400, 500, 600, 700, 800] },
+  { family: 'Outfit', category: 'google', value: 'Outfit, sans-serif', weights: [100, 200, 300, 400, 500, 600, 700, 800, 900] },
+  { family: 'Sora', category: 'google', value: 'Sora, sans-serif', weights: [100, 200, 300, 400, 500, 600, 700, 800] },
+  { family: 'Lexend', category: 'google', value: 'Lexend, sans-serif', weights: [100, 200, 300, 400, 500, 600, 700, 800, 900] },
+  { family: 'Figtree', category: 'google', value: 'Figtree, sans-serif', weights: [300, 400, 500, 600, 700, 800, 900] },
+  { family: 'Comfortaa', category: 'google', value: 'Comfortaa, cursive', weights: [300, 400, 500, 600, 700] },
+  // Single weight decorative fonts
   { family: 'Righteous', category: 'google', value: 'Righteous, cursive', weights: [400] },
   { family: 'Permanent Marker', category: 'google', value: 'Permanent Marker, cursive', weights: [400] },
   { family: 'Bangers', category: 'google', value: 'Bangers, cursive', weights: [400] },
@@ -79,8 +84,9 @@ export const GOOGLE_FONTS: FontInfo[] = [
   { family: 'Russo One', category: 'google', value: 'Russo One, sans-serif', weights: [400] },
   { family: 'Fredoka One', category: 'google', value: 'Fredoka One, cursive', weights: [400] },
   { family: 'Pacifico', category: 'google', value: 'Pacifico, cursive', weights: [400] },
-  { family: 'Dancing Script', category: 'google', value: 'Dancing Script, cursive', weights: [400, 700] },
-  { family: 'Caveat', category: 'google', value: 'Caveat, cursive', weights: [400, 700] },
+  // Script/handwriting fonts with limited weights
+  { family: 'Dancing Script', category: 'google', value: 'Dancing Script, cursive', weights: [400, 500, 600, 700] },
+  { family: 'Caveat', category: 'google', value: 'Caveat, cursive', weights: [400, 500, 600, 700] },
   { family: 'Shadows Into Light', category: 'google', value: 'Shadows Into Light, cursive', weights: [400] },
   { family: 'Indie Flower', category: 'google', value: 'Indie Flower, cursive', weights: [400] },
   { family: 'Lobster', category: 'google', value: 'Lobster, cursive', weights: [400] },
@@ -91,9 +97,9 @@ export const GOOGLE_FONTS: FontInfo[] = [
 ]
 
 /**
- * Cache for loaded Google Fonts to avoid duplicate loads
+ * Cache for loaded Google Fonts - stores which weights have been loaded per family
  */
-const loadedFonts = new Set<string>()
+const loadedFontWeights = new Map<string, Set<number>>()
 
 /**
  * Cache for loading promises to prevent duplicate loading requests
@@ -102,69 +108,91 @@ const loadingPromises = new Map<string, Promise<void>>()
 
 /**
  * Build the Google Fonts URL for a specific font family
+ * Uses the modern Google Fonts CSS2 API format
  * @param family - The font family name
- * @param weights - Optional array of weights to load (default: [400, 700])
+ * @param weights - Array of weights to load
  * @returns The Google Fonts CSS URL
  */
-export function buildGoogleFontsUrl(family: string, weights: number[] = [400, 700]): string {
+export function buildGoogleFontsUrl(family: string, weights: number[]): string {
   const encodedFamily = encodeURIComponent(family)
-  const weightsStr = weights.join(';')
+  // Sort weights and join with semicolons for CSS2 API
+  const sortedWeights = [...weights].sort((a, b) => a - b)
+  const weightsStr = sortedWeights.join(';')
   return `https://fonts.googleapis.com/css2?family=${encodedFamily}:wght@${weightsStr}&display=swap`
 }
 
 /**
- * Load a Google Font dynamically
+ * Load a Google Font dynamically with all its weights
  * @param family - The font family name to load
- * @param weights - Optional array of weights to load
+ * @param weights - Optional array of weights to load (uses all available if not specified)
  * @returns Promise that resolves when the font is loaded
  */
 export async function loadGoogleFont(family: string, weights?: number[]): Promise<void> {
-  // Check if already loaded
-  if (loadedFonts.has(family)) {
-    return
-  }
-
-  // Check if currently loading
-  const existingPromise = loadingPromises.get(family)
-  if (existingPromise) {
-    return existingPromise
-  }
-
   // Find the font info to get default weights
   const fontInfo = GOOGLE_FONTS.find((f) => f.family === family)
   const fontWeights = weights || fontInfo?.weights || [400, 700]
 
-  // Create the loading promise
+  // Check which weights are already loaded
+  const loadedWeights = loadedFontWeights.get(family) || new Set<number>()
+  const weightsToLoad = fontWeights.filter(w => !loadedWeights.has(w))
+
+  // If all weights are already loaded, return immediately
+  if (weightsToLoad.length === 0) {
+    return
+  }
+
+  // Create a unique key for this specific weight combination
+  const cacheKey = `${family}:${weightsToLoad.sort().join(',')}`
+
+  // Check if currently loading these weights
+  const existingPromise = loadingPromises.get(cacheKey)
+  if (existingPromise) {
+    return existingPromise
+  }
+
+  // Create the loading promise - load ALL weights at once for this font
+  const allWeightsToLoad = fontWeights // Always load all defined weights
   const loadPromise = new Promise<void>((resolve, reject) => {
     const link = document.createElement('link')
     link.rel = 'stylesheet'
-    link.href = buildGoogleFontsUrl(family, fontWeights)
+    link.href = buildGoogleFontsUrl(family, allWeightsToLoad)
+    link.id = `google-font-${family.replace(/\s+/g, '-').toLowerCase()}`
+
+    // Remove any existing link for this font (to reload with all weights)
+    const existingLink = document.getElementById(link.id)
+    if (existingLink) {
+      existingLink.remove()
+    }
 
     link.onload = () => {
-      loadedFonts.add(family)
-      loadingPromises.delete(family)
+      // Mark all weights as loaded
+      const newLoadedWeights = loadedFontWeights.get(family) || new Set<number>()
+      allWeightsToLoad.forEach(w => newLoadedWeights.add(w))
+      loadedFontWeights.set(family, newLoadedWeights)
+      loadingPromises.delete(cacheKey)
       resolve()
     }
 
     link.onerror = () => {
-      loadingPromises.delete(family)
+      loadingPromises.delete(cacheKey)
       reject(new Error(`Failed to load font: ${family}`))
     }
 
     document.head.appendChild(link)
   })
 
-  loadingPromises.set(family, loadPromise)
+  loadingPromises.set(cacheKey, loadPromise)
   return loadPromise
 }
 
 /**
- * Check if a Google Font is already loaded
+ * Check if a Google Font is already loaded (with at least some weights)
  * @param family - The font family name
  * @returns true if the font is loaded
  */
 export function isFontLoaded(family: string): boolean {
-  return loadedFonts.has(family)
+  const loadedWeights = loadedFontWeights.get(family)
+  return loadedWeights !== undefined && loadedWeights.size > 0
 }
 
 /**
@@ -173,7 +201,13 @@ export function isFontLoaded(family: string): boolean {
  * @returns true if the font is loading
  */
 export function isFontLoading(family: string): boolean {
-  return loadingPromises.has(family)
+  // Check if any loading promise exists for this font family
+  for (const key of loadingPromises.keys()) {
+    if (key.startsWith(family + ':')) {
+      return true
+    }
+  }
+  return false
 }
 
 /**
@@ -278,4 +312,55 @@ export function getAllFonts(systemFonts: string[] = []): {
 export async function preloadPopularFonts(count: number = 10): Promise<void> {
   const popularFonts = GOOGLE_FONTS.slice(0, count)
   await Promise.all(popularFonts.map((font) => loadGoogleFont(font.family, font.weights)))
+}
+
+/**
+ * Standard font weight labels for display
+ */
+export const FONT_WEIGHT_LABELS: Record<number, string> = {
+  100: 'Thin',
+  200: 'Extra Light',
+  300: 'Light',
+  400: 'Regular',
+  500: 'Medium',
+  600: 'Semi Bold',
+  700: 'Bold',
+  800: 'Extra Bold',
+  900: 'Black'
+}
+
+/**
+ * Get available weights for a font based on its CSS font-family value
+ * @param fontValue - The CSS font-family value (e.g., "Roboto, sans-serif")
+ * @returns Array of available weights, or default [400, 700] if unknown
+ */
+export function getAvailableWeights(fontValue: string): number[] {
+  // Check Google fonts first (they have defined weights)
+  const googleFont = GOOGLE_FONTS.find((f) => f.value === fontValue)
+  if (googleFont && googleFont.weights) {
+    return googleFont.weights
+  }
+
+  // For default and system fonts, assume standard weights are available
+  const isDefaultFont = DEFAULT_FONTS.some((f) => f.value === fontValue)
+  if (isDefaultFont) {
+    // Most system fonts support these common weights
+    return [400, 700]
+  }
+
+  // For system fonts or unknown fonts, provide common weight options
+  return [400, 700]
+}
+
+/**
+ * Get weight options formatted for a dropdown selector
+ * @param fontValue - The CSS font-family value
+ * @returns Array of { value, label } options for the dropdown
+ */
+export function getWeightOptions(fontValue: string): { value: number; label: string }[] {
+  const weights = getAvailableWeights(fontValue)
+  return weights.map((weight) => ({
+    value: weight,
+    label: FONT_WEIGHT_LABELS[weight] || `${weight}`
+  }))
 }

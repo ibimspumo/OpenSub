@@ -1,9 +1,10 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useProjectStore } from '../../store/projectStore'
-import type { AnimationType, SubtitlePosition, SubtitleStyle } from '../../../shared/types'
+import type { AnimationType, SubtitlePosition, SubtitleStyle, FontWeight } from '../../../shared/types'
 import { DEFAULT_SUBTITLE_STYLE } from '../../../shared/types'
 import StyleProfileSelector from './StyleProfileSelector'
 import FontSelector from './FontSelector'
+import { getWeightOptions, getAvailableWeights } from '../../utils/fontLoader'
 
 // Collapsible section component with smooth animations
 interface CollapsibleSectionProps {
@@ -22,7 +23,7 @@ function CollapsibleSection({
   const [isOpen, setIsOpen] = useState(defaultOpen)
 
   return (
-    <div className="overflow-hidden">
+    <div className={isOpen ? 'overflow-visible' : 'overflow-hidden'}>
       {/* Section header */}
       <button
         onClick={() => setIsOpen(!isOpen)}
@@ -100,7 +101,7 @@ function CollapsibleSection({
   )
 }
 
-// Premium slider component
+// Premium slider component - commits value only on release to avoid excessive auto-saves
 interface PremiumSliderProps {
   label: string
   value: number
@@ -120,7 +121,35 @@ function PremiumSlider({
   unit = '',
   onChange
 }: PremiumSliderProps) {
-  const percentage = ((value - min) / (max - min)) * 100
+  // Local state for smooth dragging without triggering auto-save
+  const [localValue, setLocalValue] = useState(value)
+  const isDragging = useRef(false)
+
+  // Sync local value with prop when not dragging
+  useEffect(() => {
+    if (!isDragging.current) {
+      setLocalValue(value)
+    }
+  }, [value])
+
+  const percentage = ((localValue - min) / (max - min)) * 100
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = parseFloat(e.target.value)
+    setLocalValue(newValue)
+  }
+
+  const handlePointerDown = () => {
+    isDragging.current = true
+  }
+
+  const handlePointerUp = () => {
+    isDragging.current = false
+    // Commit the value to the store only when releasing
+    if (localValue !== value) {
+      onChange(localValue)
+    }
+  }
 
   return (
     <div className="space-y-2">
@@ -129,7 +158,7 @@ function PremiumSlider({
           {label}
         </label>
         <span className="text-xs font-mono text-dark-300 bg-dark-800/60 px-2 py-0.5 rounded-md">
-          {value}{unit}
+          {localValue}{unit}
         </span>
       </div>
       <div className="relative group">
@@ -147,8 +176,11 @@ function PremiumSlider({
           min={min}
           max={max}
           step={step}
-          value={value}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
+          value={localValue}
+          onChange={handleChange}
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         />
         {/* Thumb indicator */}
@@ -415,6 +447,7 @@ export default function StyleEditor() {
         fontFamily: profileStyle.fontFamily,
         fontSize: profileStyle.fontSize,
         fontWeight: profileStyle.fontWeight,
+        textTransform: profileStyle.textTransform,
         color: profileStyle.color,
         highlightColor: profileStyle.highlightColor,
         backgroundColor: profileStyle.backgroundColor,
@@ -441,10 +474,14 @@ export default function StyleEditor() {
 
   const { style } = project
 
-  const weightOptions = [
-    { value: 'normal', label: 'Normal' },
-    { value: 'bold', label: 'Fett' }
-  ]
+  // Get available font weights for the current font family
+  const weightOptions = useMemo(() => {
+    const options = getWeightOptions(style.fontFamily)
+    return options.map(opt => ({
+      value: String(opt.value),
+      label: opt.label
+    }))
+  }, [style.fontFamily])
 
   const positionOptions: { value: SubtitlePosition; label: string }[] = [
     { value: 'top', label: 'Oben' },
@@ -489,7 +526,26 @@ export default function StyleEditor() {
         <CollapsibleSection title="Typografie" icon={<FontIcon />} defaultOpen={true}>
           <FontSelector
             value={style.fontFamily}
-            onChange={(value) => handleUpdateStyle({ fontFamily: value })}
+            onChange={(value) => {
+              // Get available weights for the new font
+              const availableWeights = getAvailableWeights(value)
+              // Get current weight as number
+              const currentWeight = typeof style.fontWeight === 'number'
+                ? style.fontWeight
+                : style.fontWeight === 'bold' ? 700 : 400
+
+              // Check if current weight is available in new font
+              const updates: Partial<SubtitleStyle> = { fontFamily: value }
+              if (!availableWeights.includes(currentWeight)) {
+                // Find closest available weight
+                const closestWeight = availableWeights.reduce((prev, curr) =>
+                  Math.abs(curr - currentWeight) < Math.abs(prev - currentWeight) ? curr : prev
+                )
+                updates.fontWeight = closestWeight as FontWeight
+              }
+
+              handleUpdateStyle(updates)
+            }}
           />
 
           <div className="grid grid-cols-2 gap-3">
@@ -504,12 +560,37 @@ export default function StyleEditor() {
 
             <PremiumSelect
               label="Gewicht"
-              value={style.fontWeight}
+              value={String(style.fontWeight)}
               options={weightOptions}
               onChange={(value) =>
-                handleUpdateStyle({ fontWeight: value as 'normal' | 'bold' })
+                handleUpdateStyle({ fontWeight: parseInt(value, 10) as FontWeight })
               }
             />
+          </div>
+
+          {/* Uppercase Toggle */}
+          <div className="flex items-center justify-between">
+            <label className="text-[11px] font-medium text-dark-400 uppercase tracking-wider">
+              Versalien (Großbuchstaben)
+            </label>
+            <button
+              onClick={() => handleUpdateStyle({ textTransform: style.textTransform === 'uppercase' ? 'none' : 'uppercase' })}
+              className={`
+                relative w-10 h-5 rounded-full transition-all duration-200
+                ${style.textTransform === 'uppercase'
+                  ? 'bg-primary-600'
+                  : 'bg-dark-700 border border-white/[0.08]'
+                }
+              `}
+            >
+              <div
+                className={`
+                  absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-md
+                  transition-all duration-200 ease-spring
+                  ${style.textTransform === 'uppercase' ? 'left-5' : 'left-0.5'}
+                `}
+              />
+            </button>
           </div>
         </CollapsibleSection>
 
@@ -543,7 +624,7 @@ export default function StyleEditor() {
               label="Umriss-Breite"
               value={style.outlineWidth}
               min={0}
-              max={6}
+              max={50}
               step={1}
               unit="px"
               onChange={(value) => handleUpdateStyle({ outlineWidth: value })}
@@ -676,7 +757,7 @@ export default function StyleEditor() {
                       label="Innenabstand"
                       value={style.karaokeBoxPadding}
                       min={0}
-                      max={16}
+                      max={100}
                       step={1}
                       unit="px"
                       onChange={(value) => handleUpdateStyle({ karaokeBoxPadding: value })}
@@ -686,7 +767,7 @@ export default function StyleEditor() {
                       label="Ecken-Radius"
                       value={style.karaokeBoxBorderRadius}
                       min={0}
-                      max={16}
+                      max={300}
                       step={1}
                       unit="px"
                       onChange={(value) => handleUpdateStyle({ karaokeBoxBorderRadius: value })}
@@ -726,7 +807,7 @@ export default function StyleEditor() {
             label="Schatten-Stärke"
             value={style.shadowBlur}
             min={0}
-            max={20}
+            max={100}
             step={1}
             unit="px"
             onChange={(value) => handleUpdateStyle({ shadowBlur: value })}
@@ -762,6 +843,7 @@ export default function StyleEditor() {
               fontFamily: DEFAULT_SUBTITLE_STYLE.fontFamily,
               fontSize: DEFAULT_SUBTITLE_STYLE.fontSize,
               fontWeight: DEFAULT_SUBTITLE_STYLE.fontWeight,
+              textTransform: DEFAULT_SUBTITLE_STYLE.textTransform,
               color: DEFAULT_SUBTITLE_STYLE.color,
               highlightColor: DEFAULT_SUBTITLE_STYLE.highlightColor,
               backgroundColor: DEFAULT_SUBTITLE_STYLE.backgroundColor,
