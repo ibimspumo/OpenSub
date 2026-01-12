@@ -1,0 +1,32 @@
+appId: com.opensub.editor
+productName: OpenSub
+directories:
+  output: dist-electron
+  buildResources: resources
+
+mac:
+  category: public.app-category.video
+  target:
+    - target: dmg
+      arch: arm64
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  icon: resources/icon.icns
+
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+extraResources:
+  - from: python-service
+    to: python-service
+    filter:
+      - "**/*"
+      - "!.venv/**"
+      - "!__pycache__/**"
+      - "!*.pyc"
