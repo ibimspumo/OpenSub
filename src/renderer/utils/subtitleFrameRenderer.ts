@@ -14,6 +14,30 @@ import { getWorkerPool, terminateWorkerPool as _terminateWorkerPool, type FrameR
 // Re-export for cleanup
 export const cleanupWorkerPool = _terminateWorkerPool
 
+/**
+ * Scale factor for style values to match editor preview appearance.
+ * The editor uses DPR (Device Pixel Ratio) scaling via canvas transform,
+ * which makes outlines and shadows appear thicker. We apply the same
+ * scaling to style values here to ensure export matches the preview.
+ * Default: 2 for Retina displays (standard on modern Macs)
+ */
+const STYLE_SCALE = 2
+
+/**
+ * Create a scaled copy of the style for export rendering
+ * This scales outline width, shadow blur, and karaoke box padding
+ * to match the visual appearance in the editor (which uses DPR scaling)
+ */
+function scaleStyleForExport(style: SubtitleStyle): SubtitleStyle {
+  return {
+    ...style,
+    outlineWidth: style.outlineWidth * STYLE_SCALE,
+    shadowBlur: style.shadowBlur * STYLE_SCALE,
+    karaokeBoxPadding: style.karaokeBoxPadding * STYLE_SCALE,
+    karaokeBoxBorderRadius: style.karaokeBoxBorderRadius * STYLE_SCALE
+  }
+}
+
 interface RenderOptions {
   width: number
   height: number
@@ -525,29 +549,32 @@ export async function renderSubtitleFrameAsBlob(options: RenderOptions): Promise
 
   const currentWordIndex = getCurrentWordIndex(currentSubtitle, currentTime)
 
-  const fontSize = style.fontSize
-  ctx.font = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`
+  // Scale style values to match editor DPR behavior
+  const scaledStyle = scaleStyleForExport(style)
+
+  const fontSize = scaledStyle.fontSize
+  ctx.font = `${scaledStyle.fontWeight} ${fontSize}px ${scaledStyle.fontFamily}`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
 
-  const xCenter = width * style.positionX
-  const yPosition = height * style.positionY
+  const xCenter = width * scaledStyle.positionX
+  const yPosition = height * scaledStyle.positionY
 
-  switch (style.animation) {
+  switch (scaledStyle.animation) {
     case 'karaoke':
-      renderKaraoke(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, width, style)
+      renderKaraoke(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, width, scaledStyle)
       break
     case 'appear':
-      renderAppear(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, width, style)
+      renderAppear(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, width, scaledStyle)
       break
     case 'fade':
-      renderFade(ctx, currentSubtitle, currentTime, xCenter, yPosition, fontSize, width, style)
+      renderFade(ctx, currentSubtitle, currentTime, xCenter, yPosition, fontSize, width, scaledStyle)
       break
     case 'scale':
-      renderScale(ctx, currentSubtitle, currentWordIndex, currentTime, xCenter, yPosition, fontSize, width, style)
+      renderScale(ctx, currentSubtitle, currentWordIndex, currentTime, xCenter, yPosition, fontSize, width, scaledStyle)
       break
     default:
-      renderStatic(ctx, currentSubtitle, xCenter, yPosition, fontSize, width, style)
+      renderStatic(ctx, currentSubtitle, xCenter, yPosition, fontSize, width, scaledStyle)
   }
 
   return canvas.convertToBlob({ type: 'image/png' })
