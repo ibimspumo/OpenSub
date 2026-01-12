@@ -48,6 +48,10 @@ temp_subtitles_*.ass
 
 # Test
 coverage/
+test-results/
+playwright-report/
+playwright/.cache/
+tests/**/*.spec.ts-snapshots/
 
 # Cache
 .cache/

@@ -89,7 +89,71 @@ export default function SubtitleCanvas({
     return { x: snappedX, y: snappedY }
   }, [])
 
-  // Get subtitle bounds for hit testing
+  // Wrap text into multiple lines based on maxWidth and maxLines
+  const wrapText = useCallback((
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    maxWidthPx: number,
+    maxLines: number
+  ): string[] => {
+    const words = text.split(' ')
+    const lines: string[] = []
+    let currentLine = ''
+
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word
+      const metrics = ctx.measureText(testLine)
+
+      if (metrics.width > maxWidthPx && currentLine) {
+        lines.push(currentLine)
+        currentLine = word
+
+        // Stop if we've reached max lines
+        if (lines.length >= maxLines) {
+          // Add remaining words to last line with ellipsis if needed
+          const remainingWords = words.slice(words.indexOf(word))
+          const lastLine = remainingWords.join(' ')
+          if (ctx.measureText(lastLine).width > maxWidthPx) {
+            // Truncate with ellipsis
+            let truncated = lines[lines.length - 1]
+            for (const remaining of remainingWords) {
+              const testTruncated = `${truncated} ${remaining}`
+              if (ctx.measureText(testTruncated + '...').width <= maxWidthPx) {
+                truncated = testTruncated
+              } else {
+                break
+              }
+            }
+            lines[lines.length - 1] = truncated
+          } else {
+            lines[lines.length - 1] = lastLine
+          }
+          return lines.slice(0, maxLines)
+        }
+      } else {
+        currentLine = testLine
+      }
+    }
+
+    if (currentLine) {
+      lines.push(currentLine)
+    }
+
+    return lines.slice(0, maxLines)
+  }, [])
+
+  // Get wrapped lines for current subtitle
+  const getWrappedLines = useCallback((
+    ctx: CanvasRenderingContext2D,
+    subtitle: Subtitle,
+    displayWidth: number
+  ): string[] => {
+    const text = subtitle.words.map((w) => w.text).join(' ')
+    const maxWidthPx = displayWidth * style.maxWidth
+    return wrapText(ctx, text, maxWidthPx, style.maxLines)
+  }, [style.maxWidth, style.maxLines, wrapText])
+
+  // Get subtitle bounds for hit testing (supports multi-line text boxes)
   const getSubtitleBounds = useCallback(() => {
     const currentSubtitle = getCurrentSubtitle()
     if (!currentSubtitle || currentSubtitle.words.length === 0) return null
@@ -110,20 +174,26 @@ export default function SubtitleCanvas({
 
     ctx.font = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`
 
-    const text = currentSubtitle.words.map((w) => w.text).join(' ')
-    const textWidth = ctx.measureText(text).width
-    const textHeight = fontSize * 1.5
+    // Get wrapped lines for multi-line support
+    const lines = getWrappedLines(ctx, currentSubtitle, displayWidth)
+    const lineHeight = fontSize * 1.4
+    const totalHeight = lines.length * lineHeight
+
+    // Find the maximum line width
+    const maxLineWidth = Math.max(...lines.map(line => ctx.measureText(line).width))
 
     const xCenter = displayWidth * style.positionX
     const yCenter = displayHeight * style.positionY
 
+    const padding = 15
+
     return {
-      x: xCenter - textWidth / 2 - 20,
-      y: yCenter - textHeight / 2 - 10,
-      width: textWidth + 40,
-      height: textHeight + 20
+      x: xCenter - maxLineWidth / 2 - padding,
+      y: yCenter - totalHeight / 2 - padding,
+      width: maxLineWidth + padding * 2,
+      height: totalHeight + padding * 2
     }
-  }, [getCurrentSubtitle, canvasDimensions, videoWidth, videoHeight, style])
+  }, [getCurrentSubtitle, canvasDimensions, videoWidth, videoHeight, style, getWrappedLines])
 
   // Mouse event handlers
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -270,10 +340,12 @@ export default function SubtitleCanvas({
     const xCenter = displayWidth * style.positionX
     const yPosition = displayHeight * style.positionY
 
-    // Draw hover/drag indicator
+    // Draw hover/drag indicator with multi-line support
     if (isHovering || isDragging) {
-      const text = currentSubtitle.words.map((w) => w.text).join(' ')
-      const textWidth = ctx.measureText(text).width
+      const lines = getWrappedLines(ctx, currentSubtitle, displayWidth)
+      const lineHeight = fontSize * 1.4
+      const totalHeight = lines.length * lineHeight
+      const maxLineWidth = Math.max(...lines.map(line => ctx.measureText(line).width))
       const padding = 15
 
       ctx.save()
@@ -281,10 +353,10 @@ export default function SubtitleCanvas({
       ctx.lineWidth = 2
       ctx.setLineDash(isDragging ? [] : [5, 5])
       ctx.strokeRect(
-        xCenter - textWidth / 2 - padding,
-        yPosition - fontSize / 2 - padding,
-        textWidth + padding * 2,
-        fontSize + padding * 2
+        xCenter - maxLineWidth / 2 - padding,
+        yPosition - totalHeight / 2 - padding,
+        maxLineWidth + padding * 2,
+        totalHeight + padding * 2
       )
       ctx.restore()
     }
@@ -292,104 +364,191 @@ export default function SubtitleCanvas({
     // Render based on animation type
     switch (style.animation) {
       case 'karaoke':
-        renderKaraoke(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize)
+        renderKaraoke(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, displayWidth)
         break
       case 'appear':
-        renderAppear(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize)
+        renderAppear(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, displayWidth)
         break
       case 'fade':
-        renderFade(ctx, currentSubtitle, xCenter, yPosition, fontSize)
+        renderFade(ctx, currentSubtitle, xCenter, yPosition, fontSize, displayWidth)
         break
       case 'scale':
-        renderScale(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize)
+        renderScale(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, displayWidth)
         break
       default:
-        renderStatic(ctx, currentSubtitle, xCenter, yPosition, fontSize)
+        renderStatic(ctx, currentSubtitle, xCenter, yPosition, fontSize, displayWidth)
     }
-  }, [getCurrentSubtitle, getCurrentWordIndex, style, videoWidth, videoHeight, canvasDimensions, isDragging, isHovering])
+  }, [getCurrentSubtitle, getCurrentWordIndex, style, videoWidth, videoHeight, canvasDimensions, isDragging, isHovering, getWrappedLines])
 
-  // Karaoke animation - highlight current word
+  // Karaoke animation - highlight current word with multi-line support
   const renderKaraoke = (
     ctx: CanvasRenderingContext2D,
     subtitle: Subtitle,
     currentWordIndex: number,
     x: number,
     y: number,
-    fontSize: number
+    fontSize: number,
+    displayWidth: number
   ) => {
-    const text = subtitle.words.map((w) => w.text).join(' ')
-    const totalWidth = ctx.measureText(text).width
+    const lines = getWrappedLines(ctx, subtitle, displayWidth)
+    const lineHeight = fontSize * 1.4
+    const totalHeight = lines.length * lineHeight
+    const startY = y - (totalHeight - lineHeight) / 2
 
-    let currentX = x - totalWidth / 2
+    // Build word-to-line mapping
+    let wordIndex = 0
+    const wordLineMap: { line: number; wordInLine: number }[] = []
 
-    subtitle.words.forEach((word, index) => {
-      const wordWidth = ctx.measureText(word.text + ' ').width
-      const wordX = currentX + wordWidth / 2
+    lines.forEach((line, lineIndex) => {
+      const lineWords = line.split(' ')
+      lineWords.forEach((_, wordInLineIndex) => {
+        wordLineMap.push({ line: lineIndex, wordInLine: wordInLineIndex })
+        wordIndex++
+      })
+    })
 
-      const isPast = index < currentWordIndex
-      const isCurrent = index === currentWordIndex
+    // Helper function to draw rounded rectangle
+    const drawRoundedRect = (
+      ctx: CanvasRenderingContext2D,
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+      radius: number
+    ) => {
+      ctx.beginPath()
+      ctx.moveTo(x + radius, y)
+      ctx.lineTo(x + width - radius, y)
+      ctx.quadraticCurveTo(x + width, y, x + width, y + radius)
+      ctx.lineTo(x + width, y + height - radius)
+      ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height)
+      ctx.lineTo(x + radius, y + height)
+      ctx.quadraticCurveTo(x, y + height, x, y + height - radius)
+      ctx.lineTo(x, y + radius)
+      ctx.quadraticCurveTo(x, y, x + radius, y)
+      ctx.closePath()
+    }
 
-      ctx.strokeStyle = style.outlineColor
-      ctx.lineWidth = style.outlineWidth * 2
-      ctx.lineJoin = 'round'
+    // Render each line
+    lines.forEach((line, lineIndex) => {
+      const lineY = startY + lineIndex * lineHeight
+      const lineWords = line.split(' ')
+      const lineWidth = ctx.measureText(line).width
+      let currentX = x - lineWidth / 2
 
-      if (isCurrent) {
-        ctx.shadowColor = style.highlightColor
-        ctx.shadowBlur = 10
-      } else {
-        ctx.shadowColor = style.shadowColor
-        ctx.shadowBlur = style.shadowBlur
-      }
+      lineWords.forEach((wordText, wordInLineIndex) => {
+        // Find the global word index for this word
+        const globalWordIndex = wordLineMap.findIndex(
+          (w) => w.line === lineIndex && w.wordInLine === wordInLineIndex
+        )
 
-      ctx.strokeText(word.text, wordX, y)
+        const wordWidth = ctx.measureText(wordText).width
+        const spaceWidth = wordInLineIndex < lineWords.length - 1 ? ctx.measureText(' ').width : 0
+        const wordX = currentX + wordWidth / 2
 
-      ctx.fillStyle = isCurrent ? style.highlightColor : isPast ? style.color : style.color
-      ctx.globalAlpha = isPast || isCurrent ? 1 : 0.6
-      ctx.fillText(word.text, wordX, y)
-      ctx.globalAlpha = 1
+        const isPast = globalWordIndex < currentWordIndex
+        const isCurrent = globalWordIndex === currentWordIndex
 
-      ctx.shadowBlur = 0
-      currentX += wordWidth
+        // Draw karaoke box behind the current word if enabled
+        if (isCurrent && style.karaokeBoxEnabled) {
+          ctx.save()
+          const padding = style.karaokeBoxPadding
+          const boxX = currentX - padding
+          const boxY = lineY - fontSize / 2 - padding
+          const boxWidth = wordWidth + padding * 2
+          const boxHeight = fontSize + padding * 2
+          const borderRadius = Math.min(style.karaokeBoxBorderRadius, boxHeight / 2, boxWidth / 2)
+
+          ctx.fillStyle = style.karaokeBoxColor
+          ctx.shadowColor = 'transparent'
+          ctx.shadowBlur = 0
+
+          drawRoundedRect(ctx, boxX, boxY, boxWidth, boxHeight, borderRadius)
+          ctx.fill()
+          ctx.restore()
+        }
+
+        ctx.strokeStyle = style.outlineColor
+        ctx.lineWidth = style.outlineWidth * 2
+        ctx.lineJoin = 'round'
+
+        if (isCurrent) {
+          ctx.shadowColor = style.highlightColor
+          ctx.shadowBlur = 10
+        } else {
+          ctx.shadowColor = style.shadowColor
+          ctx.shadowBlur = style.shadowBlur
+        }
+
+        ctx.strokeText(wordText, wordX, lineY)
+
+        ctx.fillStyle = isCurrent ? style.highlightColor : isPast ? style.color : style.color
+        ctx.globalAlpha = isPast || isCurrent ? 1 : 0.6
+        ctx.fillText(wordText, wordX, lineY)
+        ctx.globalAlpha = 1
+
+        ctx.shadowBlur = 0
+        currentX += wordWidth + spaceWidth
+      })
     })
   }
 
-  // Appear animation - words appear one by one
+  // Appear animation - words appear one by one with multi-line support
   const renderAppear = (
     ctx: CanvasRenderingContext2D,
     subtitle: Subtitle,
     currentWordIndex: number,
     x: number,
     y: number,
-    fontSize: number
+    fontSize: number,
+    displayWidth: number
   ) => {
     const visibleWords = subtitle.words.slice(0, currentWordIndex + 1)
-    const text = visibleWords.map((w) => w.text).join(' ')
+    if (visibleWords.length === 0) return
 
-    if (text.length === 0) return
+    // Create a temporary subtitle with only visible words
+    const visibleSubtitle = {
+      ...subtitle,
+      words: visibleWords
+    }
+
+    const lines = getWrappedLines(ctx, visibleSubtitle, displayWidth)
+    const lineHeight = fontSize * 1.4
+
+    // Get full lines for consistent vertical positioning
+    const fullLines = getWrappedLines(ctx, subtitle, displayWidth)
+    const totalHeight = fullLines.length * lineHeight
+    const startY = y - (totalHeight - lineHeight) / 2
 
     ctx.shadowColor = style.shadowColor
     ctx.shadowBlur = style.shadowBlur
-
     ctx.strokeStyle = style.outlineColor
     ctx.lineWidth = style.outlineWidth * 2
     ctx.lineJoin = 'round'
-    ctx.strokeText(text, x, y)
 
-    ctx.fillStyle = style.color
-    ctx.fillText(text, x, y)
+    lines.forEach((line, index) => {
+      const lineY = startY + index * lineHeight
+      ctx.strokeText(line, x, lineY)
+      ctx.fillStyle = style.color
+      ctx.fillText(line, x, lineY)
+    })
 
     ctx.shadowBlur = 0
   }
 
-  // Fade animation
+  // Fade animation with multi-line support
   const renderFade = (
     ctx: CanvasRenderingContext2D,
     subtitle: Subtitle,
     x: number,
     y: number,
-    fontSize: number
+    fontSize: number,
+    displayWidth: number
   ) => {
-    const text = subtitle.words.map((w) => w.text).join(' ')
+    const lines = getWrappedLines(ctx, subtitle, displayWidth)
+    const lineHeight = fontSize * 1.4
+    const totalHeight = lines.length * lineHeight
+    const startY = y - (totalHeight - lineHeight) / 2
 
     const fadeInDuration = 0.3
     const fadeOutDuration = 0.3
@@ -405,89 +564,127 @@ export default function SubtitleCanvas({
     }
 
     ctx.globalAlpha = alpha
-
     ctx.shadowColor = style.shadowColor
     ctx.shadowBlur = style.shadowBlur
-
     ctx.strokeStyle = style.outlineColor
     ctx.lineWidth = style.outlineWidth * 2
     ctx.lineJoin = 'round'
-    ctx.strokeText(text, x, y)
 
-    ctx.fillStyle = style.color
-    ctx.fillText(text, x, y)
+    lines.forEach((line, index) => {
+      const lineY = startY + index * lineHeight
+      ctx.strokeText(line, x, lineY)
+      ctx.fillStyle = style.color
+      ctx.fillText(line, x, lineY)
+    })
 
     ctx.globalAlpha = 1
     ctx.shadowBlur = 0
   }
 
-  // Scale animation
+  // Scale animation with multi-line support
   const renderScale = (
     ctx: CanvasRenderingContext2D,
     subtitle: Subtitle,
     currentWordIndex: number,
     x: number,
     y: number,
-    fontSize: number
+    fontSize: number,
+    displayWidth: number
   ) => {
-    const text = subtitle.words.map((w) => w.text).join(' ')
-    const totalWidth = ctx.measureText(text).width
+    const lines = getWrappedLines(ctx, subtitle, displayWidth)
+    const lineHeight = fontSize * 1.4
+    const totalHeight = lines.length * lineHeight
+    const startY = y - (totalHeight - lineHeight) / 2
 
-    let currentX = x - totalWidth / 2
+    // Build word-to-line mapping
+    let wordIndex = 0
+    const wordLineMap: { line: number; wordInLine: number }[] = []
 
-    subtitle.words.forEach((word, index) => {
-      const wordWidth = ctx.measureText(word.text + ' ').width
-      const wordX = currentX + wordWidth / 2
+    lines.forEach((line, lineIndex) => {
+      const lineWords = line.split(' ')
+      lineWords.forEach((_, wordInLineIndex) => {
+        wordLineMap.push({ line: lineIndex, wordInLine: wordInLineIndex })
+        wordIndex++
+      })
+    })
 
-      const isCurrent = index === currentWordIndex
+    // Render each line
+    lines.forEach((line, lineIndex) => {
+      const lineY = startY + lineIndex * lineHeight
+      const lineWords = line.split(' ')
+      const lineWidth = ctx.measureText(line).width
+      let currentX = x - lineWidth / 2
 
-      ctx.save()
+      lineWords.forEach((wordText, wordInLineIndex) => {
+        // Find the global word index for this word
+        const globalWordIndex = wordLineMap.findIndex(
+          (w) => w.line === lineIndex && w.wordInLine === wordInLineIndex
+        )
 
-      if (isCurrent) {
-        const scaleProgress = Math.min(1, (currentTime - word.startTime) / 0.15)
-        const scale = 1 + 0.2 * Math.sin(scaleProgress * Math.PI)
+        const wordWidth = ctx.measureText(wordText).width
+        const spaceWidth = wordInLineIndex < lineWords.length - 1 ? ctx.measureText(' ').width : 0
+        const wordX = currentX + wordWidth / 2
 
-        ctx.translate(wordX, y)
-        ctx.scale(scale, scale)
-        ctx.translate(-wordX, -y)
-      }
+        const isCurrent = globalWordIndex === currentWordIndex
 
-      ctx.shadowColor = style.shadowColor
-      ctx.shadowBlur = style.shadowBlur
+        ctx.save()
 
-      ctx.strokeStyle = style.outlineColor
-      ctx.lineWidth = style.outlineWidth * 2
-      ctx.lineJoin = 'round'
-      ctx.strokeText(word.text, wordX, y)
+        if (isCurrent) {
+          const word = subtitle.words[globalWordIndex]
+          if (word) {
+            const scaleProgress = Math.min(1, (currentTime - word.startTime) / 0.15)
+            const scale = 1 + 0.2 * Math.sin(scaleProgress * Math.PI)
 
-      ctx.fillStyle = isCurrent ? style.highlightColor : style.color
-      ctx.fillText(word.text, wordX, y)
+            ctx.translate(wordX, lineY)
+            ctx.scale(scale, scale)
+            ctx.translate(-wordX, -lineY)
+          }
+        }
 
-      ctx.restore()
-      currentX += wordWidth
+        ctx.shadowColor = style.shadowColor
+        ctx.shadowBlur = style.shadowBlur
+        ctx.strokeStyle = style.outlineColor
+        ctx.lineWidth = style.outlineWidth * 2
+        ctx.lineJoin = 'round'
+        ctx.strokeText(wordText, wordX, lineY)
+
+        ctx.fillStyle = isCurrent ? style.highlightColor : style.color
+        ctx.fillText(wordText, wordX, lineY)
+
+        ctx.restore()
+        currentX += wordWidth + spaceWidth
+      })
     })
   }
 
-  // Static rendering (no animation)
+  // Static rendering (no animation) with text wrapping support
   const renderStatic = (
     ctx: CanvasRenderingContext2D,
     subtitle: Subtitle,
     x: number,
     y: number,
-    fontSize: number
+    fontSize: number,
+    displayWidth: number
   ) => {
-    const text = subtitle.words.map((w) => w.text).join(' ')
+    const lines = getWrappedLines(ctx, subtitle, displayWidth)
+    const lineHeight = fontSize * 1.4
+
+    // Calculate starting Y position to center all lines around the target Y
+    const totalHeight = lines.length * lineHeight
+    const startY = y - (totalHeight - lineHeight) / 2
 
     ctx.shadowColor = style.shadowColor
     ctx.shadowBlur = style.shadowBlur
-
     ctx.strokeStyle = style.outlineColor
     ctx.lineWidth = style.outlineWidth * 2
     ctx.lineJoin = 'round'
-    ctx.strokeText(text, x, y)
 
-    ctx.fillStyle = style.color
-    ctx.fillText(text, x, y)
+    lines.forEach((line, index) => {
+      const lineY = startY + index * lineHeight
+      ctx.strokeText(line, x, lineY)
+      ctx.fillStyle = style.color
+      ctx.fillText(line, x, lineY)
+    })
 
     ctx.shadowBlur = 0
   }

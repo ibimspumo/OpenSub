@@ -64,6 +64,14 @@ export interface SubtitleStyle {
   positionX: number
   positionY: number
   animation: AnimationType
+  // Text box settings for text wrapping
+  maxWidth: number   // Maximum width as percentage of video width (0-1, e.g., 0.8 = 80%)
+  maxLines: number   // Maximum number of lines (1-2 for TikTok-style subtitles)
+  // Karaoke box settings (background box behind the current highlighted word)
+  karaokeBoxEnabled: boolean      // Whether to show a box behind the current karaoke word
+  karaokeBoxColor: string         // Background color of the karaoke box
+  karaokeBoxPadding: number       // Padding around the word in pixels
+  karaokeBoxBorderRadius: number  // Border radius of the box in pixels
 }
 
 export type SubtitlePosition = 'top' | 'center' | 'bottom' | 'custom'
@@ -72,10 +80,39 @@ export type AnimationType = 'karaoke' | 'appear' | 'fade' | 'scale' | 'none'
 // Magnetic snap points for positioning
 export const SNAP_POINTS = {
   horizontal: [0.1, 0.5, 0.9], // left, center, right
-  vertical: [0.15, 0.5, 0.85]   // top, center, bottom
+  vertical: [0.15, 0.5, 0.65, 0.85]   // top, center, TikTok safe zone, bottom
 }
 
 export const SNAP_THRESHOLD = 0.05 // Distance to trigger snap
+
+// ============================================
+// Resolution-Based Font Size Calculation
+// ============================================
+
+/**
+ * Calculate the default font size based on video resolution.
+ * Uses 4K (3840px) with 96px font as the reference point.
+ * Font size scales proportionally based on the largest dimension.
+ *
+ * Examples:
+ * - 4K (3840×2160): 96px
+ * - FHD (1920×1080): 48px
+ * - 720p (1280×720): 32px
+ *
+ * @param width - Video width in pixels
+ * @param height - Video height in pixels
+ * @returns The calculated font size in pixels (minimum 16px)
+ */
+export function getDefaultFontSizeForResolution(width: number, height: number): number {
+  const REFERENCE_DIMENSION = 3840 // 4K max dimension
+  const REFERENCE_FONT_SIZE = 96   // Font size for 4K
+  const MIN_FONT_SIZE = 16         // Minimum readable font size
+
+  const maxDimension = Math.max(width, height)
+  const calculatedSize = Math.round((maxDimension / REFERENCE_DIMENSION) * REFERENCE_FONT_SIZE)
+
+  return Math.max(calculatedSize, MIN_FONT_SIZE)
+}
 
 // Default Style
 export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
@@ -91,8 +128,16 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   shadowBlur: 4,
   position: 'custom',
   positionX: 0.5,  // Centered horizontally
-  positionY: 0.85, // Near bottom
-  animation: 'karaoke'
+  positionY: 0.65, // TikTok safe zone (~65% from top, above UI elements)
+  animation: 'karaoke',
+  // Text box settings for optimal readability
+  maxWidth: 0.85,  // 85% of video width
+  maxLines: 2,     // Maximum 2 lines for TikTok-style subtitles
+  // Karaoke box settings (disabled by default)
+  karaokeBoxEnabled: false,
+  karaokeBoxColor: '#32CD32',    // Lime green (as shown in reference image)
+  karaokeBoxPadding: 4,          // 4px padding around the word
+  karaokeBoxBorderRadius: 4     // 4px border radius for slightly rounded corners
 }
 
 // Default Speaker Colors
@@ -106,6 +151,25 @@ export const SPEAKER_COLORS = [
   '#06B6D4', // Cyan
   '#F97316' // Orange
 ]
+
+// ============================================
+// Style Profile Types
+// ============================================
+
+// A saved style configuration that can be reused across projects
+export interface StyleProfile {
+  id: string
+  name: string
+  style: SubtitleStyle
+  createdAt: number
+  updatedAt: number
+}
+
+// Data structure for exported/imported profile JSON files
+export interface StyleProfileExport {
+  version: 1
+  profile: StyleProfile
+}
 
 // ============================================
 // IPC Types
@@ -201,5 +265,46 @@ export const IPC_CHANNELS = {
   // File System
   FILE_SELECT_VIDEO: 'file:select-video',
   FILE_SELECT_OUTPUT: 'file:select-output',
-  FILE_GET_APP_PATH: 'file:get-app-path'
+  FILE_GET_APP_PATH: 'file:get-app-path',
+  FILE_WRITE_TEMP: 'file:write-temp',
+  FILE_GET_TEMP_DIR: 'file:get-temp-dir',
+  FILE_DELETE_TEMP: 'file:delete-temp',
+
+  // Style Profiles
+  PROFILE_EXPORT: 'profile:export',
+  PROFILE_IMPORT: 'profile:import',
+
+  // Project Persistence
+  PROJECT_SAVE: 'project:save',
+  PROJECT_LOAD: 'project:load',
+  PROJECT_DELETE: 'project:delete',
+  PROJECT_RENAME: 'project:rename',
+  PROJECT_LIST: 'project:list',
+  PROJECT_GENERATE_THUMBNAIL: 'project:generate-thumbnail',
+
+  // Window
+  WINDOW_TOGGLE_MAXIMIZE: 'window:toggleMaximize',
+
+  // Fonts
+  FONTS_GET_SYSTEM: 'fonts:get-system'
 } as const
+
+// ============================================
+// Project Persistence Types
+// ============================================
+
+// Stored project metadata for the project browser
+export interface StoredProjectMeta {
+  id: string
+  name: string
+  videoPath: string
+  thumbnailPath: string | null
+  duration: number
+  createdAt: number
+  updatedAt: number
+}
+
+// Full stored project (includes all data)
+export interface StoredProject extends StoredProjectMeta {
+  data: Project
+}

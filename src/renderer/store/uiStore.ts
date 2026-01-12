@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import type { TranscriptionProgress } from '../../shared/types'
 
+// Save status type
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+
 interface UIState {
   // Video player
   isPlaying: boolean
@@ -22,6 +25,11 @@ interface UIState {
   timelineZoom: number
   timelineScroll: number
 
+  // Save status
+  saveStatus: SaveStatus
+  lastSavedAt: number | null
+  hasUnsavedChanges: boolean
+
   // Actions
   setIsPlaying: (isPlaying: boolean) => void
   setCurrentTime: (time: number) => void
@@ -37,6 +45,10 @@ interface UIState {
 
   setTimelineZoom: (zoom: number) => void
   setTimelineScroll: (scroll: number) => void
+
+  setSaveStatus: (status: SaveStatus) => void
+  setLastSavedAt: (time: number | null) => void
+  setHasUnsavedChanges: (hasUnsavedChanges: boolean) => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -60,6 +72,11 @@ export const useUIStore = create<UIState>((set) => ({
   timelineZoom: 1,
   timelineScroll: 0,
 
+  // Save status
+  saveStatus: 'idle',
+  lastSavedAt: null,
+  hasUnsavedChanges: false,
+
   // Actions
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setCurrentTime: (currentTime) => set({ currentTime }),
@@ -74,5 +91,9 @@ export const useUIStore = create<UIState>((set) => ({
   setSelectedSubtitleId: (selectedSubtitleId) => set({ selectedSubtitleId }),
 
   setTimelineZoom: (timelineZoom) => set({ timelineZoom }),
-  setTimelineScroll: (timelineScroll) => set({ timelineScroll })
+  setTimelineScroll: (timelineScroll) => set({ timelineScroll }),
+
+  setSaveStatus: (saveStatus) => set({ saveStatus }),
+  setLastSavedAt: (lastSavedAt) => set({ lastSavedAt }),
+  setHasUnsavedChanges: (hasUnsavedChanges) => set({ hasUnsavedChanges })
 }))

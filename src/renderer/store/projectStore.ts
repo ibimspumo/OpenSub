@@ -6,15 +6,18 @@ import type {
   Speaker,
   SubtitleStyle,
   Word,
-  TranscriptionResult
+  TranscriptionResult,
+  StoredProject
 } from '../../shared/types'
-import { DEFAULT_SUBTITLE_STYLE, SPEAKER_COLORS } from '../../shared/types'
+import { DEFAULT_SUBTITLE_STYLE, SPEAKER_COLORS, getDefaultFontSizeForResolution } from '../../shared/types'
 
 interface ProjectState {
   project: Project | null
 
   // Actions
   createProject: (videoPath: string, name: string) => void
+  loadProject: (storedProject: StoredProject) => void
+  renameProject: (name: string) => void
   setVideoMetadata: (duration: number, width: number, height: number) => void
   setAudioPath: (audioPath: string) => void
 
@@ -60,17 +63,43 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ project })
   },
 
-  setVideoMetadata: (duration: number, width: number, height: number) => {
+  loadProject: (storedProject: StoredProject) => {
+    // Load project from stored data
+    set({ project: storedProject.data })
+  },
+
+  renameProject: (name: string) => {
     set((state) => ({
       project: state.project
         ? {
             ...state.project,
-            duration,
-            resolution: { width, height },
+            name,
             updatedAt: Date.now()
           }
         : null
     }))
+  },
+
+  setVideoMetadata: (duration: number, width: number, height: number) => {
+    set((state) => {
+      if (!state.project) return { project: null }
+
+      // Calculate the default font size based on video resolution
+      const fontSize = getDefaultFontSizeForResolution(width, height)
+
+      return {
+        project: {
+          ...state.project,
+          duration,
+          resolution: { width, height },
+          style: {
+            ...state.project.style,
+            fontSize
+          },
+          updatedAt: Date.now()
+        }
+      }
+    })
   },
 
   setAudioPath: (audioPath: string) => {

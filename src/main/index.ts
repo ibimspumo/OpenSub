@@ -6,6 +6,7 @@ import { config } from 'dotenv'
 import { registerWhisperHandlers, cleanupWhisperService } from './ipc/whisper-handlers'
 import { registerFFmpegHandlers } from './ipc/ffmpeg-handlers'
 import { registerFileHandlers } from './ipc/file-handlers'
+import { registerProjectHandlers, cleanupProjectHandlers } from './ipc/project-handlers'
 
 // Load .env file
 config({ path: join(app.getAppPath(), '.env') })
@@ -81,6 +82,21 @@ app.whenReady().then(() => {
   registerWhisperHandlers()
   registerFFmpegHandlers()
   registerFileHandlers()
+  registerProjectHandlers()
+
+  // IPC handler for window maximize toggle (double-click on title bar)
+  ipcMain.handle('window:toggleMaximize', () => {
+    const win = BrowserWindow.getFocusedWindow()
+    if (win) {
+      if (win.isMaximized()) {
+        win.unmaximize()
+      } else {
+        win.maximize()
+      }
+      return win.isMaximized()
+    }
+    return false
+  })
 
   createWindow()
 
@@ -90,8 +106,9 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', async () => {
-  // Cleanup whisper service
+  // Cleanup services
   await cleanupWhisperService()
+  cleanupProjectHandlers()
 
   if (process.platform !== 'darwin') {
     app.quit()

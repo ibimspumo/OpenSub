@@ -7,7 +7,11 @@ import type {
   TranscriptionProgress,
   VideoMetadata,
   ExportOptions,
-  ExportProgress
+  ExportProgress,
+  StyleProfileExport,
+  Project,
+  StoredProjectMeta,
+  StoredProject
 } from '../shared/types'
 
 // Expose protected methods that allow the renderer process to use
@@ -88,7 +92,70 @@ contextBridge.exposeInMainWorld('api', {
     selectOutput: (defaultName: string): Promise<string | null> =>
       ipcRenderer.invoke(IPC_CHANNELS.FILE_SELECT_OUTPUT, defaultName),
 
-    getAppPath: (): Promise<string> => ipcRenderer.invoke(IPC_CHANNELS.FILE_GET_APP_PATH)
+    getAppPath: (): Promise<string> => ipcRenderer.invoke(IPC_CHANNELS.FILE_GET_APP_PATH),
+
+    writeTempFile: (
+      filename: string,
+      content: string
+    ): Promise<{ success: boolean; filePath?: string; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.FILE_WRITE_TEMP, filename, content),
+
+    exportProfile: (
+      profileExport: StyleProfileExport,
+      defaultName: string
+    ): Promise<{ success: boolean; filePath?: string; error?: string; canceled?: boolean }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROFILE_EXPORT, profileExport, defaultName),
+
+    importProfile: (): Promise<{
+      success: boolean
+      profileExport?: StyleProfileExport
+      error?: string
+      canceled?: boolean
+    }> => ipcRenderer.invoke(IPC_CHANNELS.PROFILE_IMPORT),
+
+    getTempDir: (): Promise<string> => ipcRenderer.invoke(IPC_CHANNELS.FILE_GET_TEMP_DIR),
+
+    deleteTempFile: (filePath: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.FILE_DELETE_TEMP, filePath)
+  },
+
+  // ============================================
+  // Window Controls
+  // ============================================
+  window: {
+    toggleMaximize: (): Promise<boolean> =>
+      ipcRenderer.invoke(IPC_CHANNELS.WINDOW_TOGGLE_MAXIMIZE)
+  },
+
+  // ============================================
+  // Project Persistence
+  // ============================================
+  project: {
+    save: (project: Project): Promise<StoredProjectMeta> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROJECT_SAVE, project),
+
+    load: (id: string): Promise<StoredProject | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROJECT_LOAD, id),
+
+    delete: (id: string): Promise<boolean> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DELETE, id),
+
+    rename: (id: string, newName: string): Promise<boolean> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROJECT_RENAME, id, newName),
+
+    list: (): Promise<StoredProjectMeta[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROJECT_LIST),
+
+    generateThumbnail: (projectId: string, videoPath: string): Promise<string | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROJECT_GENERATE_THUMBNAIL, projectId, videoPath)
+  },
+
+  // ============================================
+  // Fonts
+  // ============================================
+  fonts: {
+    getSystemFonts: (): Promise<string[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.FONTS_GET_SYSTEM)
   }
 })
 
@@ -123,6 +190,36 @@ declare global {
         selectVideo: () => Promise<string | null>
         selectOutput: (defaultName: string) => Promise<string | null>
         getAppPath: () => Promise<string>
+        writeTempFile: (
+          filename: string,
+          content: string
+        ) => Promise<{ success: boolean; filePath?: string; error?: string }>
+        exportProfile: (
+          profileExport: StyleProfileExport,
+          defaultName: string
+        ) => Promise<{ success: boolean; filePath?: string; error?: string; canceled?: boolean }>
+        importProfile: () => Promise<{
+          success: boolean
+          profileExport?: StyleProfileExport
+          error?: string
+          canceled?: boolean
+        }>
+        getTempDir: () => Promise<string>
+        deleteTempFile: (filePath: string) => Promise<{ success: boolean; error?: string }>
+      }
+      window: {
+        toggleMaximize: () => Promise<boolean>
+      }
+      project: {
+        save: (project: Project) => Promise<StoredProjectMeta>
+        load: (id: string) => Promise<StoredProject | null>
+        delete: (id: string) => Promise<boolean>
+        rename: (id: string, newName: string) => Promise<boolean>
+        list: () => Promise<StoredProjectMeta[]>
+        generateThumbnail: (projectId: string, videoPath: string) => Promise<string | null>
+      }
+      fonts: {
+        getSystemFonts: () => Promise<string[]>
       }
     }
   }

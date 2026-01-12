@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useProjectStore } from './store/projectStore'
 import { useUIStore } from './store/uiStore'
 import DropZone from './components/DropZone/DropZone'
@@ -8,12 +8,42 @@ import SubtitleList from './components/SubtitleEditor/SubtitleList'
 import StyleEditor from './components/StyleEditor/StyleEditor'
 import TranscriptionProgress from './components/TranscriptionProgress/TranscriptionProgress'
 import ExportProgress from './components/ExportProgress/ExportProgress'
+import TitleBar from './components/TitleBar/TitleBar'
 import { generateASS } from './utils/assGenerator'
+import { useAutoSave } from './hooks/useAutoSave'
 
 function App() {
-  const { project, hasProject, clearProject } = useProjectStore()
+  const { project, hasProject } = useProjectStore()
   const { isTranscribing, transcriptionProgress, isExporting, setIsExporting, setExportProgress } = useUIStore()
   const [exportError, setExportError] = useState<string | null>(null)
+  const [isAppMounted, setIsAppMounted] = useState(false)
+  const [showEditor, setShowEditor] = useState(false)
+
+  // Auto-save hook
+  useAutoSave()
+
+  // Detect portrait video aspect ratio
+  const isPortraitVideo = useMemo(() => {
+    if (!project?.resolution) return false
+    const { width, height } = project.resolution
+    return height > width
+  }, [project?.resolution])
+
+  // App mount animation
+  useEffect(() => {
+    const timer = setTimeout(() => setIsAppMounted(true), 50)
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Editor transition when project loads
+  useEffect(() => {
+    if (project) {
+      const timer = setTimeout(() => setShowEditor(true), 100)
+      return () => clearTimeout(timer)
+    } else {
+      setShowEditor(false)
+    }
+  }, [project])
 
   // Export handler
   const handleExport = useCallback(async () => {
@@ -33,12 +63,15 @@ function App() {
       // Generate ASS subtitle file
       const assContent = generateASS(project)
 
-      // Write ASS file temporarily
-      const appPath = await window.api.file.getAppPath()
-      const subtitlePath = `${appPath}/temp_subtitles_${Date.now()}.ass`
+      // Write ASS file to temp directory via main process
+      const filename = `temp_subtitles_${Date.now()}.ass`
+      const writeResult = await window.api.file.writeTempFile(filename, assContent)
 
-      // We need to write the file via main process
-      // For now, we'll use a workaround with the export function
+      if (!writeResult.success || !writeResult.filePath) {
+        throw new Error(writeResult.error || 'Failed to write subtitle file')
+      }
+
+      const subtitlePath = writeResult.filePath
 
       // Set up progress listener
       const unsubscribe = window.api.ffmpeg.onProgress((progress) => {
@@ -73,89 +106,157 @@ function App() {
   }, [])
 
   return (
-    <div className="h-screen flex flex-col bg-dark-950">
-      {/* Title Bar (draggable) */}
-      <div className="h-12 drag-region flex items-center border-b border-dark-800">
-        {/* Spacer for traffic lights */}
-        <div className="w-20" />
+    <div
+      className={`
+        h-screen flex flex-col bg-dark-950
+        transition-opacity duration-500 ease-smooth
+        ${isAppMounted ? 'opacity-100' : 'opacity-0'}
+      `}
+    >
+      {/* Premium Title Bar with Glassmorphism */}
+      <TitleBar isAppMounted={isAppMounted} onExport={handleExport} />
 
-        {/* Title */}
-        <div className="flex-1 flex justify-center">
-          <h1 className="text-sm font-medium text-dark-400">
-            {project?.name || 'OpenSub'}
-          </h1>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="w-20 flex items-center justify-end gap-2 pr-4 no-drag">
-          {hasProject() && (
-            <>
-              <button
-                onClick={() => clearProject()}
-                className="p-2 hover:bg-dark-800 rounded text-dark-400 hover:text-white transition-colors"
-                title="Neues Projekt"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </button>
-              <button
-                onClick={handleExport}
-                disabled={project?.subtitles.length === 0}
-                className="p-2 hover:bg-dark-800 rounded text-dark-400 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Video exportieren"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Main Content Area with smooth transitions */}
+      <main className="flex-1 flex overflow-hidden relative">
         {!hasProject() ? (
-          // No project - show drop zone
-          <DropZone />
+          // Drop Zone - Full screen centered
+          <div className="flex-1 animate-fade-in">
+            <DropZone />
+          </div>
         ) : (
-          // Project loaded - show editor
-          <>
-            {/* Left Panel - Video Player */}
-            <div className="flex-1 flex flex-col min-w-0">
-              {/* Video Preview */}
-              <div className="flex-1 min-h-0 p-4">
-                <VideoPlayer />
+          // Editor Layout - 3-column + bottom timeline
+          <div
+            className={`
+              flex-1 flex flex-col overflow-hidden
+              transition-all duration-500 ease-smooth
+              ${showEditor ? 'opacity-100' : 'opacity-0'}
+            `}
+          >
+            {/* Top Area - 3 Column Layout */}
+            <div className="flex-1 flex min-h-0 overflow-hidden">
+              {/* Left Column - Subtitle List */}
+              <div
+                className={`
+                  w-80 min-w-[280px] flex flex-col
+                  border-r border-white/[0.06]
+                  bg-gradient-to-l from-dark-900/30 to-transparent
+                  ${showEditor ? 'animate-slide-in-left' : ''}
+                `}
+                style={{ animationDelay: '100ms', animationFillMode: 'both' }}
+              >
+                <div className="px-4 py-3 border-b border-white/[0.04] flex items-center justify-between">
+                  <h2 className="text-xs font-semibold text-dark-400 uppercase tracking-wider">
+                    Untertitel
+                  </h2>
+                  <span className="text-xs text-dark-500 tabular-nums">
+                    {project?.subtitles.length || 0} Einträge
+                  </span>
+                </div>
+                <div className="flex-1 overflow-y-auto scrollbar-thin">
+                  <SubtitleList />
+                </div>
               </div>
 
-              {/* Timeline */}
-              <div className="h-32 border-t border-dark-800">
-                <Timeline />
+              {/* Center Column - Video Player */}
+              <div
+                className={`
+                  flex-1 flex flex-col min-w-0
+                  transition-all duration-300 ease-smooth
+                `}
+              >
+                <div
+                  className={`
+                    flex-1 min-h-0 p-4
+                    ${showEditor ? 'animate-fade-in-up' : ''}
+                  `}
+                  style={{ animationDelay: '150ms', animationFillMode: 'both' }}
+                >
+                  <div className={`
+                    h-full w-full flex items-center justify-center
+                    ${isPortraitVideo ? 'portrait-video-container' : ''}
+                  `}>
+                    <VideoPlayer />
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column - Style Editor */}
+              <div
+                className={`
+                  w-80 min-w-[280px] flex flex-col
+                  border-l border-white/[0.06]
+                  bg-gradient-to-r from-dark-900/30 to-transparent
+                  ${showEditor ? 'animate-slide-in-right' : ''}
+                `}
+                style={{ animationDelay: '100ms', animationFillMode: 'both' }}
+              >
+                <div className="px-4 py-3 border-b border-white/[0.04] flex items-center justify-between">
+                  <h2 className="text-xs font-semibold text-dark-400 uppercase tracking-wider">
+                    Stil-Editor
+                  </h2>
+                  <div className="w-4 h-4 rounded-full bg-dark-800 flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary-500/60" />
+                  </div>
+                </div>
+                <div className="flex-1 overflow-y-auto scrollbar-thin">
+                  <StyleEditor />
+                </div>
               </div>
             </div>
 
-            {/* Right Panel - Subtitle Editor & Style Editor */}
-            <div className="w-96 flex flex-col border-l border-dark-800">
-              {/* Subtitle List */}
-              <div className="flex-1 min-h-0 overflow-y-auto">
-                <SubtitleList />
-              </div>
-
-              {/* Style Editor */}
-              <div className="h-80 border-t border-dark-800 overflow-y-auto">
-                <StyleEditor />
-              </div>
+            {/* Bottom - Full-width Timeline */}
+            <div
+              className={`
+                h-32 border-t border-white/[0.06]
+                bg-gradient-to-b from-dark-900/50 to-transparent
+                ${showEditor ? 'animate-slide-in-up' : ''}
+              `}
+              style={{ animationDelay: '200ms', animationFillMode: 'both' }}
+            >
+              <Timeline />
             </div>
-          </>
+          </div>
         )}
-      </div>
+      </main>
 
-      {/* Transcription Progress Modal */}
-      {isTranscribing && <TranscriptionProgress progress={transcriptionProgress} />}
+      {/* Modal Overlays with backdrop blur */}
+      {isTranscribing && (
+        <TranscriptionProgress progress={transcriptionProgress} />
+      )}
 
-      {/* Export Progress Modal */}
-      {isExporting && <ExportProgress />}
+      {isExporting && (
+        <ExportProgress />
+      )}
+
+      {/* Export Error Toast (if needed) */}
+      {exportError && (
+        <div
+          className="
+            fixed bottom-4 right-4
+            glass-dark-heavy rounded-xl px-4 py-3
+            animate-slide-in-up shadow-elevated
+            flex items-center gap-3
+          "
+        >
+          <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center">
+            <svg className="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-white">Export fehlgeschlagen</p>
+            <p className="text-xs text-dark-400">{exportError}</p>
+          </div>
+          <button
+            onClick={() => setExportError(null)}
+            className="ml-2 p-1 hover:bg-white/10 rounded transition-colors"
+          >
+            <svg className="w-4 h-4 text-dark-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
     </div>
   )
 }
