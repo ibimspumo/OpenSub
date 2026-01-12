@@ -24,6 +24,9 @@ export function registerFFmpegHandlers(): void {
   )
 
   // Export video with burned subtitles
+  // Supports two modes:
+  // 1. ASS-based: Traditional subtitle burning using libass (subtitlePath provided)
+  // 2. Frame-based: Pixel-perfect overlay using pre-rendered PNG frames (options.frameDir provided)
   ipcMain.handle(
     IPC_CHANNELS.FFMPEG_EXPORT,
     async (
@@ -40,6 +43,12 @@ export function registerFFmpegHandlers(): void {
         }
       }
 
+      // Use frame-based rendering if frameDir is provided
+      if (options.useFrameRendering && options.frameDir) {
+        return ffmpegService.exportWithFrameOverlay(videoPath, options.frameDir, options, onProgress)
+      }
+
+      // Fall back to ASS-based rendering
       return ffmpegService.exportWithSubtitles(videoPath, subtitlePath, options, onProgress)
     }
   )

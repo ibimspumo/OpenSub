@@ -11,7 +11,8 @@ import type {
   StyleProfileExport,
   Project,
   StoredProjectMeta,
-  StoredProject
+  StoredProject,
+  SubtitleFrame
 } from '../shared/types'
 
 // Expose protected methods that allow the renderer process to use
@@ -116,7 +117,17 @@ contextBridge.exposeInMainWorld('api', {
     getTempDir: (): Promise<string> => ipcRenderer.invoke(IPC_CHANNELS.FILE_GET_TEMP_DIR),
 
     deleteTempFile: (filePath: string): Promise<{ success: boolean; error?: string }> =>
-      ipcRenderer.invoke(IPC_CHANNELS.FILE_DELETE_TEMP, filePath)
+      ipcRenderer.invoke(IPC_CHANNELS.FILE_DELETE_TEMP, filePath),
+
+    // Subtitle frame rendering for pixel-perfect export
+    saveSubtitleFrames: (
+      frames: SubtitleFrame[],
+      fps: number
+    ): Promise<{ success: boolean; frameDir?: string; manifestPath?: string; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SUBTITLE_FRAMES_SAVE, frames, fps),
+
+    cleanupSubtitleFrames: (frameDir: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SUBTITLE_FRAMES_CLEANUP, frameDir)
   },
 
   // ============================================
@@ -206,6 +217,11 @@ declare global {
         }>
         getTempDir: () => Promise<string>
         deleteTempFile: (filePath: string) => Promise<{ success: boolean; error?: string }>
+        saveSubtitleFrames: (
+          frames: SubtitleFrame[],
+          fps: number
+        ) => Promise<{ success: boolean; frameDir?: string; manifestPath?: string; error?: string }>
+        cleanupSubtitleFrames: (frameDir: string) => Promise<{ success: boolean; error?: string }>
       }
       window: {
         toggleMaximize: () => Promise<boolean>

@@ -1,9 +1,9 @@
 import { ipcMain, dialog, app } from 'electron'
-import { readFile, writeFile, unlink } from 'fs/promises'
+import { readFile, writeFile, unlink, rm } from 'fs/promises'
 import { existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { execSync } from 'child_process'
-import { IPC_CHANNELS, StyleProfileExport } from '../../shared/types'
+import { IPC_CHANNELS, StyleProfileExport, SubtitleFrame } from '../../shared/types'
 import { getMainWindow } from '../index'
 
 // Cache for system fonts (they don't change during app lifetime)
@@ -355,4 +355,85 @@ export function registerFileHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.FONTS_GET_SYSTEM, async () => {
     return getSystemFonts()
   })
+
+  // Save subtitle frames for export
+  // This receives rendered PNG frames from the renderer and saves them to a temp directory
+  ipcMain.handle(
+    IPC_CHANNELS.SUBTITLE_FRAMES_SAVE,
+    async (
+      _event,
+      frames: SubtitleFrame[],
+      fps: number
+    ): Promise<{ success: boolean; frameDir?: string; manifestPath?: string; error?: string }> => {
+      try {
+        // Create unique directory for frames
+        const timestamp = Date.now()
+        const frameDir = join(app.getPath('userData'), 'temp', `subtitle-frames-${timestamp}`)
+
+        if (!existsSync(frameDir)) {
+          mkdirSync(frameDir, { recursive: true })
+        }
+
+        // Save each frame as PNG
+        for (const frame of frames) {
+          const frameFilename = `frame_${frame.index.toString().padStart(6, '0')}.png`
+          const framePath = join(frameDir, frameFilename)
+
+          // Convert base64 to buffer and save
+          const buffer = Buffer.from(frame.data, 'base64')
+          await writeFile(framePath, buffer)
+        }
+
+        // Create manifest file with timing information for FFmpeg
+        // This describes when each frame should be shown
+        const manifest = {
+          fps,
+          frames: frames.map((f) => ({
+            index: f.index,
+            startTime: f.startTime,
+            endTime: f.endTime,
+            filename: `frame_${f.index.toString().padStart(6, '0')}.png`
+          }))
+        }
+
+        const manifestPath = join(frameDir, 'manifest.json')
+        await writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8')
+
+        return { success: true, frameDir, manifestPath }
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to save subtitle frames'
+        }
+      }
+    }
+  )
+
+  // Cleanup subtitle frames directory after export
+  ipcMain.handle(
+    IPC_CHANNELS.SUBTITLE_FRAMES_CLEANUP,
+    async (_event, frameDir: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        // Security check: only allow deletion of directories in userData temp folder
+        const tempDir = join(app.getPath('userData'), 'temp')
+        if (!frameDir.startsWith(tempDir)) {
+          return {
+            success: false,
+            error: 'Directory is not in temp folder'
+          }
+        }
+
+        if (existsSync(frameDir)) {
+          await rm(frameDir, { recursive: true, force: true })
+        }
+
+        return { success: true }
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to cleanup frames directory'
+        }
+      }
+    }
+  )
 }

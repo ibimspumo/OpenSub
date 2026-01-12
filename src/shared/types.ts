@@ -233,12 +233,24 @@ export interface ExportOptions {
   outputPath: string
   quality: 'high' | 'medium' | 'low'
   scale?: number
+  // Frame-based rendering options (for pixel-perfect subtitle overlay)
+  useFrameRendering?: boolean
+  frameDir?: string  // Directory containing rendered PNG frames
 }
 
 export interface ExportProgress {
   percent: number
   fps: number
   time: number
+  stage?: 'rendering' | 'encoding' | 'complete'
+}
+
+// Subtitle frame for pixel-perfect overlay rendering
+export interface SubtitleFrame {
+  index: number
+  startTime: number
+  endTime: number
+  data: string  // Base64 PNG data (without data URL prefix)
 }
 
 // ============================================
@@ -269,6 +281,10 @@ export const IPC_CHANNELS = {
   FILE_WRITE_TEMP: 'file:write-temp',
   FILE_GET_TEMP_DIR: 'file:get-temp-dir',
   FILE_DELETE_TEMP: 'file:delete-temp',
+
+  // Subtitle Frame Rendering
+  SUBTITLE_FRAMES_SAVE: 'subtitle:frames-save',
+  SUBTITLE_FRAMES_CLEANUP: 'subtitle:frames-cleanup',
 
   // Style Profiles
   PROFILE_EXPORT: 'profile:export',

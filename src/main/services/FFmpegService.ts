@@ -1,5 +1,18 @@
 import ffmpeg from 'fluent-ffmpeg'
+import { readFileSync, existsSync, writeFileSync } from 'fs'
+import { join } from 'path'
 import type { VideoMetadata, ExportOptions } from '../../shared/types'
+
+// Manifest structure for frame-based rendering
+interface FrameManifest {
+  fps: number
+  frames: {
+    index: number
+    startTime: number
+    endTime: number
+    filename: string
+  }[]
+}
 
 // Set ffmpeg paths for macOS (Homebrew)
 const ffmpegPath = '/opt/homebrew/bin/ffmpeg'
@@ -198,6 +211,144 @@ export class FFmpegService {
         .on('progress', (progress: FFmpegProgress) => {
           if (onProgress) {
             // Parse timemark to seconds
+            let time = 0
+            if (progress.timemark) {
+              const parts = progress.timemark.split(':').map(Number)
+              time = parts[0] * 3600 + parts[1] * 60 + parts[2]
+            }
+
+            onProgress({
+              percent: progress.percent || 0,
+              fps: progress.currentFps || 0,
+              time
+            })
+          }
+        })
+        .on('end', () => {
+          this.currentCommand = null
+          resolve(options.outputPath)
+        })
+        .on('error', (err) => {
+          this.currentCommand = null
+          reject(new Error(`Export failed: ${err.message}`))
+        })
+
+      this.currentCommand = command
+      command.run()
+    })
+  }
+
+  /**
+   * Export video with frame-based subtitle overlay
+   * This method uses pre-rendered PNG frames for pixel-perfect subtitle rendering
+   * that matches the canvas preview exactly.
+   */
+  async exportWithFrameOverlay(
+    videoPath: string,
+    frameDir: string,
+    options: ExportOptions,
+    onProgress?: (progress: { percent: number; fps: number; time: number }) => void
+  ): Promise<string> {
+    return new Promise((resolve, reject) => {
+      // Read manifest file
+      const manifestPath = join(frameDir, 'manifest.json')
+      if (!existsSync(manifestPath)) {
+        reject(new Error('Frame manifest not found'))
+        return
+      }
+
+      const manifest: FrameManifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
+
+      if (manifest.frames.length === 0) {
+        // No frames to overlay, just copy the video
+        reject(new Error('No subtitle frames to overlay'))
+        return
+      }
+
+      // Create a concat demuxer file for the subtitle frames
+      // This tells FFmpeg how long to display each frame
+      const concatContent = manifest.frames.map((frame) => {
+        const duration = frame.endTime - frame.startTime
+        const framePath = join(frameDir, frame.filename)
+        // Escape path for FFmpeg concat demuxer
+        const escapedPath = framePath.replace(/'/g, "'\\''")
+        return `file '${escapedPath}'\nduration ${duration.toFixed(6)}`
+      }).join('\n')
+
+      // Add the last frame again (required by concat demuxer)
+      const lastFrame = manifest.frames[manifest.frames.length - 1]
+      const lastFramePath = join(frameDir, lastFrame.filename)
+      const escapedLastPath = lastFramePath.replace(/'/g, "'\\''")
+      const concatFileContent = concatContent + `\nfile '${escapedLastPath}'`
+
+      const concatFilePath = join(frameDir, 'concat.txt')
+      writeFileSync(concatFilePath, concatFileContent, 'utf-8')
+
+      // Calculate the start time offset for the overlay
+      const firstFrameStart = manifest.frames[0].startTime
+
+      // Quality settings
+      const qualityMultiplier = {
+        high: 1.0,
+        medium: 0.65,
+        low: 0.4
+      }[options.quality]
+
+      const softwareQuality = {
+        high: { crf: 18, preset: 'slow' },
+        medium: { crf: 23, preset: 'medium' },
+        low: { crf: 28, preset: 'fast' }
+      }[options.quality]
+
+      // Build FFmpeg command with overlay
+      // Input 0: Original video
+      // Input 1: Subtitle frames (as image sequence via concat demuxer)
+      const command = ffmpeg()
+        .input(videoPath)
+        .input(concatFilePath)
+        .inputOptions(['-f', 'concat', '-safe', '0'])
+
+      // Build complex filter for overlay with timing
+      // The overlay is positioned at 0,0 (full frame) and enabled based on time
+      const filterComplex = `[1:v]setpts=PTS+${firstFrameStart}/TB[sub];[0:v][sub]overlay=0:0:enable='between(t,${firstFrameStart},${lastFrame.endTime})'`
+
+      command.complexFilter(filterComplex)
+
+      // Scale filter if needed
+      if (options.scale && options.scale !== 1) {
+        command.videoFilters(`scale=iw*${options.scale}:ih*${options.scale}`)
+      }
+
+      // Use VideoToolbox hardware encoding if available
+      if (useVideoToolbox) {
+        const baseBitrate = 50
+        const targetBitrate = Math.round(baseBitrate * qualityMultiplier)
+
+        command
+          .videoCodec('h264_videotoolbox')
+          .addOptions([
+            `-b:v ${targetBitrate}M`,
+            `-maxrate ${Math.round(targetBitrate * 1.5)}M`,
+            `-bufsize ${Math.round(targetBitrate * 2)}M`,
+            '-profile:v high',
+            '-level 5.2',
+            '-allow_sw 1',
+            '-realtime 0'
+          ])
+          .audioCodec('aac_at')
+          .audioBitrate('256k')
+      } else {
+        command
+          .videoCodec('libx264')
+          .addOptions([`-crf ${softwareQuality.crf}`, `-preset ${softwareQuality.preset}`])
+          .audioCodec('aac')
+          .audioBitrate('192k')
+      }
+
+      command
+        .output(options.outputPath)
+        .on('progress', (progress: FFmpegProgress) => {
+          if (onProgress) {
             let time = 0
             if (progress.timemark) {
               const parts = progress.timemark.split(':').map(Number)

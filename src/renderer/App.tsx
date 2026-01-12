@@ -9,8 +9,9 @@ import StyleEditor from './components/StyleEditor/StyleEditor'
 import TranscriptionProgress from './components/TranscriptionProgress/TranscriptionProgress'
 import ExportProgress from './components/ExportProgress/ExportProgress'
 import TitleBar from './components/TitleBar/TitleBar'
-import { generateASS } from './utils/assGenerator'
+import { generateExportFrames } from './utils/subtitleFrameRenderer'
 import { useAutoSave } from './hooks/useAutoSave'
+import type { SubtitleFrame } from '../shared/types'
 
 function App() {
   const { project, hasProject } = useProjectStore()
@@ -45,9 +46,11 @@ function App() {
     }
   }, [project])
 
-  // Export handler
+  // Export handler - uses frame-based rendering for pixel-perfect subtitle overlay
   const handleExport = useCallback(async () => {
     if (!project) return
+
+    let frameDir: string | undefined
 
     try {
       // Select output file
@@ -60,35 +63,76 @@ function App() {
       setExportProgress(0)
       setExportError(null)
 
-      // Generate ASS subtitle file
-      const assContent = generateASS(project)
+      // Get video metadata for FPS
+      const metadata = await window.api.ffmpeg.getMetadata(project.videoPath)
+      const fps = metadata.fps || 30
 
-      // Write ASS file to temp directory via main process
-      const filename = `temp_subtitles_${Date.now()}.ass`
-      const writeResult = await window.api.file.writeTempFile(filename, assContent)
+      // Phase 1: Render subtitle frames (0-40% progress)
+      // This renders each subtitle frame as a PNG for pixel-perfect overlay
+      const frameInfos = await generateExportFrames(
+        project.subtitles,
+        project.style,
+        project.resolution.width,
+        project.resolution.height,
+        fps,
+        (percent) => {
+          // Map 0-100% of frame rendering to 0-40% of total progress
+          setExportProgress(percent * 0.4)
+        }
+      )
 
-      if (!writeResult.success || !writeResult.filePath) {
-        throw new Error(writeResult.error || 'Failed to write subtitle file')
+      if (frameInfos.length === 0) {
+        throw new Error('Keine Untertitel zum Exportieren vorhanden')
       }
 
-      const subtitlePath = writeResult.filePath
+      // Convert frame infos to SubtitleFrame format for IPC
+      const frames: SubtitleFrame[] = frameInfos.map((info, index) => ({
+        index,
+        startTime: info.startTime,
+        endTime: info.endTime,
+        // Extract base64 data from data URL
+        data: info.dataUrl.replace(/^data:image\/png;base64,/, '')
+      }))
 
-      // Set up progress listener
+      // Phase 2: Save frames to disk (40-50% progress)
+      setExportProgress(45)
+      const saveResult = await window.api.file.saveSubtitleFrames(frames, fps)
+
+      if (!saveResult.success || !saveResult.frameDir) {
+        throw new Error(saveResult.error || 'Failed to save subtitle frames')
+      }
+
+      frameDir = saveResult.frameDir
+
+      // Phase 3: Export video with frame overlay (50-100% progress)
       const unsubscribe = window.api.ffmpeg.onProgress((progress) => {
-        setExportProgress(progress.percent)
+        // Map 0-100% of FFmpeg progress to 50-100% of total progress
+        setExportProgress(50 + progress.percent * 0.5)
       })
 
-      // Export video with subtitles
-      await window.api.ffmpeg.exportVideo(project.videoPath, subtitlePath, {
+      // Export using frame-based overlay for pixel-perfect results
+      await window.api.ffmpeg.exportVideo(project.videoPath, '', {
         outputPath,
-        quality: 'high'
+        quality: 'high',
+        useFrameRendering: true,
+        frameDir
       })
 
       unsubscribe()
-      setIsExporting(false)
 
+      // Cleanup frames
+      if (frameDir) {
+        await window.api.file.cleanupSubtitleFrames(frameDir)
+      }
+
+      setIsExporting(false)
       alert(`Video exportiert: ${outputPath}`)
     } catch (err) {
+      // Cleanup frames on error
+      if (frameDir) {
+        await window.api.file.cleanupSubtitleFrames(frameDir).catch(() => {})
+      }
+
       setIsExporting(false)
       setExportError(err instanceof Error ? err.message : 'Export fehlgeschlagen')
       console.error('Export error:', err)
