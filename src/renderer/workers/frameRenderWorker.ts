@@ -1,52 +1,168 @@
 /**
- * SubtitleFrameRenderer - Renders subtitle frames to PNG for video export
- *
- * This replicates the exact rendering logic from SubtitleCanvas to ensure
- * pixel-perfect matching between preview and export.
- *
- * Uses Web Workers for parallel rendering on multi-core systems.
- * M2 Max with 10+ cores can achieve ~8-10x speedup.
+ * Web Worker for parallel subtitle frame rendering
+ * Uses OffscreenCanvas for hardware-accelerated rendering in worker threads
  */
 
 import type { Subtitle, SubtitleStyle, Word } from '../../shared/types'
-import { getWorkerPool, terminateWorkerPool as _terminateWorkerPool, type FrameResult } from './workerPool'
 
-// Re-export for cleanup
-export const cleanupWorkerPool = _terminateWorkerPool
-
-interface RenderOptions {
+interface RenderTask {
+  id: number
   width: number
   height: number
   currentTime: number
   subtitles: Subtitle[]
   style: SubtitleStyle
-}
-
-interface FrameInfo {
   startTime: number
   endTime: number
-  dataUrl: string
+}
+
+interface RenderResult {
+  id: number
+  success: boolean
+  data?: string // Base64 PNG data
+  startTime: number
+  endTime: number
+  error?: string
+}
+
+// Message types
+type WorkerMessage =
+  | { type: 'render'; tasks: RenderTask[] }
+  | { type: 'init'; workerIndex: number }
+
+type WorkerResponse =
+  | { type: 'ready'; workerIndex: number }
+  | { type: 'results'; results: RenderResult[] }
+  | { type: 'progress'; completed: number; total: number }
+
+let workerIndex = 0
+
+// Listen for messages from main thread
+self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
+  const message = e.data
+
+  if (message.type === 'init') {
+    workerIndex = message.workerIndex
+    self.postMessage({ type: 'ready', workerIndex } as WorkerResponse)
+    return
+  }
+
+  if (message.type === 'render') {
+    const results: RenderResult[] = []
+    const tasks = message.tasks
+
+    for (let i = 0; i < tasks.length; i++) {
+      const task = tasks[i]
+      try {
+        const data = await renderFrame(task)
+        results.push({
+          id: task.id,
+          success: data !== null,
+          data: data ?? undefined,
+          startTime: task.startTime,
+          endTime: task.endTime
+        })
+      } catch (error) {
+        results.push({
+          id: task.id,
+          success: false,
+          startTime: task.startTime,
+          endTime: task.endTime,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
+      }
+
+      // Report progress every 10 frames
+      if ((i + 1) % 10 === 0 || i === tasks.length - 1) {
+        self.postMessage({
+          type: 'progress',
+          completed: i + 1,
+          total: tasks.length
+        } as WorkerResponse)
+      }
+    }
+
+    self.postMessage({ type: 'results', results } as WorkerResponse)
+  }
 }
 
 /**
- * Create an OffscreenCanvas for rendering subtitle frames
+ * Render a single frame and return base64 PNG data
  */
-function createCanvas(width: number, height: number): OffscreenCanvas {
-  return new OffscreenCanvas(width, height)
+async function renderFrame(task: RenderTask): Promise<string | null> {
+  const { width, height, currentTime, subtitles, style } = task
+
+  const canvas = new OffscreenCanvas(width, height)
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+
+  ctx.clearRect(0, 0, width, height)
+
+  const currentSubtitle = getCurrentSubtitle(subtitles, currentTime)
+  if (!currentSubtitle || currentSubtitle.words.length === 0) {
+    return null
+  }
+
+  const currentWordIndex = getCurrentWordIndex(currentSubtitle, currentTime)
+
+  const fontSize = style.fontSize
+  ctx.font = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+
+  const xCenter = width * style.positionX
+  const yPosition = height * style.positionY
+
+  switch (style.animation) {
+    case 'karaoke':
+      renderKaraoke(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, width, style)
+      break
+    case 'appear':
+      renderAppear(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, width, style)
+      break
+    case 'fade':
+      renderFade(ctx, currentSubtitle, currentTime, xCenter, yPosition, fontSize, width, style)
+      break
+    case 'scale':
+      renderScale(ctx, currentSubtitle, currentWordIndex, currentTime, xCenter, yPosition, fontSize, width, style)
+      break
+    default:
+      renderStatic(ctx, currentSubtitle, xCenter, yPosition, fontSize, width, style)
+  }
+
+  // Convert to base64
+  const blob = await canvas.convertToBlob({ type: 'image/png' })
+  return blobToBase64(blob)
 }
 
 /**
- * Find the current subtitle at a given time
+ * Convert Blob to base64 string
  */
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result)
+      } else {
+        reject(new Error('Failed to convert blob to base64'))
+      }
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
+
+// ============================================
+// Rendering functions (copied from subtitleFrameRenderer.ts)
+// ============================================
+
 function getCurrentSubtitle(subtitles: Subtitle[], currentTime: number): Subtitle | undefined {
   return subtitles.find(
     (sub) => currentTime >= sub.startTime && currentTime <= sub.endTime
   )
 }
 
-/**
- * Get current word index for karaoke animation
- */
 function getCurrentWordIndex(subtitle: Subtitle, currentTime: number): number {
   for (let i = 0; i < subtitle.words.length; i++) {
     const word = subtitle.words[i]
@@ -69,9 +185,6 @@ function getCurrentWordIndex(subtitle: Subtitle, currentTime: number): number {
   return -1
 }
 
-/**
- * Wrap text into multiple lines based on maxWidth and maxLines
- */
 function wrapText(
   ctx: OffscreenCanvasRenderingContext2D,
   text: string,
@@ -121,9 +234,6 @@ function wrapText(
   return lines.slice(0, maxLines)
 }
 
-/**
- * Get wrapped lines for a subtitle
- */
 function getWrappedLines(
   ctx: OffscreenCanvasRenderingContext2D,
   subtitle: Subtitle,
@@ -135,9 +245,6 @@ function getWrappedLines(
   return wrapText(ctx, text, maxWidthPx, style.maxLines)
 }
 
-/**
- * Draw a rounded rectangle
- */
 function drawRoundedRect(
   ctx: OffscreenCanvasRenderingContext2D,
   x: number,
@@ -159,9 +266,6 @@ function drawRoundedRect(
   ctx.closePath()
 }
 
-/**
- * Render karaoke animation
- */
 function renderKaraoke(
   ctx: OffscreenCanvasRenderingContext2D,
   subtitle: Subtitle,
@@ -177,7 +281,6 @@ function renderKaraoke(
   const totalHeight = lines.length * lineHeight
   const startY = y - (totalHeight - lineHeight) / 2
 
-  // Build word-to-line mapping
   const wordLineMap: { line: number; wordInLine: number }[] = []
 
   lines.forEach((line, lineIndex) => {
@@ -187,7 +290,6 @@ function renderKaraoke(
     })
   })
 
-  // Render each line
   lines.forEach((line, lineIndex) => {
     const lineY = startY + lineIndex * lineHeight
     const lineWords = line.split(' ')
@@ -206,7 +308,6 @@ function renderKaraoke(
       const isPast = globalWordIndex < currentWordIndex
       const isCurrent = globalWordIndex === currentWordIndex
 
-      // Draw karaoke box behind the current word if enabled
       if (isCurrent && style.karaokeBoxEnabled) {
         ctx.save()
         const padding = style.karaokeBoxPadding
@@ -250,9 +351,6 @@ function renderKaraoke(
   })
 }
 
-/**
- * Render appear animation (words appear one by one)
- */
 function renderAppear(
   ctx: OffscreenCanvasRenderingContext2D,
   subtitle: Subtitle,
@@ -291,9 +389,6 @@ function renderAppear(
   ctx.shadowBlur = 0
 }
 
-/**
- * Render fade animation
- */
 function renderFade(
   ctx: OffscreenCanvasRenderingContext2D,
   subtitle: Subtitle,
@@ -340,9 +435,6 @@ function renderFade(
   ctx.shadowBlur = 0
 }
 
-/**
- * Render scale animation
- */
 function renderScale(
   ctx: OffscreenCanvasRenderingContext2D,
   subtitle: Subtitle,
@@ -415,9 +507,6 @@ function renderScale(
   })
 }
 
-/**
- * Render static text (no animation)
- */
 function renderStatic(
   ctx: OffscreenCanvasRenderingContext2D,
   subtitle: Subtitle,
@@ -446,283 +535,4 @@ function renderStatic(
   })
 
   ctx.shadowBlur = 0
-}
-
-/**
- * Render a single subtitle frame at a specific time
- */
-export function renderSubtitleFrame(options: RenderOptions): string | null {
-  const { width, height, currentTime, subtitles, style } = options
-
-  const canvas = createCanvas(width, height)
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return null
-
-  // Clear canvas (transparent background)
-  ctx.clearRect(0, 0, width, height)
-
-  const currentSubtitle = getCurrentSubtitle(subtitles, currentTime)
-  if (!currentSubtitle || currentSubtitle.words.length === 0) {
-    return null
-  }
-
-  const currentWordIndex = getCurrentWordIndex(currentSubtitle, currentTime)
-
-  // Set up font
-  const fontSize = style.fontSize
-  ctx.font = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-
-  // Calculate position
-  const xCenter = width * style.positionX
-  const yPosition = height * style.positionY
-
-  // Render based on animation type
-  switch (style.animation) {
-    case 'karaoke':
-      renderKaraoke(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, width, style)
-      break
-    case 'appear':
-      renderAppear(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, width, style)
-      break
-    case 'fade':
-      renderFade(ctx, currentSubtitle, currentTime, xCenter, yPosition, fontSize, width, style)
-      break
-    case 'scale':
-      renderScale(ctx, currentSubtitle, currentWordIndex, currentTime, xCenter, yPosition, fontSize, width, style)
-      break
-    default:
-      renderStatic(ctx, currentSubtitle, xCenter, yPosition, fontSize, width, style)
-  }
-
-  // Convert to data URL
-  return canvas.convertToBlob({ type: 'image/png' }).then(blob => {
-    return new Promise<string>((resolve) => {
-      const reader = new FileReader()
-      reader.onloadend = () => resolve(reader.result as string)
-      reader.readAsDataURL(blob)
-    })
-  }) as unknown as string
-}
-
-/**
- * Render a subtitle frame and return as Blob
- */
-export async function renderSubtitleFrameAsBlob(options: RenderOptions): Promise<Blob | null> {
-  const { width, height, currentTime, subtitles, style } = options
-
-  const canvas = createCanvas(width, height)
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return null
-
-  ctx.clearRect(0, 0, width, height)
-
-  const currentSubtitle = getCurrentSubtitle(subtitles, currentTime)
-  if (!currentSubtitle || currentSubtitle.words.length === 0) {
-    return null
-  }
-
-  const currentWordIndex = getCurrentWordIndex(currentSubtitle, currentTime)
-
-  const fontSize = style.fontSize
-  ctx.font = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-
-  const xCenter = width * style.positionX
-  const yPosition = height * style.positionY
-
-  switch (style.animation) {
-    case 'karaoke':
-      renderKaraoke(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, width, style)
-      break
-    case 'appear':
-      renderAppear(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, width, style)
-      break
-    case 'fade':
-      renderFade(ctx, currentSubtitle, currentTime, xCenter, yPosition, fontSize, width, style)
-      break
-    case 'scale':
-      renderScale(ctx, currentSubtitle, currentWordIndex, currentTime, xCenter, yPosition, fontSize, width, style)
-      break
-    default:
-      renderStatic(ctx, currentSubtitle, xCenter, yPosition, fontSize, width, style)
-  }
-
-  return canvas.convertToBlob({ type: 'image/png' })
-}
-
-/**
- * Calculate all unique frames needed for export
- * This generates frames at key moments (word changes, subtitle changes)
- */
-export function calculateFrameTimes(
-  subtitles: Subtitle[],
-  fps: number,
-  animation: string
-): number[] {
-  const frameTimes: Set<number> = new Set()
-  const frameInterval = 1 / fps
-
-  for (const subtitle of subtitles) {
-    // Add frame at subtitle start
-    frameTimes.add(subtitle.startTime)
-
-    if (animation === 'karaoke' || animation === 'appear' || animation === 'scale') {
-      // For word-based animations, add frame at each word change
-      for (const word of subtitle.words) {
-        frameTimes.add(word.startTime)
-        // Add a few frames during word transition for smooth animation
-        const wordDuration = word.endTime - word.startTime
-        const steps = Math.min(5, Math.ceil(wordDuration / frameInterval))
-        for (let i = 1; i <= steps; i++) {
-          frameTimes.add(word.startTime + (wordDuration * i) / steps)
-        }
-      }
-    } else if (animation === 'fade') {
-      // For fade animation, add frames during fade in/out
-      const fadeDuration = 0.3
-      const fadeSteps = Math.ceil(fadeDuration / frameInterval)
-
-      // Fade in frames
-      for (let i = 0; i <= fadeSteps; i++) {
-        frameTimes.add(subtitle.startTime + (fadeDuration * i) / fadeSteps)
-      }
-
-      // Fade out frames
-      for (let i = 0; i <= fadeSteps; i++) {
-        frameTimes.add(subtitle.endTime - fadeDuration + (fadeDuration * i) / fadeSteps)
-      }
-    }
-
-    // Add frame at subtitle end
-    frameTimes.add(subtitle.endTime)
-  }
-
-  return Array.from(frameTimes).sort((a, b) => a - b)
-}
-
-/**
- * Generate all subtitle frames for export using parallel Web Workers
- * Returns an array of frame info with timing and image data
- *
- * This uses a worker pool to render frames in parallel, achieving
- * significant speedup on multi-core systems (8-10x on M2 Max).
- */
-export async function generateExportFrames(
-  subtitles: Subtitle[],
-  style: SubtitleStyle,
-  width: number,
-  height: number,
-  fps: number,
-  onProgress?: (percent: number) => void
-): Promise<FrameInfo[]> {
-  const frameTimes = calculateFrameTimes(subtitles, fps, style.animation)
-
-  if (frameTimes.length === 0) {
-    return []
-  }
-
-  // Build render tasks for workers
-  const tasks = frameTimes.map((time, index) => {
-    // Determine end time (next frame time or end of current subtitle)
-    const currentSubtitle = getCurrentSubtitle(subtitles, time)
-    const endTime = index < frameTimes.length - 1
-      ? frameTimes[index + 1]
-      : (currentSubtitle?.endTime ?? time + 0.1)
-
-    return {
-      width,
-      height,
-      currentTime: time,
-      subtitles,
-      style,
-      startTime: time,
-      endTime
-    }
-  })
-
-  // Get worker pool and render in parallel
-  const pool = getWorkerPool()
-  console.log(`Rendering ${tasks.length} frames using ${pool.size} workers...`)
-  const startTime = performance.now()
-
-  const results = await pool.renderFrames(tasks, (completed, total) => {
-    if (onProgress) {
-      onProgress((completed / total) * 100)
-    }
-  })
-
-  const elapsed = ((performance.now() - startTime) / 1000).toFixed(2)
-  console.log(`Frame rendering completed in ${elapsed}s (${(tasks.length / parseFloat(elapsed)).toFixed(1)} frames/sec)`)
-
-  // Convert to FrameInfo format
-  const frames: FrameInfo[] = results.map((result) => ({
-    startTime: result.startTime,
-    endTime: result.endTime,
-    dataUrl: result.dataUrl
-  }))
-
-  return frames
-}
-
-/**
- * Generate frames sequentially (fallback if workers fail)
- */
-export async function generateExportFramesSequential(
-  subtitles: Subtitle[],
-  style: SubtitleStyle,
-  width: number,
-  height: number,
-  fps: number,
-  onProgress?: (percent: number) => void
-): Promise<FrameInfo[]> {
-  const frames: FrameInfo[] = []
-  const frameTimes = calculateFrameTimes(subtitles, fps, style.animation)
-
-  for (let i = 0; i < frameTimes.length; i++) {
-    const time = frameTimes[i]
-    const blob = await renderSubtitleFrameAsBlob({
-      width,
-      height,
-      currentTime: time,
-      subtitles,
-      style
-    })
-
-    if (blob) {
-      const dataUrl = await new Promise<string>((resolve) => {
-        const reader = new FileReader()
-        reader.onloadend = () => resolve(reader.result as string)
-        reader.readAsDataURL(blob)
-      })
-
-      // Determine end time (next frame time or end of current subtitle)
-      const currentSubtitle = getCurrentSubtitle(subtitles, time)
-      const endTime = i < frameTimes.length - 1
-        ? frameTimes[i + 1]
-        : (currentSubtitle?.endTime ?? time + 0.1)
-
-      frames.push({
-        startTime: time,
-        endTime,
-        dataUrl
-      })
-    }
-
-    if (onProgress) {
-      onProgress(((i + 1) / frameTimes.length) * 100)
-    }
-  }
-
-  return frames
-}
-
-/**
- * Convert data URL to Buffer for saving to file
- */
-export function dataUrlToBuffer(dataUrl: string): Buffer {
-  const base64Data = dataUrl.replace(/^data:image\/png;base64,/, '')
-  return Buffer.from(base64Data, 'base64')
 }
