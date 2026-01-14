@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useProjectStore } from '../../store/projectStore'
+import { useUIStore } from '../../store/uiStore'
 import type { AnimationType, SubtitlePosition, SubtitleStyle, FontWeight } from '../../../shared/types'
 import { DEFAULT_SUBTITLE_STYLE } from '../../../shared/types'
 import StyleProfileSelector from './StyleProfileSelector'
@@ -430,6 +431,78 @@ const EffectsIcon = () => (
   </svg>
 )
 
+// AI Analysis Button Component
+function AIAnalysisButton() {
+  const { project } = useProjectStore()
+  const { isAnalyzing, setIsAnalyzing, setAnalysisProgress, setPendingChanges, setShowDiffPreview } = useUIStore()
+
+  const handleStartAnalysis = async () => {
+    if (!project || project.subtitles.length === 0) return
+
+    setIsAnalyzing(true)
+    setAnalysisProgress({ stage: 'extracting', percent: 0, message: 'Starte Analyse...' })
+
+    try {
+      // API key is read from .env in the main process
+      const result = await window.api.analysis.analyze({
+        videoPath: project.videoPath,
+        subtitles: project.subtitles,
+        config: {
+          apiKey: '', // Will be read from .env in main process
+          model: 'google/gemini-3-flash-preview',
+          language: 'de'
+        }
+      })
+
+      setPendingChanges(result.changes)
+      setIsAnalyzing(false)
+      setAnalysisProgress(null)
+
+      if (result.changes.length > 0) {
+        setShowDiffPreview(true)
+      }
+    } catch (error) {
+      console.error('Analysis failed:', error)
+      setIsAnalyzing(false)
+      setAnalysisProgress({
+        stage: 'error',
+        percent: 0,
+        message: error instanceof Error ? error.message : 'Analyse fehlgeschlagen'
+      })
+    }
+  }
+
+  if (!project || project.subtitles.length === 0) return null
+
+  return (
+    <div className="pb-3 border-b border-white/[0.06]">
+      <button
+        onClick={handleStartAnalysis}
+        disabled={isAnalyzing}
+        className={`
+          w-full px-4 py-3 rounded-xl text-sm font-medium
+          bg-gradient-to-r from-violet-600 to-purple-500
+          text-white shadow-lg shadow-violet-500/25
+          hover:from-violet-500 hover:to-purple-400
+          hover:shadow-xl hover:shadow-violet-500/30
+          active:scale-[0.98]
+          transition-all duration-200
+          flex items-center justify-center gap-2
+          disabled:opacity-50 disabled:cursor-not-allowed
+        `}
+      >
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+        </svg>
+        KI-Korrektur starten
+      </button>
+      <p className="text-[10px] text-dark-500 text-center mt-2">
+        Gemini analysiert Audio und korrigiert Fehler
+      </p>
+    </div>
+  )
+}
+
 export default function StyleEditor() {
   const { project, updateStyle } = useProjectStore()
 
@@ -519,6 +592,9 @@ export default function StyleEditor() {
           onApplyProfile={handleApplyProfile}
         />
       </div>
+
+      {/* AI Analysis Button */}
+      <AIAnalysisButton />
 
       {/* Collapsible sections */}
       <div className="space-y-3">

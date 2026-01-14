@@ -8,9 +8,12 @@ export default function VideoPlayer() {
   const containerRef = useRef<HTMLDivElement>(null)
   const progressRef = useRef<HTMLDivElement>(null)
   const lastSyncedTimeRef = useRef<number>(0)
+  const isExternalSeekingRef = useRef<boolean>(false) // Flag to prevent feedback loop when seeking from Timeline
+  const wasPlayingBeforeScrubRef = useRef<boolean>(false) // Track if video was playing before scrubbing started
+  const decodeErrorRecoveryRef = useRef<{ count: number; lastTime: number }>({ count: 0, lastTime: 0 })
 
   const { project } = useProjectStore()
-  const { isPlaying, currentTime, volume, setIsPlaying, setCurrentTime, setVolume } =
+  const { isPlaying, currentTime, volume, isScrubbing, setIsPlaying, setCurrentTime, setVolume } =
     useUIStore()
 
   // UI state for animations and interactions
@@ -46,6 +49,15 @@ export default function VideoPlayer() {
     if (!video) return
 
     if (isPlaying && video.paused) {
+      // IMPORTANT: Before playing, ensure video is at the correct position
+      // This fixes a race condition where useEffect([isPlaying]) runs before useEffect([currentTime])
+      const timeDiff = Math.abs(currentTime - video.currentTime)
+      if (timeDiff > 0.2) {
+        isExternalSeekingRef.current = true
+        video.currentTime = currentTime
+        lastSyncedTimeRef.current = currentTime
+      }
+
       // Handle the play() Promise to catch errors and prevent state inconsistency
       const playPromise = video.play()
       if (playPromise !== undefined) {
@@ -65,33 +77,94 @@ export default function VideoPlayer() {
     } else if (!isPlaying && !video.paused) {
       video.pause()
     }
-  }, [isPlaying, setIsPlaying])
+  }, [isPlaying, currentTime, setIsPlaying])
 
   // Handle time updates from video
   const handleTimeUpdate = useCallback(() => {
     const video = videoRef.current
-    if (video) {
-      // Update the last synced time to track what the video's currentTime is
-      lastSyncedTimeRef.current = video.currentTime
-      setCurrentTime(video.currentTime)
+    if (!video) return
+
+    // CRITICAL: During scrubbing, the Timeline is the source of truth.
+    // Do NOT update store from video timeupdate events to prevent feedback loops.
+    if (isScrubbing) {
+      return
     }
-  }, [setCurrentTime])
+
+    // If we're in the middle of an external seek, check if video has reached target
+    if (isExternalSeekingRef.current) {
+      // Read current store value directly to avoid stale closure issues
+      const storeTime = useUIStore.getState().currentTime
+      // Check if video is now at the expected position (within tolerance)
+      const timeDiff = Math.abs(video.currentTime - storeTime)
+      if (timeDiff < 0.5) {
+        // Video has reached target position, resume normal timeupdate handling
+        isExternalSeekingRef.current = false
+      } else {
+        // Video hasn't reached target yet, skip this timeupdate
+        return
+      }
+    }
+
+    // Update the last synced time to track what the video's currentTime is
+    lastSyncedTimeRef.current = video.currentTime
+    setCurrentTime(video.currentTime)
+  }, [setCurrentTime, isScrubbing])
+
+  // Pause video during scrubbing to prevent conflicts, resume after scrubbing ends
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    if (isScrubbing) {
+      // Store whether video was playing before scrubbing started
+      wasPlayingBeforeScrubRef.current = isPlaying
+      // Pause video during scrubbing for smoother seeking
+      if (!video.paused) {
+        video.pause()
+      }
+    } else {
+      // Scrubbing ended - resume playback if video was playing before
+      if (wasPlayingBeforeScrubRef.current && video.paused) {
+        video.play().catch((error) => {
+          if (error.name !== 'AbortError') {
+            console.error('Failed to resume after scrubbing:', error)
+            setIsPlaying(false)
+          }
+        })
+      }
+    }
+  }, [isScrubbing, isPlaying, setIsPlaying])
 
   // Sync video currentTime when store currentTime changes externally (e.g., from Timeline)
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
 
-    // Calculate the difference between store currentTime and last synced time
-    const timeDiff = Math.abs(currentTime - lastSyncedTimeRef.current)
+    // Compare store currentTime directly with actual video currentTime
+    const timeDiff = Math.abs(currentTime - video.currentTime)
 
-    // Only seek if the difference is significant (> 0.1s) to avoid unnecessary seeks
-    // from minor floating point differences during normal playback
-    if (timeDiff > 0.1) {
+    // Only seek if the difference is significant (> 0.1s during scrubbing, > 0.2s otherwise)
+    // to avoid unnecessary seeks from minor floating point differences during normal playback
+    const threshold = isScrubbing ? 0.1 : 0.2
+    if (timeDiff > threshold) {
+      // Set flag to prevent handleTimeUpdate from overwriting during seek
+      isExternalSeekingRef.current = true
+
+      // If video is not ready yet, wait for loadedmetadata
+      if (video.readyState < 1) {
+        const handleMetadata = () => {
+          video.currentTime = currentTime
+          lastSyncedTimeRef.current = currentTime
+          video.removeEventListener('loadedmetadata', handleMetadata)
+        }
+        video.addEventListener('loadedmetadata', handleMetadata)
+        return () => video.removeEventListener('loadedmetadata', handleMetadata)
+      }
+
       video.currentTime = currentTime
       lastSyncedTimeRef.current = currentTime
     }
-  }, [currentTime])
+  }, [currentTime, isScrubbing])
 
   // Handle play/pause with animation trigger
   const togglePlay = useCallback(() => {
@@ -242,18 +315,56 @@ export default function VideoPlayer() {
     setIsBuffering(true)
   }, [])
 
-  // Handle video error
+  // Handle video error with automatic recovery for decode errors
   const handleError = useCallback((e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget
     const error = video.error
-    if (error) {
-      console.error('Video error:', error.code, error.message)
-      // Reset playing state on error to maintain consistency
-      setIsPlaying(false)
-      setIsBuffering(false)
-      setIsSeeking(false)
+    if (!error) return
+
+    console.error('Video error:', error.code, error.message)
+
+    // MEDIA_ERR_DECODE (3) with PIPELINE_ERROR_DECODE - attempt recovery
+    if (error.code === 3 && error.message?.includes('PIPELINE_ERROR_DECODE')) {
+      const now = Date.now()
+      const recovery = decodeErrorRecoveryRef.current
+
+      // Reset counter if last error was more than 5 seconds ago
+      if (now - recovery.lastTime > 5000) {
+        recovery.count = 0
+      }
+
+      recovery.lastTime = now
+      recovery.count++
+
+      // Allow up to 3 recovery attempts within 5 seconds
+      if (recovery.count <= 3) {
+        console.debug(`Decode error recovery attempt ${recovery.count}/3`)
+        const currentPos = video.currentTime
+
+        // Brief pause then seek to same position to trigger fresh decode
+        setTimeout(() => {
+          if (videoRef.current) {
+            videoRef.current.currentTime = currentPos
+            // Resume playing if we were playing before
+            if (isPlaying) {
+              videoRef.current.play().catch(() => {
+                // If play fails, let user manually restart
+                setIsPlaying(false)
+              })
+            }
+          }
+        }, 100)
+        return // Don't reset playing state during recovery
+      }
+
+      console.warn('Max decode error recovery attempts reached')
     }
-  }, [setIsPlaying])
+
+    // For other errors or after max recovery attempts, reset state
+    setIsPlaying(false)
+    setIsBuffering(false)
+    setIsSeeking(false)
+  }, [isPlaying, setIsPlaying])
 
   // Handle video seeking started
   const handleSeeking = useCallback(() => {
@@ -265,21 +376,39 @@ export default function VideoPlayer() {
   const handleSeeked = useCallback(() => {
     console.debug('Video seeked: seek completed')
     setIsSeeking(false)
+    // Note: isExternalSeekingRef is now reset in handleTimeUpdate when video reaches target
+    // This prevents race conditions where timeupdate fires before video is at correct position
   }, [])
+
+  // Handle video loadedmetadata - sync video position with store if needed
+  const handleLoadedMetadata = useCallback(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    // If store has a different currentTime, sync video to that position
+    // This handles the case where timeline was used before video was ready
+    const timeDiff = Math.abs(currentTime - video.currentTime)
+    if (timeDiff > 0.2) {
+      console.debug('Video loadedmetadata: syncing to store time', currentTime)
+      isExternalSeekingRef.current = true
+      video.currentTime = currentTime
+      lastSyncedTimeRef.current = currentTime
+    }
+  }, [currentTime])
 
   // Handle video pause - only set isPlaying=false if not buffering/seeking
   // During buffering or seeking, the browser may fire pause events that shouldn't
   // stop playback intent
   const handlePause = useCallback(() => {
     // Only set isPlaying to false if we're not in a temporary pause state
-    // (buffering or seeking). This prevents the video from appearing "stopped"
-    // when it's actually just waiting for data or completing a seek operation.
-    if (!isBuffering && !isSeeking) {
+    // (buffering, seeking, or scrubbing). This prevents the video from appearing "stopped"
+    // when it's actually just waiting for data, completing a seek, or being scrubbed.
+    if (!isBuffering && !isSeeking && !isScrubbing) {
       setIsPlaying(false)
     } else {
-      console.debug('Video pause ignored: buffering=', isBuffering, 'seeking=', isSeeking)
+      console.debug('Video pause ignored: buffering=', isBuffering, 'seeking=', isSeeking, 'scrubbing=', isScrubbing)
     }
-  }, [isBuffering, isSeeking, setIsPlaying])
+  }, [isBuffering, isSeeking, isScrubbing, setIsPlaying])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -386,6 +515,7 @@ export default function VideoPlayer() {
           onStalled={handleStalled}
           onSeeking={handleSeeking}
           onSeeked={handleSeeked}
+          onLoadedMetadata={handleLoadedMetadata}
           onError={handleError}
           onClick={togglePlay}
         />

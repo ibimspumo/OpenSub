@@ -5,7 +5,7 @@ import { useUIStore } from '../../store/uiStore'
 export default function Timeline() {
   const containerRef = useRef<HTMLDivElement>(null)
   const { project } = useProjectStore()
-  const { currentTime, setCurrentTime, timelineZoom, setTimelineZoom, selectedSubtitleId, setSelectedSubtitleId } = useUIStore()
+  const { currentTime, setCurrentTime, timelineZoom, setTimelineZoom, selectedSubtitleId, setSelectedSubtitleId, setIsScrubbing } = useUIStore()
 
   // Local state for hover effects
   const [hoveredSubtitleId, setHoveredSubtitleId] = useState<string | null>(null)
@@ -34,9 +34,10 @@ export default function Timeline() {
     (e: React.MouseEvent) => {
       if (!project || !containerRef.current) return
       setIsDragging(true)
+      setIsScrubbing(true)  // Notify store that scrubbing started
       handleClick(e)
     },
-    [project, handleClick]
+    [project, handleClick, setIsScrubbing]
   )
 
   const handleMouseMove = useCallback(
@@ -49,7 +50,8 @@ export default function Timeline() {
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false)
-  }, [])
+    setIsScrubbing(false)  // Notify store that scrubbing ended
+  }, [setIsScrubbing])
 
   // Format time for markers
   const formatTime = (seconds: number) => {
@@ -98,10 +100,13 @@ export default function Timeline() {
 
   // Global mouse up handler
   useEffect(() => {
-    const handleGlobalMouseUp = () => setIsDragging(false)
+    const handleGlobalMouseUp = () => {
+      setIsDragging(false)
+      setIsScrubbing(false)  // Ensure scrubbing is also reset
+    }
     window.addEventListener('mouseup', handleGlobalMouseUp)
     return () => window.removeEventListener('mouseup', handleGlobalMouseUp)
-  }, [])
+  }, [setIsScrubbing])
 
   if (!project) return null
 

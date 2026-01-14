@@ -10,6 +10,8 @@ import type {
   StoredProject
 } from '../../shared/types'
 import { DEFAULT_SUBTITLE_STYLE, SPEAKER_COLORS, getDefaultFontSizeForResolution } from '../../shared/types'
+import { splitAllSubtitles, mergeAutoSplitSubtitles } from '../utils/subtitleSplitter'
+import { updateTextWithTimingPreservation } from '../utils/wordTimingUtils'
 
 interface ProjectState {
   project: Project | null
@@ -37,6 +39,10 @@ interface ProjectState {
 
   // Style
   updateStyle: (style: Partial<SubtitleStyle>) => void
+
+  // Auto-split
+  autoSplitSubtitles: () => void
+  remergeSubtitles: () => void
 
   // Helpers
   hasProject: () => boolean
@@ -126,7 +132,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }))
 
     // Convert transcription segments to subtitles
-    const subtitles: Subtitle[] = result.segments.map((segment) => ({
+    const rawSubtitles: Subtitle[] = result.segments.map((segment) => ({
       id: uuidv4(),
       startTime: segment.start,
       endTime: segment.end,
@@ -139,6 +145,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         confidence: w.score
       }))
     }))
+
+    // Apply auto-split on initial transcription
+    const subtitles = splitAllSubtitles(rawSubtitles, project.style, project.resolution.width)
 
     set({
       project: {
@@ -158,16 +167,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const subtitles = state.project.subtitles.map((sub) => {
         if (sub.id !== id) return sub
 
-        // Re-create words from new text (simple split)
-        const words: Word[] = text.split(/\s+/).map((word, index) => {
-          const oldWord = sub.words[index]
-          return {
-            text: word,
-            startTime: oldWord?.startTime ?? sub.startTime,
-            endTime: oldWord?.endTime ?? sub.endTime,
-            confidence: oldWord?.confidence ?? 1
-          }
-        })
+        // Use smart timing redistribution that preserves timing integrity
+        // when word count changes (e.g., AI corrections)
+        const words = updateTextWithTimingPreservation(
+          text,
+          sub.words,
+          sub.startTime,
+          sub.endTime
+        )
 
         return { ...sub, text, words }
       })
@@ -302,16 +309,69 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     })
   },
 
-  updateStyle: (style: Partial<SubtitleStyle>) => {
+  updateStyle: (styleUpdates: Partial<SubtitleStyle>) => {
     set((state) => {
       if (!state.project) return state
+
+      const newStyle = { ...state.project.style, ...styleUpdates }
+
+      // Check if split-relevant properties changed
+      const splitRelevantKeys: (keyof SubtitleStyle)[] = [
+        'fontSize',
+        'maxWidth',
+        'maxLines',
+        'fontFamily',
+        'fontWeight',
+        'textTransform'
+      ]
+      const needsResplit = splitRelevantKeys.some((key) => key in styleUpdates)
+
+      let subtitles = state.project.subtitles
+      if (needsResplit) {
+        // First merge any existing auto-splits, then re-split with new style
+        const merged = mergeAutoSplitSubtitles(subtitles)
+        subtitles = splitAllSubtitles(merged, newStyle, state.project.resolution.width)
+      }
 
       return {
         project: {
           ...state.project,
-          style: { ...state.project.style, ...style },
+          style: newStyle,
+          subtitles,
           updatedAt: Date.now()
         }
+      }
+    })
+  },
+
+  autoSplitSubtitles: () => {
+    const { project } = get()
+    if (!project) return
+
+    // First merge any existing auto-splits, then re-split
+    const merged = mergeAutoSplitSubtitles(project.subtitles)
+    const split = splitAllSubtitles(merged, project.style, project.resolution.width)
+
+    set({
+      project: {
+        ...project,
+        subtitles: split,
+        updatedAt: Date.now()
+      }
+    })
+  },
+
+  remergeSubtitles: () => {
+    const { project } = get()
+    if (!project) return
+
+    const merged = mergeAutoSplitSubtitles(project.subtitles)
+
+    set({
+      project: {
+        ...project,
+        subtitles: merged,
+        updatedAt: Date.now()
       }
     })
   },

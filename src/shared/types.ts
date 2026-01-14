@@ -37,6 +37,10 @@ export interface Subtitle {
   text: string
   words: Word[]
   speakerId?: string
+  // Auto-split metadata (for tracking and re-merging split subtitles)
+  splitGroupId?: string    // Links split segments to their original parent
+  splitIndex?: number      // Position within split group (0, 1, 2...)
+  isAutoSplit?: boolean    // Distinguishes auto-splits from manual edits
 }
 
 // Wort mit präzisem Timing
@@ -177,6 +181,49 @@ export interface StyleProfileExport {
 }
 
 // ============================================
+// AI Analysis Types
+// ============================================
+
+// Configuration for OpenRouter API
+export interface AnalysisConfig {
+  apiKey: string
+  model: 'google/gemini-3-flash-preview'
+  language: string
+}
+
+// A single correction proposed by the AI
+export interface SubtitleChange {
+  subtitleId: string
+  subtitleIndex: number
+  originalText: string
+  correctedText: string
+  changeType: 'spelling' | 'grammar' | 'context' | 'punctuation' | 'name'
+  confidence: number
+  reason?: string  // AI explanation for why it was changed
+  status: 'pending' | 'accepted' | 'rejected'
+}
+
+// Result from AI analysis
+export interface AnalysisResult {
+  changes: SubtitleChange[]
+  summary: {
+    totalChanges: number
+    spellingFixes: number
+    grammarFixes: number
+    contextFixes: number
+    punctuationFixes: number
+    nameFixes: number
+  }
+}
+
+// Progress during analysis
+export interface AnalysisProgress {
+  stage: 'extracting' | 'uploading' | 'analyzing' | 'comparing' | 'complete' | 'error'
+  percent: number
+  message: string
+}
+
+// ============================================
 // IPC Types
 // ============================================
 
@@ -307,7 +354,12 @@ export const IPC_CHANNELS = {
   WINDOW_TOGGLE_MAXIMIZE: 'window:toggleMaximize',
 
   // Fonts
-  FONTS_GET_SYSTEM: 'fonts:get-system'
+  FONTS_GET_SYSTEM: 'fonts:get-system',
+
+  // AI Analysis
+  AI_ANALYZE: 'ai:analyze',
+  AI_CANCEL: 'ai:cancel',
+  AI_PROGRESS: 'ai:progress'
 } as const
 
 // ============================================

@@ -70,7 +70,9 @@ function getCurrentWordIndex(subtitle: Subtitle, currentTime: number): number {
 }
 
 /**
- * Wrap text into multiple lines based on maxWidth and maxLines
+ * Wrap text into multiple lines based on maxWidth and maxLines.
+ * Note: Subtitles are pre-split at the store level, so truncation is no longer needed.
+ * This function now simply wraps text without losing any content.
  */
 function wrapText(
   ctx: OffscreenCanvasRenderingContext2D,
@@ -90,24 +92,12 @@ function wrapText(
       lines.push(currentLine)
       currentLine = word
 
+      // Since subtitles are pre-split, we should rarely exceed maxLines.
+      // But if we do, continue wrapping to avoid losing text.
       if (lines.length >= maxLines) {
         const remainingWords = words.slice(words.indexOf(word))
-        const lastLine = remainingWords.join(' ')
-        if (ctx.measureText(lastLine).width > maxWidthPx) {
-          let truncated = lines[lines.length - 1]
-          for (const remaining of remainingWords) {
-            const testTruncated = `${truncated} ${remaining}`
-            if (ctx.measureText(testTruncated + '...').width <= maxWidthPx) {
-              truncated = testTruncated
-            } else {
-              break
-            }
-          }
-          lines[lines.length - 1] = truncated
-        } else {
-          lines[lines.length - 1] = lastLine
-        }
-        return lines.slice(0, maxLines)
+        lines.push(remainingWords.join(' '))
+        return lines
       }
     } else {
       currentLine = testLine
@@ -118,7 +108,7 @@ function wrapText(
     lines.push(currentLine)
   }
 
-  return lines.slice(0, maxLines)
+  return lines
 }
 
 /**

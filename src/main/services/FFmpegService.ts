@@ -72,7 +72,7 @@ export class FFmpegService {
   private currentCommand: ffmpeg.FfmpegCommand | null = null
 
   /**
-   * Extract audio from video file
+   * Extract audio from video file (WAV format for WhisperX)
    */
   async extractAudio(videoPath: string, outputPath: string): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -87,6 +87,33 @@ export class FFmpegService {
         })
         .on('error', (err) => {
           reject(new Error(`Audio extraction failed: ${err.message}`))
+        })
+        .run()
+    })
+  }
+
+  /**
+   * Extract audio from video file as MP3 (for AI analysis)
+   * Uses lower bitrate and mono to minimize file size for API upload
+   */
+  async extractAudioAsMP3(
+    videoPath: string,
+    outputPath: string,
+    bitrate: string = '128k'
+  ): Promise<string> {
+    return new Promise((resolve, reject) => {
+      ffmpeg(videoPath)
+        .noVideo()
+        .audioCodec('libmp3lame')
+        .audioBitrate(bitrate)
+        .audioFrequency(44100)
+        .audioChannels(1) // Mono to save tokens
+        .output(outputPath)
+        .on('end', () => {
+          resolve(outputPath)
+        })
+        .on('error', (err) => {
+          reject(new Error(`MP3 extraction failed: ${err.message}`))
         })
         .run()
     })

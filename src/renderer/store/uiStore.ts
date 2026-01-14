@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { TranscriptionProgress } from '../../shared/types'
+import type { TranscriptionProgress, AnalysisProgress, SubtitleChange } from '../../shared/types'
 
 // Save status type
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
@@ -9,6 +9,7 @@ interface UIState {
   isPlaying: boolean
   currentTime: number
   volume: number
+  isScrubbing: boolean  // True when user is scrubbing the timeline
 
   // Transcription
   isTranscribing: boolean
@@ -30,10 +31,17 @@ interface UIState {
   lastSavedAt: number | null
   hasUnsavedChanges: boolean
 
+  // AI Analysis
+  isAnalyzing: boolean
+  analysisProgress: AnalysisProgress | null
+  pendingChanges: SubtitleChange[]
+  showDiffPreview: boolean
+
   // Actions
   setIsPlaying: (isPlaying: boolean) => void
   setCurrentTime: (time: number) => void
   setVolume: (volume: number) => void
+  setIsScrubbing: (isScrubbing: boolean) => void
 
   setIsTranscribing: (isTranscribing: boolean) => void
   setTranscriptionProgress: (progress: TranscriptionProgress | null) => void
@@ -49,6 +57,15 @@ interface UIState {
   setSaveStatus: (status: SaveStatus) => void
   setLastSavedAt: (time: number | null) => void
   setHasUnsavedChanges: (hasUnsavedChanges: boolean) => void
+
+  // Analysis actions
+  setIsAnalyzing: (isAnalyzing: boolean) => void
+  setAnalysisProgress: (progress: AnalysisProgress | null) => void
+  setPendingChanges: (changes: SubtitleChange[]) => void
+  setShowDiffPreview: (show: boolean) => void
+  updateChangeStatus: (subtitleId: string, status: 'accepted' | 'rejected') => void
+  acceptAllChanges: () => void
+  rejectAllChanges: () => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -56,6 +73,7 @@ export const useUIStore = create<UIState>((set) => ({
   isPlaying: false,
   currentTime: 0,
   volume: 1,
+  isScrubbing: false,
 
   // Transcription
   isTranscribing: false,
@@ -77,10 +95,17 @@ export const useUIStore = create<UIState>((set) => ({
   lastSavedAt: null,
   hasUnsavedChanges: false,
 
+  // AI Analysis
+  isAnalyzing: false,
+  analysisProgress: null,
+  pendingChanges: [],
+  showDiffPreview: false,
+
   // Actions
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setCurrentTime: (currentTime) => set({ currentTime }),
   setVolume: (volume) => set({ volume }),
+  setIsScrubbing: (isScrubbing) => set({ isScrubbing }),
 
   setIsTranscribing: (isTranscribing) => set({ isTranscribing }),
   setTranscriptionProgress: (transcriptionProgress) => set({ transcriptionProgress }),
@@ -95,5 +120,25 @@ export const useUIStore = create<UIState>((set) => ({
 
   setSaveStatus: (saveStatus) => set({ saveStatus }),
   setLastSavedAt: (lastSavedAt) => set({ lastSavedAt }),
-  setHasUnsavedChanges: (hasUnsavedChanges) => set({ hasUnsavedChanges })
+  setHasUnsavedChanges: (hasUnsavedChanges) => set({ hasUnsavedChanges }),
+
+  // Analysis actions
+  setIsAnalyzing: (isAnalyzing) => set({ isAnalyzing }),
+  setAnalysisProgress: (analysisProgress) => set({ analysisProgress }),
+  setPendingChanges: (pendingChanges) => set({ pendingChanges }),
+  setShowDiffPreview: (showDiffPreview) => set({ showDiffPreview }),
+  updateChangeStatus: (subtitleId, status) =>
+    set((state) => ({
+      pendingChanges: state.pendingChanges.map((change) =>
+        change.subtitleId === subtitleId ? { ...change, status } : change
+      )
+    })),
+  acceptAllChanges: () =>
+    set((state) => ({
+      pendingChanges: state.pendingChanges.map((change) => ({ ...change, status: 'accepted' as const }))
+    })),
+  rejectAllChanges: () =>
+    set((state) => ({
+      pendingChanges: state.pendingChanges.map((change) => ({ ...change, status: 'rejected' as const }))
+    }))
 }))

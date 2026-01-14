@@ -12,7 +12,11 @@ import type {
   Project,
   StoredProjectMeta,
   StoredProject,
-  SubtitleFrame
+  SubtitleFrame,
+  Subtitle,
+  AnalysisConfig,
+  AnalysisResult,
+  AnalysisProgress
 } from '../shared/types'
 
 // Expose protected methods that allow the renderer process to use
@@ -167,6 +171,29 @@ contextBridge.exposeInMainWorld('api', {
   fonts: {
     getSystemFonts: (): Promise<string[]> =>
       ipcRenderer.invoke(IPC_CHANNELS.FONTS_GET_SYSTEM)
+  },
+
+  // ============================================
+  // AI Analysis
+  // ============================================
+  analysis: {
+    analyze: (params: {
+      videoPath: string
+      subtitles: Subtitle[]
+      config: AnalysisConfig
+    }): Promise<AnalysisResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_ANALYZE, params),
+
+    cancel: (): Promise<void> =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_CANCEL),
+
+    onProgress: (callback: (progress: AnalysisProgress) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, progress: AnalysisProgress) => {
+        callback(progress)
+      }
+      ipcRenderer.on(IPC_CHANNELS.AI_PROGRESS, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.AI_PROGRESS, handler)
+    }
   }
 })
 
@@ -236,6 +263,15 @@ declare global {
       }
       fonts: {
         getSystemFonts: () => Promise<string[]>
+      }
+      analysis: {
+        analyze: (params: {
+          videoPath: string
+          subtitles: Subtitle[]
+          config: AnalysisConfig
+        }) => Promise<AnalysisResult>
+        cancel: () => Promise<void>
+        onProgress: (callback: (progress: AnalysisProgress) => void) => () => void
       }
     }
   }

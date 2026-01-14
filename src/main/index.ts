@@ -7,6 +7,7 @@ import { registerWhisperHandlers, cleanupWhisperService } from './ipc/whisper-ha
 import { registerFFmpegHandlers } from './ipc/ffmpeg-handlers'
 import { registerFileHandlers } from './ipc/file-handlers'
 import { registerProjectHandlers, cleanupProjectHandlers } from './ipc/project-handlers'
+import { registerAnalysisHandlers, cleanupAnalysisService } from './ipc/analysis-handlers'
 
 // Load .env file
 config({ path: join(app.getAppPath(), '.env') })
@@ -83,6 +84,7 @@ app.whenReady().then(() => {
   registerFFmpegHandlers()
   registerFileHandlers()
   registerProjectHandlers()
+  registerAnalysisHandlers()
 
   // IPC handler for window maximize toggle (double-click on title bar)
   ipcMain.handle('window:toggleMaximize', () => {
@@ -109,6 +111,7 @@ app.on('window-all-closed', async () => {
   // Cleanup services
   await cleanupWhisperService()
   cleanupProjectHandlers()
+  cleanupAnalysisService()
 
   if (process.platform !== 'darwin') {
     app.quit()

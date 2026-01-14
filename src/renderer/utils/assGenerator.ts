@@ -11,8 +11,10 @@ function applyTextTransform(text: string, style: SubtitleStyle): string {
 }
 
 /**
- * Wrap text to fit within maxWidth, respecting maxLines limit
- * Uses \N for hard line breaks in ASS format
+ * Wrap text to fit within maxWidth, respecting maxLines limit.
+ * Uses \N for hard line breaks in ASS format.
+ * Note: Subtitles are pre-split at the store level, so truncation is no longer needed.
+ * This function now simply wraps text without losing any content.
  * @param text - The text to wrap
  * @param maxWidth - Maximum width in pixels
  * @param fontSize - Font size for estimating character width
@@ -45,25 +47,20 @@ function wrapTextForASS(
     } else {
       if (currentLine) {
         lines.push(currentLine)
-        // Respect maxLines limit
+        // Since subtitles are pre-split, we should rarely exceed maxLines.
+        // But if we do, continue wrapping to avoid losing text.
         if (lines.length >= maxLines) {
-          // Add remaining words to last line with ellipsis if needed
           const remainingWords = words.slice(words.indexOf(word))
-          const lastLine = remainingWords.join(' ')
-          if (lastLine.length > maxCharsPerLine) {
-            lines[lines.length - 1] = lines[lines.length - 1] + '...'
-          } else {
-            lines[lines.length - 1] = lines[lines.length - 1] + ' ' + lastLine
-          }
-          break
+          lines.push(remainingWords.join(' '))
+          return lines.join('\\N')
         }
       }
       currentLine = word
     }
   }
 
-  // Add the last line if we haven't hit the limit
-  if (currentLine && lines.length < maxLines) {
+  // Add the last line
+  if (currentLine) {
     lines.push(currentLine)
   }
 

@@ -8,6 +8,8 @@ import SubtitleList from './components/SubtitleEditor/SubtitleList'
 import StyleEditor from './components/StyleEditor/StyleEditor'
 import TranscriptionProgress from './components/TranscriptionProgress/TranscriptionProgress'
 import ExportProgress from './components/ExportProgress/ExportProgress'
+import AnalysisProgress from './components/AnalysisProgress/AnalysisProgress'
+import DiffPreview from './components/DiffPreview/DiffPreview'
 import TitleBar from './components/TitleBar/TitleBar'
 import { generateExportFrames } from './utils/subtitleFrameRenderer'
 import { useAutoSave } from './hooks/useAutoSave'
@@ -16,7 +18,20 @@ import type { SubtitleFrame } from '../shared/types'
 
 function App() {
   const { project, hasProject } = useProjectStore()
-  const { isTranscribing, transcriptionProgress, isExporting, setIsExporting, setExportProgress } = useUIStore()
+  const {
+    isTranscribing,
+    transcriptionProgress,
+    isExporting,
+    setIsExporting,
+    setExportProgress,
+    isAnalyzing,
+    analysisProgress,
+    showDiffPreview,
+    setIsAnalyzing,
+    setAnalysisProgress,
+    setShowDiffPreview,
+    setPendingChanges
+  } = useUIStore()
   const [exportError, setExportError] = useState<string | null>(null)
   const [isAppMounted, setIsAppMounted] = useState(false)
   const [showEditor, setShowEditor] = useState(false)
@@ -43,6 +58,14 @@ function App() {
     loadGoogleFont('Poppins', [400, 500, 600, 700])
     loadGoogleFont('Montserrat', [400, 500, 700])
   }, [])
+
+  // Listen for AI analysis progress events
+  useEffect(() => {
+    const unsubscribe = window.api.analysis.onProgress((progress) => {
+      setAnalysisProgress(progress)
+    })
+    return () => unsubscribe()
+  }, [setAnalysisProgress])
 
   // Editor transition when project loads
   useEffect(() => {
@@ -278,6 +301,32 @@ function App() {
 
       {isExporting && (
         <ExportProgress />
+      )}
+
+      {/* AI Analysis Modal */}
+      {isAnalyzing && (
+        <AnalysisProgress
+          progress={analysisProgress}
+          onCancel={() => {
+            window.api.analysis.cancel()
+            setIsAnalyzing(false)
+            setAnalysisProgress(null)
+          }}
+        />
+      )}
+
+      {/* Diff Preview Modal */}
+      {showDiffPreview && (
+        <DiffPreview
+          onClose={() => {
+            setShowDiffPreview(false)
+            setPendingChanges([])
+          }}
+          onApply={() => {
+            setShowDiffPreview(false)
+            setPendingChanges([])
+          }}
+        />
       )}
 
       {/* Export Error Toast (if needed) */}

@@ -22,6 +22,8 @@ export default function SubtitleCanvas({
 }: SubtitleCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animationRef = useRef<number>()
+  const offscreenCanvasRef = useRef<OffscreenCanvas | null>(null)
+  const renderRef = useRef<() => void>()
   const [canvasStyle, setCanvasStyle] = useState<React.CSSProperties>({})
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 0, height: 0 })
 
@@ -92,6 +94,8 @@ export default function SubtitleCanvas({
   }, [])
 
   // Wrap text into multiple lines based on maxWidth and maxLines
+  // Note: Subtitles are pre-split at the store level, so truncation is no longer needed.
+  // This function now simply wraps text without losing any content.
   const wrapText = useCallback((
     ctx: CanvasRenderingContext2D,
     text: string,
@@ -110,27 +114,13 @@ export default function SubtitleCanvas({
         lines.push(currentLine)
         currentLine = word
 
-        // Stop if we've reached max lines
+        // Since subtitles are pre-split, we should rarely exceed maxLines.
+        // But if we do, continue wrapping to avoid losing text.
         if (lines.length >= maxLines) {
-          // Add remaining words to last line with ellipsis if needed
+          // Add remaining words to the last line (may overflow visually but won't be lost)
           const remainingWords = words.slice(words.indexOf(word))
-          const lastLine = remainingWords.join(' ')
-          if (ctx.measureText(lastLine).width > maxWidthPx) {
-            // Truncate with ellipsis
-            let truncated = lines[lines.length - 1]
-            for (const remaining of remainingWords) {
-              const testTruncated = `${truncated} ${remaining}`
-              if (ctx.measureText(testTruncated + '...').width <= maxWidthPx) {
-                truncated = testTruncated
-              } else {
-                break
-              }
-            }
-            lines[lines.length - 1] = truncated
-          } else {
-            lines[lines.length - 1] = lastLine
-          }
-          return lines.slice(0, maxLines)
+          lines.push(remainingWords.join(' '))
+          return lines
         }
       } else {
         currentLine = testLine
@@ -141,7 +131,7 @@ export default function SubtitleCanvas({
       lines.push(currentLine)
     }
 
-    return lines.slice(0, maxLines)
+    return lines
   }, [])
 
   // Apply text transform if configured
@@ -305,6 +295,7 @@ export default function SubtitleCanvas({
   }, [isDragging, localDragPosition, updateStyle])
 
   // Helper to wrap text for offscreen rendering (uses video width)
+  // Note: Subtitles are pre-split at the store level, so truncation is no longer needed.
   const wrapTextOffscreen = useCallback((
     ctx: OffscreenCanvasRenderingContext2D,
     text: string,
@@ -322,8 +313,12 @@ export default function SubtitleCanvas({
       if (metrics.width > maxWidthPx && currentLine) {
         lines.push(currentLine)
         currentLine = word
+        // Since subtitles are pre-split, we should rarely exceed maxLines.
+        // But if we do, continue wrapping to avoid losing text.
         if (lines.length >= maxLines) {
-          return lines.slice(0, maxLines)
+          const remainingWords = words.slice(words.indexOf(word))
+          lines.push(remainingWords.join(' '))
+          return lines
         }
       } else {
         currentLine = testLine
@@ -334,7 +329,7 @@ export default function SubtitleCanvas({
       lines.push(currentLine)
     }
 
-    return lines.slice(0, maxLines)
+    return lines
   }, [])
 
   const getWrappedLinesOffscreen = useCallback((
@@ -632,6 +627,13 @@ export default function SubtitleCanvas({
     ctx.shadowBlur = 0
   }, [style, getWrappedLinesOffscreen])
 
+  // Create/update offscreen canvas only when video dimensions change
+  useEffect(() => {
+    if (videoWidth > 0 && videoHeight > 0) {
+      offscreenCanvasRef.current = new OffscreenCanvas(videoWidth, videoHeight)
+    }
+  }, [videoWidth, videoHeight])
+
   // Render subtitles at video resolution, then scale to display
   // This ensures the preview matches the export exactly
   const render = useCallback(() => {
@@ -679,11 +681,15 @@ export default function SubtitleCanvas({
 
     const currentWordIndex = getCurrentWordIndex(currentSubtitle)
 
-    // Create an offscreen canvas at video resolution for pixel-perfect rendering
+    // Use the cached offscreen canvas for pixel-perfect rendering
     // This ensures the preview matches the export exactly
-    const offscreen = new OffscreenCanvas(videoWidth, videoHeight)
+    const offscreen = offscreenCanvasRef.current
+    if (!offscreen) return
     const offCtx = offscreen.getContext('2d')
     if (!offCtx) return
+
+    // Clear the offscreen canvas
+    offCtx.clearRect(0, 0, videoWidth, videoHeight)
 
     // Render at video resolution (same as export)
     const fontSize = style.fontSize
@@ -1057,10 +1063,16 @@ export default function SubtitleCanvas({
     ctx.shadowBlur = 0
   }
 
-  // Animation loop
+  // Keep renderRef in sync with the latest render function
+  // This avoids restarting the animation loop when style changes
+  useEffect(() => {
+    renderRef.current = render
+  }, [render])
+
+  // Animation loop - stable, never restarts due to style changes
   useEffect(() => {
     const animate = () => {
-      render()
+      renderRef.current?.()
       animationRef.current = requestAnimationFrame(animate)
     }
 
@@ -1071,7 +1083,7 @@ export default function SubtitleCanvas({
         cancelAnimationFrame(animationRef.current)
       }
     }
-  }, [render])
+  }, []) // Empty deps - loop starts once and runs forever
 
   // Position canvas over video element
   const updateCanvasPosition = useCallback(() => {
