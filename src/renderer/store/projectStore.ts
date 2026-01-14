@@ -3,13 +3,11 @@ import { v4 as uuidv4 } from 'uuid'
 import type {
   Project,
   Subtitle,
-  Speaker,
   SubtitleStyle,
-  Word,
   TranscriptionResult,
   StoredProject
 } from '../../shared/types'
-import { DEFAULT_SUBTITLE_STYLE, SPEAKER_COLORS, getDefaultFontSizeForResolution } from '../../shared/types'
+import { DEFAULT_SUBTITLE_STYLE, getDefaultFontSizeForResolution } from '../../shared/types'
 import { splitAllSubtitles, mergeAutoSplitSubtitles } from '../utils/subtitleSplitter'
 import { updateTextWithTimingPreservation } from '../utils/wordTimingUtils'
 
@@ -32,10 +30,6 @@ interface ProjectState {
   updateWordText: (subtitleId: string, wordIndex: number, text: string) => void
   deleteSubtitle: (id: string) => void
   addSubtitle: (subtitle: Omit<Subtitle, 'id'>) => void
-
-  // Speakers
-  updateSpeakerName: (id: string, name: string) => void
-  updateSpeakerColor: (id: string, color: string) => void
 
   // Style
   updateStyle: (style: Partial<SubtitleStyle>) => void
@@ -61,7 +55,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       duration: 0,
       resolution: { width: 1080, height: 1920 }, // Default portrait
       subtitles: [],
-      speakers: [],
       style: { ...DEFAULT_SUBTITLE_STYLE },
       createdAt: Date.now(),
       updatedAt: Date.now()
@@ -124,20 +117,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const { project } = get()
     if (!project) return
 
-    // Create speakers from result
-    const speakers: Speaker[] = result.speakers.map((speakerId, index) => ({
-      id: speakerId,
-      name: `Sprecher ${index + 1}`,
-      color: SPEAKER_COLORS[index % SPEAKER_COLORS.length]
-    }))
-
     // Convert transcription segments to subtitles
     const rawSubtitles: Subtitle[] = result.segments.map((segment) => ({
       id: uuidv4(),
       startTime: segment.start,
       endTime: segment.end,
       text: segment.text.trim(),
-      speakerId: segment.speaker,
       words: segment.words.map((w) => ({
         text: w.word,
         startTime: w.start,
@@ -153,7 +138,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       project: {
         ...project,
         subtitles,
-        speakers,
         duration: result.duration,
         updatedAt: Date.now()
       }
@@ -267,42 +251,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         project: {
           ...state.project,
           subtitles,
-          updatedAt: Date.now()
-        }
-      }
-    })
-  },
-
-  updateSpeakerName: (id: string, name: string) => {
-    set((state) => {
-      if (!state.project) return state
-
-      const speakers = state.project.speakers.map((speaker) =>
-        speaker.id === id ? { ...speaker, name } : speaker
-      )
-
-      return {
-        project: {
-          ...state.project,
-          speakers,
-          updatedAt: Date.now()
-        }
-      }
-    })
-  },
-
-  updateSpeakerColor: (id: string, color: string) => {
-    set((state) => {
-      if (!state.project) return state
-
-      const speakers = state.project.speakers.map((speaker) =>
-        speaker.id === id ? { ...speaker, color } : speaker
-      )
-
-      return {
-        project: {
-          ...state.project,
-          speakers,
           updatedAt: Date.now()
         }
       }

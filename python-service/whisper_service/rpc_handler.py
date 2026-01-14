@@ -59,9 +59,6 @@ class RPCHandler:
         audio_path = params["audio_path"]
         options = {
             "language": params.get("language", "de"),
-            "diarize": params.get("diarize", True),
-            "min_speakers": params.get("min_speakers"),
-            "max_speakers": params.get("max_speakers"),
         }
 
         # Progress callback sends notifications

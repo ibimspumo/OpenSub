@@ -6,9 +6,6 @@ torchaudio>=2.0.0
 # For word-level alignment
 transformers>=4.30.0
 
-# For speaker diarization
-pyannote.audio>=3.1.0
-
 # Audio processing
 librosa>=0.10.0
 soundfile>=0.12.0

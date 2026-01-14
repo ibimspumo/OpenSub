@@ -116,8 +116,7 @@ export default function DropZone() {
 
       // Transcribe
       const result = await window.api.whisper.transcribe(audioPath, {
-        language: 'de',
-        diarize: true
+        language: 'de'
       })
 
       unsubscribe()

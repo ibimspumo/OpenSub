@@ -4,22 +4,11 @@ import { join } from 'path'
 import { app } from 'electron'
 import type { VideoMetadata, ExportOptions } from '../../shared/types'
 
-// Type declarations for ffmpeg installer packages
-declare module '@ffmpeg-installer/ffmpeg' {
-  export const path: string
-  export const version: string
-  export const url: string
-}
-
-declare module '@ffprobe-installer/ffprobe' {
-  export const path: string
-  export const version: string
-  export const url: string
-}
-
 // Import ffmpeg installer packages
-import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
-import ffprobeInstaller from '@ffprobe-installer/ffprobe'
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg') as { path: string; version: string; url: string }
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const ffprobeInstaller = require('@ffprobe-installer/ffprobe') as { path: string; version: string; url: string }
 
 // Manifest structure for frame-based rendering
 interface FrameManifest {

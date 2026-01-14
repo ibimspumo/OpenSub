@@ -16,13 +16,13 @@ export class WhisperService extends EventEmitter {
   private isReady = false
   private config: WhisperConfig
 
-  constructor(config: WhisperConfig) {
+  constructor(config: Partial<WhisperConfig>) {
     super()
     this.config = {
-      model: 'large-v3',
-      language: 'de',
-      device: 'mps', // MLX backend uses Metal on Apple Silicon
-      ...config
+      model: config.model ?? 'large-v3',
+      language: config.language ?? 'de',
+      device: config.device ?? 'mps', // MLX backend uses Metal on Apple Silicon
+      hfToken: config.hfToken
     }
   }
 
@@ -163,7 +163,7 @@ export class WhisperService extends EventEmitter {
   }
 
   /**
-   * Transcribe audio file with word-level timestamps and diarization
+   * Transcribe audio file with word-level timestamps
    */
   async transcribe(
     audioPath: string,
@@ -173,10 +173,7 @@ export class WhisperService extends EventEmitter {
 
     return this.ipc.call('transcribe', {
       audio_path: audioPath,
-      language: options.language || this.config.language,
-      diarize: options.diarize ?? true,
-      min_speakers: options.minSpeakers,
-      max_speakers: options.maxSpeakers
+      language: options.language || this.config.language
     })
   }
 

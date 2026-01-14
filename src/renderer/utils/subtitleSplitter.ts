@@ -128,7 +128,6 @@ export function splitSubtitle(
     endTime: segment.endTime,
     text: segment.words.map((w) => w.text).join(' '),
     words: segment.words,
-    speakerId: subtitle.speakerId,
     splitGroupId: groupId,
     splitIndex: index,
     isAutoSplit: true
@@ -184,7 +183,6 @@ export function mergeAutoSplitSubtitles(subtitles: Subtitle[]): Subtitle[] {
       endTime: allWords[allWords.length - 1].endTime,
       text: allWords.map((w) => w.text).join(' '),
       words: allWords,
-      speakerId: sorted[0].speakerId,
       // Clear split metadata after merge
       splitGroupId: undefined,
       splitIndex: undefined,

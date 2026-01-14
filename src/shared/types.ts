@@ -11,7 +11,6 @@ export interface Project {
   duration: number
   resolution: Resolution
   subtitles: Subtitle[]
-  speakers: Speaker[]
   style: SubtitleStyle
   createdAt: number
   updatedAt: number
@@ -22,13 +21,6 @@ export interface Resolution {
   height: number
 }
 
-// Sprecher (aus Diarization)
-export interface Speaker {
-  id: string // z.B. "SPEAKER_00"
-  name: string // Benutzer-definierter Name
-  color: string // Farbe für diesen Sprecher
-}
-
 // Subtitle Segment
 export interface Subtitle {
   id: string
@@ -36,7 +28,6 @@ export interface Subtitle {
   endTime: number
   text: string
   words: Word[]
-  speakerId?: string
   // Auto-split metadata (for tracking and re-merging split subtitles)
   splitGroupId?: string    // Links split segments to their original parent
   splitIndex?: number      // Position within split group (0, 1, 2...)
@@ -149,18 +140,6 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   karaokeBoxBorderRadius: 32    // 32px border radius for rounded corners
 }
 
-// Default Speaker Colors
-export const SPEAKER_COLORS = [
-  '#3B82F6', // Blue
-  '#EF4444', // Red
-  '#10B981', // Green
-  '#F59E0B', // Amber
-  '#8B5CF6', // Purple
-  '#EC4899', // Pink
-  '#06B6D4', // Cyan
-  '#F97316' // Orange
-]
-
 // ============================================
 // Style Profile Types
 // ============================================
@@ -237,23 +216,18 @@ export interface WhisperConfig {
 
 export interface TranscriptionOptions {
   language?: string
-  diarize?: boolean
-  minSpeakers?: number
-  maxSpeakers?: number
 }
 
 export interface TranscriptionResult {
   segments: TranscriptionSegment[]
   language: string
   duration: number
-  speakers: string[]
 }
 
 export interface TranscriptionSegment {
   start: number
   end: number
   text: string
-  speaker?: string
   words: TranscriptionWord[]
 }
 
@@ -262,11 +236,10 @@ export interface TranscriptionWord {
   start: number
   end: number
   score: number
-  speaker?: string
 }
 
 export interface TranscriptionProgress {
-  stage: 'loading' | 'transcribing' | 'aligning' | 'diarizing' | 'complete'
+  stage: 'loading' | 'transcribing' | 'aligning' | 'complete'
   percent: number
   message: string
 }

@@ -130,30 +130,25 @@ export default function SubtitleList() {
         ) : (
           // Subtitle List with staggered animations
           <div className="space-y-2">
-            {project.subtitles.map((subtitle, index) => {
-              const speaker = project.speakers.find((s) => s.id === subtitle.speakerId)
-
-              return (
-                <div
-                  key={subtitle.id}
-                  data-subtitle-id={subtitle.id}
-                  className={`
-                    transition-all duration-300 ease-smooth
-                    ${isInitialRender ? 'opacity-0 translate-y-2' : 'opacity-100 translate-y-0'}
-                  `}
-                  style={{
-                    transitionDelay: isInitialRender ? `${Math.min(index * 30, 300)}ms` : '0ms'
-                  }}
-                >
-                  <SubtitleItem
-                    subtitle={subtitle}
-                    speaker={speaker}
-                    isSelected={selectedSubtitleId === subtitle.id}
-                    onSelect={() => handleSelect(subtitle.id, subtitle.startTime)}
-                  />
-                </div>
-              )
-            })}
+            {project.subtitles.map((subtitle, index) => (
+              <div
+                key={subtitle.id}
+                data-subtitle-id={subtitle.id}
+                className={`
+                  transition-all duration-300 ease-smooth
+                  ${isInitialRender ? 'opacity-0 translate-y-2' : 'opacity-100 translate-y-0'}
+                `}
+                style={{
+                  transitionDelay: isInitialRender ? `${Math.min(index * 30, 300)}ms` : '0ms'
+                }}
+              >
+                <SubtitleItem
+                  subtitle={subtitle}
+                  isSelected={selectedSubtitleId === subtitle.id}
+                  onSelect={() => handleSelect(subtitle.id, subtitle.startTime)}
+                />
+              </div>
+            ))}
 
             {/* Bottom spacer for better scroll experience */}
             <div className="h-4" aria-hidden="true" />

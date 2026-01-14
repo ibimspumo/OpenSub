@@ -17,7 +17,6 @@ class WhisperTranscriber:
     def __init__(self):
         self.align_model = None
         self.align_metadata = None
-        self.diarize_pipeline = None
         self.device = "mps"  # MLX uses Metal/MPS on Apple Silicon
         self.language = "de"
         self.model_name = "large-v3"
@@ -37,10 +36,6 @@ class WhisperTranscriber:
         """Load all required models"""
         import whisperx_mlx
 
-        # Use HF_TOKEN from environment if not provided
-        if not hf_token:
-            hf_token = os.environ.get("HF_TOKEN", "")
-
         logger.info(f"Initializing WhisperX-MLX with model={model_name}, backend=mlx")
 
         self.device = device
@@ -53,20 +48,6 @@ class WhisperTranscriber:
             language_code=language,
             device="cpu"  # Alignment model runs on CPU
         )
-
-        # Load diarization pipeline (requires HuggingFace token)
-        if hf_token:
-            logger.info("Loading diarization pipeline...")
-            try:
-                self.diarize_pipeline = whisperx_mlx.DiarizationPipeline(
-                    use_auth_token=hf_token,
-                    device="cpu"  # Diarization runs on CPU
-                )
-            except Exception as e:
-                logger.warning(f"Could not load diarization pipeline: {e}")
-                self.diarize_pipeline = None
-        else:
-            logger.warning("No HuggingFace token provided, diarization disabled")
 
         self.is_initialized = True
         logger.info("WhisperX-MLX initialization complete")
@@ -81,8 +62,6 @@ class WhisperTranscriber:
         Full transcription pipeline:
         1. Transcribe with Whisper (MLX backend)
         2. Align for word-level timestamps
-        3. Diarize for speaker identification
-        4. Combine results
         """
         import whisperx_mlx
 
@@ -137,37 +116,11 @@ class WhisperTranscriber:
             if self._check_cancelled():
                 return {"cancelled": True}
 
-            # Stage 4: Speaker diarization
-            speakers = []
-            if options.get("diarize", True) and self.diarize_pipeline:
-                if progress_callback:
-                    progress_callback("diarizing", 70, "Identifiziere Sprecher...")
-
-                logger.info("Running speaker diarization...")
-                try:
-                    diarize_segments = self.diarize_pipeline(
-                        audio_path,
-                        min_speakers=options.get("min_speakers"),
-                        max_speakers=options.get("max_speakers")
-                    )
-
-                    # Assign speakers to words
-                    result = whisperx_mlx.assign_word_speakers(diarize_segments, result)
-
-                    # Extract unique speakers
-                    speakers = list(set(
-                        seg.get("speaker", "UNKNOWN")
-                        for seg in result["segments"]
-                        if seg.get("speaker")
-                    ))
-                except Exception as e:
-                    logger.warning(f"Diarization failed: {e}")
-
             if progress_callback:
                 progress_callback("complete", 100, "Transkription abgeschlossen")
 
             # Format output
-            return self._format_result(result, duration, speakers)
+            return self._format_result(result, duration)
 
         finally:
             with self._lock:
@@ -178,8 +131,7 @@ class WhisperTranscriber:
     def _format_result(
         self,
         result: Dict,
-        duration: float,
-        speakers: List[str]
+        duration: float
     ) -> Dict[str, Any]:
         """Format WhisperX output to structured result"""
         segments = []
@@ -191,23 +143,20 @@ class WhisperTranscriber:
                     "word": word.get("word", ""),
                     "start": word.get("start", 0),
                     "end": word.get("end", 0),
-                    "score": word.get("score", 0),
-                    "speaker": word.get("speaker")
+                    "score": word.get("score", 0)
                 })
 
             segments.append({
                 "start": seg.get("start", 0),
                 "end": seg.get("end", 0),
                 "text": seg.get("text", ""),
-                "speaker": seg.get("speaker"),
                 "words": words
             })
 
         return {
             "segments": segments,
             "language": result.get("language", self.language),
-            "duration": duration,
-            "speakers": speakers
+            "duration": duration
         }
 
     def cancel(self):
@@ -233,5 +182,4 @@ class WhisperTranscriber:
         """Release all resources"""
         logger.info("Cleaning up WhisperX-MLX resources...")
         self.align_model = None
-        self.diarize_pipeline = None
         gc.collect()

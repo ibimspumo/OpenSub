@@ -1,17 +1,15 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useProjectStore } from '../../store/projectStore'
-import type { Subtitle, Speaker } from '../../../shared/types'
+import type { Subtitle } from '../../../shared/types'
 
 interface SubtitleItemProps {
   subtitle: Subtitle
-  speaker?: Speaker
   isSelected: boolean
   onSelect: () => void
 }
 
 export default function SubtitleItem({
   subtitle,
-  speaker,
   isSelected,
   onSelect
 }: SubtitleItemProps) {
@@ -141,24 +139,6 @@ export default function SubtitleItem({
           ${isSelected ? 'border-primary-500/20' : 'border-white/[0.04]'}
         `}
       >
-        {/* Speaker Badge with enhanced styling */}
-        {speaker && (
-          <span
-            className={`
-              speaker-badge px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider
-              transition-all duration-200 ease-smooth
-              ${isSelected ? 'scale-105' : 'group-hover:scale-105'}
-            `}
-            style={{
-              backgroundColor: speaker.color + '20',
-              color: speaker.color,
-              boxShadow: isSelected ? `0 0 12px ${speaker.color}30` : 'none'
-            }}
-          >
-            {speaker.name}
-          </span>
-        )}
-
         {/* Time with premium styling */}
         <div className="flex items-center gap-1.5">
           <span

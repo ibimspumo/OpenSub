@@ -1254,14 +1254,6 @@ select:focus {
 }
 
 /* ============================================
-   Speaker Badge Colors
-   ============================================ */
-.speaker-badge {
-  @apply px-2 py-0.5 rounded-full text-xs font-medium;
-  transition: all var(--duration-fast) var(--ease-smooth);
-}
-
-/* ============================================
    Tooltip Styles
    ============================================ */
 .tooltip {

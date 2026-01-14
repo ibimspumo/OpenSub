@@ -196,10 +196,9 @@ export default function Timeline() {
           {/* Subtitle Regions */}
           <div className="relative h-14 mt-1 px-0">
             {project.subtitles.map((subtitle, index) => {
-              const speaker = project.speakers.find((s) => s.id === subtitle.speakerId)
               const isSelected = selectedSubtitleId === subtitle.id
               const isHovered = hoveredSubtitleId === subtitle.id
-              const baseColor = speaker?.color || '#3B82F6'
+              const baseColor = '#3B82F6'
 
               return (
                 <div
