@@ -14,6 +14,7 @@ import TitleBar from './components/TitleBar/TitleBar'
 import { generateExportFrames } from './utils/subtitleFrameRenderer'
 import { useAutoSave } from './hooks/useAutoSave'
 import { loadGoogleFont } from './utils/fontLoader'
+import { PlaybackControllerProvider } from './hooks/usePlaybackController'
 import type { SubtitleFrame } from '../shared/types'
 
 function App() {
@@ -200,6 +201,8 @@ function App() {
           </div>
         ) : (
           // Editor Layout - 3-column + bottom timeline
+          // Wrapped with PlaybackControllerProvider for synchronized video/timeline control
+          <PlaybackControllerProvider>
           <div
             className={`
               flex-1 flex flex-col overflow-hidden
@@ -291,6 +294,7 @@ function App() {
               <Timeline />
             </div>
           </div>
+          </PlaybackControllerProvider>
         )}
       </main>
 

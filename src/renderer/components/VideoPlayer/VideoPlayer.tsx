@@ -1,194 +1,64 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import { useProjectStore } from '../../store/projectStore'
-import { useUIStore } from '../../store/uiStore'
+import { usePlaybackController } from '../../hooks/usePlaybackController'
 import SubtitleCanvas from './SubtitleCanvas'
 
 export default function VideoPlayer() {
-  const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const progressRef = useRef<HTMLDivElement>(null)
-  const lastSyncedTimeRef = useRef<number>(0)
-  const isExternalSeekingRef = useRef<boolean>(false) // Flag to prevent feedback loop when seeking from Timeline
-  const wasPlayingBeforeScrubRef = useRef<boolean>(false) // Track if video was playing before scrubbing started
-  const decodeErrorRecoveryRef = useRef<{ count: number; lastTime: number }>({ count: 0, lastTime: 0 })
 
   const { project } = useProjectStore()
-  const { isPlaying, currentTime, volume, isScrubbing, setIsPlaying, setCurrentTime, setVolume } =
-    useUIStore()
+  const controller = usePlaybackController()
 
-  // UI state for animations and interactions
+  // UI state
   const [showControls, setShowControls] = useState(true)
   const [isHoveringProgress, setIsHoveringProgress] = useState(false)
   const [isDraggingProgress, setIsDraggingProgress] = useState(false)
   const [isHoveringVolume, setIsHoveringVolume] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
+  const [volume, setVolume] = useState(1)
   const [previousVolume, setPreviousVolume] = useState(1)
   const [playAnimationKey, setPlayAnimationKey] = useState(0)
-  const [isBuffering, setIsBuffering] = useState(false)
-  const [isSeeking, setIsSeeking] = useState(false)
   const controlsTimeoutRef = useRef<NodeJS.Timeout>()
 
-  // Detect if video is portrait format and calculate aspect ratio
+  // Detect if video is portrait format
   const isPortrait = useMemo(() => {
     if (!project?.resolution) return false
     return project.resolution.height > project.resolution.width
   }, [project?.resolution])
 
-  // Calculate the actual aspect ratio for proper sizing
+  // Calculate aspect ratio style
   const aspectRatioStyle = useMemo(() => {
     if (!project?.resolution) return {}
     const { width, height } = project.resolution
-    return {
-      aspectRatio: `${width}/${height}`
-    }
+    return { aspectRatio: `${width}/${height}` }
   }, [project?.resolution])
 
-  // Sync video with state
-  useEffect(() => {
-    const video = videoRef.current
-    if (!video) return
+  // Register video element with controller
+  const videoCallbackRef = useCallback((video: HTMLVideoElement | null) => {
+    controller.registerVideo(video)
+  }, [controller])
 
-    if (isPlaying && video.paused) {
-      // IMPORTANT: Before playing, ensure video is at the correct position
-      // This fixes a race condition where useEffect([isPlaying]) runs before useEffect([currentTime])
-      const timeDiff = Math.abs(currentTime - video.currentTime)
-      if (timeDiff > 0.2) {
-        isExternalSeekingRef.current = true
-        video.currentTime = currentTime
-        lastSyncedTimeRef.current = currentTime
-      }
-
-      // Handle the play() Promise to catch errors and prevent state inconsistency
-      const playPromise = video.play()
-      if (playPromise !== undefined) {
-        playPromise.catch((error) => {
-          // AbortError occurs when play() is interrupted by pause() or a new play() call
-          // This is expected behavior during rapid play/pause toggling or seeking
-          if (error.name === 'AbortError') {
-            console.debug('Video play() was interrupted:', error.message)
-          } else {
-            // For other errors (NotAllowedError, NotSupportedError, etc.),
-            // reset isPlaying state to stay in sync with actual video state
-            console.error('Video play() failed:', error)
-            setIsPlaying(false)
-          }
-        })
-      }
-    } else if (!isPlaying && !video.paused) {
-      video.pause()
-    }
-  }, [isPlaying, currentTime, setIsPlaying])
-
-  // Handle time updates from video
-  const handleTimeUpdate = useCallback(() => {
-    const video = videoRef.current
-    if (!video) return
-
-    // CRITICAL: During scrubbing, the Timeline is the source of truth.
-    // Do NOT update store from video timeupdate events to prevent feedback loops.
-    if (isScrubbing) {
-      return
-    }
-
-    // If we're in the middle of an external seek, check if video has reached target
-    if (isExternalSeekingRef.current) {
-      // Read current store value directly to avoid stale closure issues
-      const storeTime = useUIStore.getState().currentTime
-      // Check if video is now at the expected position (within tolerance)
-      const timeDiff = Math.abs(video.currentTime - storeTime)
-      if (timeDiff < 0.5) {
-        // Video has reached target position, resume normal timeupdate handling
-        isExternalSeekingRef.current = false
-      } else {
-        // Video hasn't reached target yet, skip this timeupdate
-        return
-      }
-    }
-
-    // Update the last synced time to track what the video's currentTime is
-    lastSyncedTimeRef.current = video.currentTime
-    setCurrentTime(video.currentTime)
-  }, [setCurrentTime, isScrubbing])
-
-  // Pause video during scrubbing to prevent conflicts, resume after scrubbing ends
-  useEffect(() => {
-    const video = videoRef.current
-    if (!video) return
-
-    if (isScrubbing) {
-      // Store whether video was playing before scrubbing started
-      wasPlayingBeforeScrubRef.current = isPlaying
-      // Pause video during scrubbing for smoother seeking
-      if (!video.paused) {
-        video.pause()
-      }
-    } else {
-      // Scrubbing ended - resume playback if video was playing before
-      if (wasPlayingBeforeScrubRef.current && video.paused) {
-        video.play().catch((error) => {
-          if (error.name !== 'AbortError') {
-            console.error('Failed to resume after scrubbing:', error)
-            setIsPlaying(false)
-          }
-        })
-      }
-    }
-  }, [isScrubbing, isPlaying, setIsPlaying])
-
-  // Sync video currentTime when store currentTime changes externally (e.g., from Timeline)
-  useEffect(() => {
-    const video = videoRef.current
-    if (!video) return
-
-    // Compare store currentTime directly with actual video currentTime
-    const timeDiff = Math.abs(currentTime - video.currentTime)
-
-    // Only seek if the difference is significant (> 0.1s during scrubbing, > 0.2s otherwise)
-    // to avoid unnecessary seeks from minor floating point differences during normal playback
-    const threshold = isScrubbing ? 0.1 : 0.2
-    if (timeDiff > threshold) {
-      // Set flag to prevent handleTimeUpdate from overwriting during seek
-      isExternalSeekingRef.current = true
-
-      // If video is not ready yet, wait for loadedmetadata
-      if (video.readyState < 1) {
-        const handleMetadata = () => {
-          video.currentTime = currentTime
-          lastSyncedTimeRef.current = currentTime
-          video.removeEventListener('loadedmetadata', handleMetadata)
-        }
-        video.addEventListener('loadedmetadata', handleMetadata)
-        return () => video.removeEventListener('loadedmetadata', handleMetadata)
-      }
-
-      video.currentTime = currentTime
-      lastSyncedTimeRef.current = currentTime
-    }
-  }, [currentTime, isScrubbing])
-
-  // Handle play/pause with animation trigger
-  const togglePlay = useCallback(() => {
+  // Handle play/pause with animation
+  const handleTogglePlay = useCallback(() => {
     setPlayAnimationKey((prev) => prev + 1)
-    setIsPlaying(!isPlaying)
-  }, [isPlaying, setIsPlaying])
+    controller.toggle()
+  }, [controller])
 
   // Handle mute toggle
   const toggleMute = useCallback(() => {
+    const video = controller.videoRef.current
     if (isMuted) {
       setVolume(previousVolume)
-      if (videoRef.current) {
-        videoRef.current.volume = previousVolume
-      }
+      if (video) video.volume = previousVolume
       setIsMuted(false)
     } else {
       setPreviousVolume(volume)
       setVolume(0)
-      if (videoRef.current) {
-        videoRef.current.volume = 0
-      }
+      if (video) video.volume = 0
       setIsMuted(true)
     }
-  }, [isMuted, previousVolume, volume, setVolume])
+  }, [isMuted, previousVolume, volume, controller.videoRef])
 
   // Auto-hide controls
   const resetControlsTimeout = useCallback(() => {
@@ -196,12 +66,12 @@ export default function VideoPlayer() {
     if (controlsTimeoutRef.current) {
       clearTimeout(controlsTimeoutRef.current)
     }
-    if (isPlaying) {
+    if (controller.isPlaying) {
       controlsTimeoutRef.current = setTimeout(() => {
         setShowControls(false)
       }, 3000)
     }
-  }, [isPlaying])
+  }, [controller.isPlaying])
 
   // Show controls on mouse movement
   const handleMouseMove = useCallback(() => {
@@ -210,7 +80,7 @@ export default function VideoPlayer() {
 
   // Keep controls visible when not playing
   useEffect(() => {
-    if (!isPlaying) {
+    if (!controller.isPlaying) {
       setShowControls(true)
       if (controlsTimeoutRef.current) {
         clearTimeout(controlsTimeoutRef.current)
@@ -223,19 +93,7 @@ export default function VideoPlayer() {
         clearTimeout(controlsTimeoutRef.current)
       }
     }
-  }, [isPlaying, resetControlsTimeout])
-
-  // Seek to time - defined early as it's used by multiple handlers
-  const seekTo = useCallback(
-    (time: number) => {
-      const video = videoRef.current
-      if (video) {
-        video.currentTime = time
-        setCurrentTime(time)
-      }
-    },
-    [setCurrentTime]
-  )
+  }, [controller.isPlaying, resetControlsTimeout])
 
   // Progress bar click handler
   const handleProgressClick = useCallback(
@@ -244,16 +102,19 @@ export default function VideoPlayer() {
       const rect = progressRef.current.getBoundingClientRect()
       const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
       const newTime = percent * project.duration
-      seekTo(newTime)
+      controller.seek(newTime)
     },
-    [project, seekTo]
+    [project, controller]
   )
 
   // Progress bar drag handlers
-  const handleProgressDragStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    setIsDraggingProgress(true)
-    handleProgressClick(e)
-  }, [handleProgressClick])
+  const handleProgressDragStart = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      setIsDraggingProgress(true)
+      handleProgressClick(e)
+    },
+    [handleProgressClick]
+  )
 
   useEffect(() => {
     if (!isDraggingProgress) return
@@ -263,7 +124,7 @@ export default function VideoPlayer() {
       const rect = progressRef.current.getBoundingClientRect()
       const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
       const newTime = percent * project.duration
-      seekTo(newTime)
+      controller.seek(newTime)
     }
 
     const handleMouseUp = () => {
@@ -277,138 +138,7 @@ export default function VideoPlayer() {
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isDraggingProgress, project, seekTo])
-
-  // Handle video ended
-  const handleEnded = useCallback(() => {
-    setIsPlaying(false)
-  }, [setIsPlaying])
-
-  // Handle video waiting (buffering started)
-  const handleWaiting = useCallback(() => {
-    console.debug('Video waiting: buffering started')
-    setIsBuffering(true)
-  }, [])
-
-  // Handle video canplay (enough data to play)
-  const handleCanPlay = useCallback(() => {
-    console.debug('Video canplay: ready to play')
-    setIsBuffering(false)
-    // If we were playing before buffering, ensure we continue playing
-    const video = videoRef.current
-    if (video && isPlaying && video.paused) {
-      const playPromise = video.play()
-      if (playPromise !== undefined) {
-        playPromise.catch((error) => {
-          if (error.name !== 'AbortError') {
-            console.error('Video play() after canplay failed:', error)
-            setIsPlaying(false)
-          }
-        })
-      }
-    }
-  }, [isPlaying, setIsPlaying])
-
-  // Handle video stalled (data loading stalled)
-  const handleStalled = useCallback(() => {
-    console.debug('Video stalled: data loading stalled')
-    setIsBuffering(true)
-  }, [])
-
-  // Handle video error with automatic recovery for decode errors
-  const handleError = useCallback((e: React.SyntheticEvent<HTMLVideoElement>) => {
-    const video = e.currentTarget
-    const error = video.error
-    if (!error) return
-
-    console.error('Video error:', error.code, error.message)
-
-    // MEDIA_ERR_DECODE (3) with PIPELINE_ERROR_DECODE - attempt recovery
-    if (error.code === 3 && error.message?.includes('PIPELINE_ERROR_DECODE')) {
-      const now = Date.now()
-      const recovery = decodeErrorRecoveryRef.current
-
-      // Reset counter if last error was more than 5 seconds ago
-      if (now - recovery.lastTime > 5000) {
-        recovery.count = 0
-      }
-
-      recovery.lastTime = now
-      recovery.count++
-
-      // Allow up to 3 recovery attempts within 5 seconds
-      if (recovery.count <= 3) {
-        console.debug(`Decode error recovery attempt ${recovery.count}/3`)
-        const currentPos = video.currentTime
-
-        // Brief pause then seek to same position to trigger fresh decode
-        setTimeout(() => {
-          if (videoRef.current) {
-            videoRef.current.currentTime = currentPos
-            // Resume playing if we were playing before
-            if (isPlaying) {
-              videoRef.current.play().catch(() => {
-                // If play fails, let user manually restart
-                setIsPlaying(false)
-              })
-            }
-          }
-        }, 100)
-        return // Don't reset playing state during recovery
-      }
-
-      console.warn('Max decode error recovery attempts reached')
-    }
-
-    // For other errors or after max recovery attempts, reset state
-    setIsPlaying(false)
-    setIsBuffering(false)
-    setIsSeeking(false)
-  }, [isPlaying, setIsPlaying])
-
-  // Handle video seeking started
-  const handleSeeking = useCallback(() => {
-    console.debug('Video seeking: seek started')
-    setIsSeeking(true)
-  }, [])
-
-  // Handle video seeked (seek completed)
-  const handleSeeked = useCallback(() => {
-    console.debug('Video seeked: seek completed')
-    setIsSeeking(false)
-    // Note: isExternalSeekingRef is now reset in handleTimeUpdate when video reaches target
-    // This prevents race conditions where timeupdate fires before video is at correct position
-  }, [])
-
-  // Handle video loadedmetadata - sync video position with store if needed
-  const handleLoadedMetadata = useCallback(() => {
-    const video = videoRef.current
-    if (!video) return
-
-    // If store has a different currentTime, sync video to that position
-    // This handles the case where timeline was used before video was ready
-    const timeDiff = Math.abs(currentTime - video.currentTime)
-    if (timeDiff > 0.2) {
-      console.debug('Video loadedmetadata: syncing to store time', currentTime)
-      isExternalSeekingRef.current = true
-      video.currentTime = currentTime
-      lastSyncedTimeRef.current = currentTime
-    }
-  }, [currentTime])
-
-  // Handle video pause - only set isPlaying=false if not buffering/seeking
-  // During buffering or seeking, the browser may fire pause events that shouldn't
-  // stop playback intent
-  const handlePause = useCallback(() => {
-    // Only set isPlaying to false if we're not in a temporary pause state
-    // (buffering, seeking, or scrubbing). This prevents the video from appearing "stopped"
-    // when it's actually just waiting for data, completing a seek, or being scrubbed.
-    if (!isBuffering && !isSeeking && !isScrubbing) {
-      setIsPlaying(false)
-    } else {
-      console.debug('Video pause ignored: buffering=', isBuffering, 'seeking=', isSeeking, 'scrubbing=', isScrubbing)
-    }
-  }, [isBuffering, isSeeking, isScrubbing, setIsPlaying])
+  }, [isDraggingProgress, project, controller])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -420,22 +150,22 @@ export default function VideoPlayer() {
       switch (e.key) {
         case ' ':
           e.preventDefault()
-          togglePlay()
+          handleTogglePlay()
           break
         case 'ArrowLeft':
           e.preventDefault()
-          seekTo(Math.max(0, currentTime - 5))
+          controller.skip(-5)
           break
         case 'ArrowRight':
           e.preventDefault()
-          seekTo(Math.min(project?.duration || 0, currentTime + 5))
+          controller.skip(5)
           break
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [togglePlay, seekTo, currentTime, project?.duration])
+  }, [handleTogglePlay, controller])
 
   // Format time
   const formatTime = (seconds: number) => {
@@ -447,9 +177,9 @@ export default function VideoPlayer() {
   if (!project) return null
 
   // Calculate progress percentage
-  const progressPercent = project.duration > 0 ? (currentTime / project.duration) * 100 : 0
+  const progressPercent = project.duration > 0 ? (controller.currentTime / project.duration) * 100 : 0
 
-  // Get volume icon based on level
+  // Volume icon based on level
   const VolumeIcon = () => {
     if (isMuted || volume === 0) {
       return (
@@ -482,7 +212,7 @@ export default function VideoPlayer() {
       onMouseMove={handleMouseMove}
       onMouseEnter={() => setShowControls(true)}
     >
-      {/* Video Container with Premium Styling */}
+      {/* Video Container */}
       <div
         ref={containerRef}
         className={`
@@ -498,36 +228,24 @@ export default function VideoPlayer() {
         {/* Inner glow effect */}
         <div className="absolute inset-0 rounded-xl ring-1 ring-inset ring-white/[0.03] pointer-events-none z-10" />
 
-        {/* Video Element */}
+        {/* Video Element - Simplified */}
         <video
-          ref={videoRef}
+          ref={videoCallbackRef}
           src={`media://${encodeURIComponent(project.videoPath)}`}
-          className={`
-            w-full h-full object-contain
-            transition-transform duration-500 ease-smooth
-          `}
-          onTimeUpdate={handleTimeUpdate}
-          onEnded={handleEnded}
-          onPlay={() => setIsPlaying(true)}
-          onPause={handlePause}
-          onWaiting={handleWaiting}
-          onCanPlay={handleCanPlay}
-          onStalled={handleStalled}
-          onSeeking={handleSeeking}
-          onSeeked={handleSeeked}
-          onLoadedMetadata={handleLoadedMetadata}
-          onError={handleError}
-          onClick={togglePlay}
+          className="w-full h-full object-contain transition-transform duration-500 ease-smooth"
+          onEnded={controller.handleEnded}
+          onError={(e) => controller.handleError(e.currentTarget.error)}
+          onClick={handleTogglePlay}
         />
 
         {/* Subtitle Canvas Overlay */}
         <SubtitleCanvas
-          currentTime={currentTime}
+          currentTime={controller.currentTime}
           subtitles={project.subtitles}
           style={project.style}
           videoWidth={project.resolution.width}
           videoHeight={project.resolution.height}
-          videoRef={videoRef}
+          videoRef={controller.videoRef}
         />
 
         {/* Play/Pause Center Overlay Animation */}
@@ -548,7 +266,7 @@ export default function VideoPlayer() {
               ${playAnimationKey > 0 ? 'animate-scale-bounce' : ''}
             `}
           >
-            {isPlaying ? (
+            {controller.isPlaying ? (
               <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M8 5v14l11-7z" />
               </svg>
@@ -560,7 +278,7 @@ export default function VideoPlayer() {
           </div>
         </div>
 
-        {/* Bottom Gradient Overlay for Controls */}
+        {/* Bottom Gradient Overlay */}
         <div
           className={`
             absolute bottom-0 left-0 right-0 h-32
@@ -571,7 +289,7 @@ export default function VideoPlayer() {
           `}
         />
 
-        {/* Inline Progress Bar (on video) */}
+        {/* Inline Progress Bar */}
         <div
           className={`
             absolute bottom-0 left-0 right-0 px-4 pb-3
@@ -579,7 +297,6 @@ export default function VideoPlayer() {
             ${showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}
           `}
         >
-          {/* Progress Bar */}
           <div
             ref={progressRef}
             className={`
@@ -593,13 +310,10 @@ export default function VideoPlayer() {
             onMouseEnter={() => setIsHoveringProgress(true)}
             onMouseLeave={() => setIsHoveringProgress(false)}
           >
-            {/* Buffer indicator (optional - for future use) */}
             <div
               className="absolute inset-y-0 left-0 bg-white/10 rounded-full"
               style={{ width: '100%' }}
             />
-
-            {/* Progress fill */}
             <div
               className={`
                 absolute inset-y-0 left-0 rounded-full
@@ -609,18 +323,13 @@ export default function VideoPlayer() {
               `}
               style={{ width: `${progressPercent}%` }}
             />
-
-            {/* Progress handle */}
             <div
               className={`
                 absolute top-1/2 -translate-y-1/2
                 w-3 h-3 rounded-full
                 bg-white shadow-md
                 transition-all duration-150 ease-spring
-                ${isHoveringProgress || isDraggingProgress
-                  ? 'opacity-100 scale-100'
-                  : 'opacity-0 scale-75'
-                }
+                ${isHoveringProgress || isDraggingProgress ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}
               `}
               style={{
                 left: `${progressPercent}%`,
@@ -629,10 +338,9 @@ export default function VideoPlayer() {
             />
           </div>
 
-          {/* Time display under progress */}
           <div className="flex items-center justify-between mt-2">
             <span className="text-[10px] font-medium text-white/70 tabular-nums">
-              {formatTime(currentTime)}
+              {formatTime(controller.currentTime)}
             </span>
             <span className="text-[10px] font-medium text-white/50 tabular-nums">
               {formatTime(project.duration)}
@@ -649,9 +357,9 @@ export default function VideoPlayer() {
           ${showControls ? 'opacity-100 translate-y-0' : 'opacity-50'}
         `}
       >
-        {/* Play/Pause Button with micro-animation */}
+        {/* Play/Pause Button */}
         <button
-          onClick={togglePlay}
+          onClick={handleTogglePlay}
           className={`
             relative w-10 h-10 rounded-full
             bg-gradient-to-br from-primary-500 to-primary-600
@@ -664,12 +372,9 @@ export default function VideoPlayer() {
             focus-ring
           `}
         >
-          {/* Button inner highlight */}
           <div className="absolute inset-[1px] rounded-full bg-gradient-to-b from-white/20 to-transparent pointer-events-none" />
-
-          {/* Icon with smooth transition */}
           <div className="relative">
-            {isPlaying ? (
+            {controller.isPlaying ? (
               <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
               </svg>
@@ -683,14 +388,8 @@ export default function VideoPlayer() {
 
         {/* Skip Backward */}
         <button
-          onClick={() => seekTo(Math.max(0, currentTime - 5))}
-          className={`
-            p-2 rounded-lg
-            text-dark-400 hover:text-white
-            hover:bg-white/[0.06]
-            transition-all duration-150 ease-spring
-            hover:scale-105 active:scale-95
-          `}
+          onClick={() => controller.skip(-5)}
+          className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-white/[0.06] transition-all duration-150 ease-spring hover:scale-105 active:scale-95"
           title="5 Sekunden zurück"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -700,14 +399,8 @@ export default function VideoPlayer() {
 
         {/* Skip Forward */}
         <button
-          onClick={() => seekTo(Math.min(project.duration, currentTime + 5))}
-          className={`
-            p-2 rounded-lg
-            text-dark-400 hover:text-white
-            hover:bg-white/[0.06]
-            transition-all duration-150 ease-spring
-            hover:scale-105 active:scale-95
-          `}
+          onClick={() => controller.skip(5)}
+          className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-white/[0.06] transition-all duration-150 ease-spring hover:scale-105 active:scale-95"
           title="5 Sekunden vor"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -715,67 +408,46 @@ export default function VideoPlayer() {
           </svg>
         </button>
 
-        {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Time Display - Desktop */}
+        {/* Time Display */}
         <div className="hidden sm:flex items-center gap-1 text-xs text-dark-400 font-mono tabular-nums">
-          <span className="text-dark-300">{formatTime(currentTime)}</span>
+          <span className="text-dark-300">{formatTime(controller.currentTime)}</span>
           <span className="text-dark-600">/</span>
           <span>{formatTime(project.duration)}</span>
         </div>
 
-        {/* Volume Control Group */}
+        {/* Volume Control */}
         <div
           className="flex items-center gap-1"
           onMouseEnter={() => setIsHoveringVolume(true)}
           onMouseLeave={() => setIsHoveringVolume(false)}
         >
-          {/* Mute Button */}
           <button
             onClick={toggleMute}
-            className={`
-              p-2 rounded-lg
-              text-dark-400 hover:text-white
-              hover:bg-white/[0.06]
-              transition-all duration-150 ease-spring
-              hover:scale-105 active:scale-95
-            `}
+            className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-white/[0.06] transition-all duration-150 ease-spring hover:scale-105 active:scale-95"
           >
             <VolumeIcon />
           </button>
 
-          {/* Volume Slider with expand animation */}
           <div
             className={`
-              overflow-hidden
-              transition-all duration-200 ease-spring
+              overflow-hidden transition-all duration-200 ease-spring
               ${isHoveringVolume ? 'w-20 opacity-100' : 'w-0 opacity-0'}
             `}
           >
             <div className="relative h-1 w-20 bg-dark-700 rounded-full group/vol">
-              {/* Volume fill */}
               <div
                 className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary-500 to-primary-400 rounded-full transition-all duration-75"
                 style={{ width: `${volume * 100}%` }}
               />
-
-              {/* Volume handle */}
               <div
-                className={`
-                  absolute top-1/2 -translate-y-1/2
-                  w-2.5 h-2.5 rounded-full
-                  bg-white shadow-sm
-                  transition-opacity duration-150
-                  group-hover/vol:opacity-100 opacity-0
-                `}
+                className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-white shadow-sm transition-opacity duration-150 group-hover/vol:opacity-100 opacity-0"
                 style={{
                   left: `${volume * 100}%`,
                   transform: `translateX(-50%) translateY(-50%)`,
                 }}
               />
-
-              {/* Invisible slider for interaction */}
               <input
                 type="range"
                 min="0"
@@ -786,8 +458,8 @@ export default function VideoPlayer() {
                   const newVolume = parseFloat(e.target.value)
                   setVolume(newVolume)
                   setIsMuted(newVolume === 0)
-                  if (videoRef.current) {
-                    videoRef.current.volume = newVolume
+                  if (controller.videoRef.current) {
+                    controller.videoRef.current.volume = newVolume
                   }
                 }}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"

@@ -1,11 +1,13 @@
 import { useCallback, useRef, useEffect, useState } from 'react'
 import { useProjectStore } from '../../store/projectStore'
 import { useUIStore } from '../../store/uiStore'
+import { usePlaybackController } from '../../hooks/usePlaybackController'
 import SubtitleItem from './SubtitleItem'
 
 export default function SubtitleList() {
   const { project } = useProjectStore()
-  const { selectedSubtitleId, setSelectedSubtitleId, setCurrentTime } = useUIStore()
+  const { selectedSubtitleId, setSelectedSubtitleId } = useUIStore()
+  const controller = usePlaybackController()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [showTopFade, setShowTopFade] = useState(false)
   const [showBottomFade, setShowBottomFade] = useState(false)
@@ -14,9 +16,9 @@ export default function SubtitleList() {
   const handleSelect = useCallback(
     (id: string, startTime: number) => {
       setSelectedSubtitleId(id)
-      setCurrentTime(startTime)
+      controller.seek(startTime)
     },
-    [setSelectedSubtitleId, setCurrentTime]
+    [setSelectedSubtitleId, controller]
   )
 
   // Handle scroll to show/hide fade indicators

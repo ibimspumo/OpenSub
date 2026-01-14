@@ -1,57 +1,116 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import { useProjectStore } from '../../store/projectStore'
 import { useUIStore } from '../../store/uiStore'
+import { usePlaybackController } from '../../hooks/usePlaybackController'
 
 export default function Timeline() {
   const containerRef = useRef<HTMLDivElement>(null)
-  const { project } = useProjectStore()
-  const { currentTime, setCurrentTime, timelineZoom, setTimelineZoom, selectedSubtitleId, setSelectedSubtitleId, setIsScrubbing } = useUIStore()
+  const wasPlayingRef = useRef(false)
 
-  // Local state for hover effects
+  const { project } = useProjectStore()
+  const { timelineZoom, setTimelineZoom, selectedSubtitleId, setSelectedSubtitleId } = useUIStore()
+  const controller = usePlaybackController()
+
+  // Local state for hover effects and dragging
   const [hoveredSubtitleId, setHoveredSubtitleId] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
   // Pixels per second
   const pixelsPerSecond = 50 * timelineZoom
 
-  // Handle click to seek
-  const handleClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (!project || !containerRef.current) return
+  // Calculate time from mouse position
+  const getTimeFromMouseEvent = useCallback(
+    (e: MouseEvent | React.MouseEvent) => {
+      if (!project || !containerRef.current) return null
 
       const rect = containerRef.current.getBoundingClientRect()
       const scrollLeft = containerRef.current.scrollLeft
       const x = e.clientX - rect.left + scrollLeft
       const time = x / pixelsPerSecond
 
-      setCurrentTime(Math.max(0, Math.min(time, project.duration)))
+      return Math.max(0, Math.min(time, project.duration))
     },
-    [project, pixelsPerSecond, setCurrentTime]
+    [project, pixelsPerSecond]
   )
 
-  // Handle drag to scrub through timeline
+  // Handle click to seek
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      const time = getTimeFromMouseEvent(e)
+      if (time !== null) {
+        controller.seek(time)
+      }
+    },
+    [getTimeFromMouseEvent, controller]
+  )
+
+  // Handle drag start
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (!project || !containerRef.current) return
+
+      // Store whether video was playing before scrub
+      wasPlayingRef.current = controller.isPlaying
+
       setIsDragging(true)
-      setIsScrubbing(true)  // Notify store that scrubbing started
-      handleClick(e)
+      controller.startScrubbing()
+
+      // Initial seek
+      const time = getTimeFromMouseEvent(e)
+      if (time !== null) {
+        controller.seek(time)
+      }
     },
-    [project, handleClick, setIsScrubbing]
+    [project, controller, getTimeFromMouseEvent]
   )
 
+  // Handle drag move
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (!isDragging || !project || !containerRef.current) return
-      handleClick(e)
+      if (!isDragging) return
+
+      const time = getTimeFromMouseEvent(e)
+      if (time !== null) {
+        controller.seek(time)
+      }
     },
-    [isDragging, project, handleClick]
+    [isDragging, getTimeFromMouseEvent, controller]
   )
 
+  // Handle drag end
   const handleMouseUp = useCallback(() => {
-    setIsDragging(false)
-    setIsScrubbing(false)  // Notify store that scrubbing ended
-  }, [setIsScrubbing])
+    if (isDragging) {
+      setIsDragging(false)
+      controller.endScrubbing(wasPlayingRef.current)
+    }
+  }, [isDragging, controller])
+
+  // Global mouse up handler for when mouse leaves timeline during drag
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      if (isDragging) {
+        setIsDragging(false)
+        controller.endScrubbing(wasPlayingRef.current)
+      }
+    }
+
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return
+
+      const time = getTimeFromMouseEvent(e)
+      if (time !== null) {
+        controller.seek(time)
+      }
+    }
+
+    window.addEventListener('mouseup', handleGlobalMouseUp)
+    window.addEventListener('mousemove', handleGlobalMouseMove)
+
+    return () => {
+      window.removeEventListener('mouseup', handleGlobalMouseUp)
+      window.removeEventListener('mousemove', handleGlobalMouseMove)
+    }
+  }, [isDragging, controller, getTimeFromMouseEvent])
 
   // Format time for markers
   const formatTime = (seconds: number) => {
@@ -82,11 +141,11 @@ export default function Timeline() {
     return { major, minor }
   }, [project, timelineZoom])
 
-  // Scroll to keep playhead visible with smooth behavior
+  // Scroll to keep playhead visible
   useEffect(() => {
     if (!containerRef.current || !project) return
 
-    const playheadX = currentTime * pixelsPerSecond
+    const playheadX = controller.currentTime * pixelsPerSecond
     const containerWidth = containerRef.current.clientWidth
     const scrollLeft = containerRef.current.scrollLeft
 
@@ -96,17 +155,7 @@ export default function Timeline() {
         behavior: isDragging ? 'auto' : 'smooth'
       })
     }
-  }, [currentTime, pixelsPerSecond, project, isDragging])
-
-  // Global mouse up handler
-  useEffect(() => {
-    const handleGlobalMouseUp = () => {
-      setIsDragging(false)
-      setIsScrubbing(false)  // Ensure scrubbing is also reset
-    }
-    window.addEventListener('mouseup', handleGlobalMouseUp)
-    return () => window.removeEventListener('mouseup', handleGlobalMouseUp)
-  }, [setIsScrubbing])
+  }, [controller.currentTime, pixelsPerSecond, project, isDragging])
 
   if (!project) return null
 
@@ -114,9 +163,8 @@ export default function Timeline() {
 
   return (
     <div className="h-full flex flex-col timeline-container rounded-t-lg overflow-hidden animate-fade-in">
-      {/* Premium Header with Zoom Controls */}
+      {/* Header with Zoom Controls */}
       <div className="h-10 flex items-center justify-between px-4 border-b border-white/[0.06] bg-gradient-to-r from-dark-800/50 to-dark-900/50">
-        {/* Timeline Label with Icon */}
         <div className="flex items-center gap-2">
           <div className="w-5 h-5 rounded flex items-center justify-center bg-primary-500/10">
             <svg className="w-3 h-3 text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -253,7 +301,7 @@ export default function Timeline() {
           <div
             className="absolute top-7 bottom-0 w-px bg-primary-500/20 pointer-events-none transition-opacity duration-200"
             style={{
-              left: currentTime * pixelsPerSecond,
+              left: controller.currentTime * pixelsPerSecond,
               opacity: isDragging ? 0.5 : 0.2
             }}
           />
@@ -261,18 +309,22 @@ export default function Timeline() {
           {/* Playhead */}
           <div
             className="absolute top-0 bottom-0 pointer-events-none z-30 transition-transform duration-75"
-            style={{ left: currentTime * pixelsPerSecond }}
+            style={{ left: controller.currentTime * pixelsPerSecond }}
           >
             {/* Main playhead line with glow */}
-            <div className="absolute top-0 bottom-0 w-0.5 bg-gradient-to-b from-red-400 via-red-500 to-red-600 shadow-lg"
-                 style={{ boxShadow: '0 0 8px rgba(239, 68, 68, 0.5), 0 0 16px rgba(239, 68, 68, 0.3)' }} />
+            <div
+              className="absolute top-0 bottom-0 w-0.5 bg-gradient-to-b from-red-400 via-red-500 to-red-600 shadow-lg"
+              style={{ boxShadow: '0 0 8px rgba(239, 68, 68, 0.5), 0 0 16px rgba(239, 68, 68, 0.3)' }}
+            />
 
             {/* Playhead handle (triangle) */}
             <div className="absolute -top-0.5 left-1/2 -translate-x-1/2">
-              <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[8px]
-                             border-l-transparent border-r-transparent border-t-red-500
-                             drop-shadow-md"
-                   style={{ filter: 'drop-shadow(0 2px 4px rgba(239, 68, 68, 0.4))' }} />
+              <div
+                className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[8px]
+                           border-l-transparent border-r-transparent border-t-red-500
+                           drop-shadow-md"
+                style={{ filter: 'drop-shadow(0 2px 4px rgba(239, 68, 68, 0.4))' }}
+              />
             </div>
 
             {/* Time tooltip on drag */}
@@ -280,7 +332,7 @@ export default function Timeline() {
               <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1
                              bg-dark-800/95 backdrop-blur-sm rounded text-[10px] font-medium text-white
                              border border-white/10 shadow-lg whitespace-nowrap animate-fade-in-scale">
-                {formatTime(currentTime)}
+                {formatTime(controller.currentTime)}
               </div>
             )}
           </div>
