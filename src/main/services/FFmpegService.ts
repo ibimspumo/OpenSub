@@ -1,7 +1,25 @@
 import ffmpeg from 'fluent-ffmpeg'
 import { readFileSync, existsSync, writeFileSync } from 'fs'
 import { join } from 'path'
+import { app } from 'electron'
 import type { VideoMetadata, ExportOptions } from '../../shared/types'
+
+// Type declarations for ffmpeg installer packages
+declare module '@ffmpeg-installer/ffmpeg' {
+  export const path: string
+  export const version: string
+  export const url: string
+}
+
+declare module '@ffprobe-installer/ffprobe' {
+  export const path: string
+  export const version: string
+  export const url: string
+}
+
+// Import ffmpeg installer packages
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
+import ffprobeInstaller from '@ffprobe-installer/ffprobe'
 
 // Manifest structure for frame-based rendering
 interface FrameManifest {
@@ -14,17 +32,74 @@ interface FrameManifest {
   }[]
 }
 
-// Set ffmpeg paths for macOS (Homebrew)
-const ffmpegPath = '/opt/homebrew/bin/ffmpeg'
-const ffprobePath = '/opt/homebrew/bin/ffprobe'
+/**
+ * Get the correct path to ffmpeg binary.
+ * Development: use path from node_modules
+ * Production: use unpacked path from app.asar.unpacked
+ */
+function getFFmpegPath(): string {
+  let bundledPath = ffmpegInstaller.path
+
+  if (app.isPackaged) {
+    bundledPath = bundledPath.replace('app.asar', 'app.asar.unpacked')
+  }
+
+  if (existsSync(bundledPath)) {
+    return bundledPath
+  }
+
+  // Fallback to system installation (for development flexibility)
+  const systemPaths = ['/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg']
+
+  for (const p of systemPaths) {
+    if (existsSync(p)) {
+      console.warn(`Bundled ffmpeg not found, using system: ${p}`)
+      return p
+    }
+  }
+
+  throw new Error('FFmpeg not found')
+}
+
+function getFFprobePath(): string {
+  let bundledPath = ffprobeInstaller.path
+
+  if (app.isPackaged) {
+    bundledPath = bundledPath.replace('app.asar', 'app.asar.unpacked')
+  }
+
+  if (existsSync(bundledPath)) {
+    return bundledPath
+  }
+
+  const systemPaths = ['/opt/homebrew/bin/ffprobe', '/usr/local/bin/ffprobe']
+
+  for (const p of systemPaths) {
+    if (existsSync(p)) {
+      console.warn(`Bundled ffprobe not found, using system: ${p}`)
+      return p
+    }
+  }
+
+  throw new Error('FFprobe not found')
+}
+
+// Initialize paths
+const ffmpegPath = getFFmpegPath()
+const ffprobePath = getFFprobePath()
+
+// Set paths for fluent-ffmpeg
 ffmpeg.setFfmpegPath(ffmpegPath)
 ffmpeg.setFfprobePath(ffprobePath)
+
+console.log(`FFmpeg path: ${ffmpegPath}`)
+console.log(`FFprobe path: ${ffprobePath}`)
 
 // Check if VideoToolbox is available (Apple Silicon hardware encoding)
 let useVideoToolbox = false
 try {
   const { execSync } = require('child_process')
-  const encoders = execSync(`${ffmpegPath} -encoders 2>/dev/null | grep videotoolbox`, {
+  const encoders = execSync(`"${ffmpegPath}" -encoders 2>/dev/null | grep videotoolbox`, {
     encoding: 'utf-8'
   })
   useVideoToolbox = encoders.includes('h264_videotoolbox')

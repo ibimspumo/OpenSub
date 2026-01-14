@@ -22,6 +22,8 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@ffprobe-installer/ffprobe": "^2.1.2",
     "better-sqlite3": "^12.6.0",
     "dotenv": "^17.2.3",
     "fluent-ffmpeg": "^2.1.3",
