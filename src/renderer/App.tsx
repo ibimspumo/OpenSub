@@ -11,11 +11,12 @@ import ExportProgress from './components/ExportProgress/ExportProgress'
 import AnalysisProgress from './components/AnalysisProgress/AnalysisProgress'
 import DiffPreview from './components/DiffPreview/DiffPreview'
 import TitleBar from './components/TitleBar/TitleBar'
+import ModelLoadingScreen from './components/ModelLoadingScreen/ModelLoadingScreen'
 import { generateExportFrames } from './utils/subtitleFrameRenderer'
 import { useAutoSave } from './hooks/useAutoSave'
 import { loadGoogleFont } from './utils/fontLoader'
 import { PlaybackControllerProvider } from './hooks/usePlaybackController'
-import type { SubtitleFrame } from '../shared/types'
+import type { SubtitleFrame, TranscriptionProgress as TranscriptionProgressType } from '../shared/types'
 
 function App() {
   const { project, hasProject } = useProjectStore()
@@ -36,6 +37,8 @@ function App() {
   const [exportError, setExportError] = useState<string | null>(null)
   const [isAppMounted, setIsAppMounted] = useState(false)
   const [showEditor, setShowEditor] = useState(false)
+  const [isModelLoading, setIsModelLoading] = useState(true)
+  const [modelLoadingProgress, setModelLoadingProgress] = useState<TranscriptionProgressType | null>(null)
 
   // Auto-save hook
   useAutoSave()
@@ -51,6 +54,39 @@ function App() {
   useEffect(() => {
     const timer = setTimeout(() => setIsAppMounted(true), 50)
     return () => clearTimeout(timer)
+  }, [])
+
+  // Listen for AI model loading progress at app startup
+  useEffect(() => {
+    // Check if model is already ready (in case we missed the event)
+    window.api.whisper.isModelReady().then(({ ready }) => {
+      if (ready) {
+        setIsModelLoading(false)
+      }
+    }).catch(console.error)
+
+    // Listen for model loading progress
+    const unsubProgress = window.api.whisper.onProgress((progress) => {
+      if (progress.stage === 'initializing') {
+        setModelLoadingProgress(progress)
+      }
+    })
+
+    // Listen for model ready event
+    const unsubReady = window.api.whisper.onModelReady(({ ready }) => {
+      if (ready) {
+        // Small delay to show completion
+        setTimeout(() => {
+          setIsModelLoading(false)
+          setModelLoadingProgress(null)
+        }, 500)
+      }
+    })
+
+    return () => {
+      unsubProgress()
+      unsubReady()
+    }
   }, [])
 
   // Preload default fonts (Poppins is the default, Montserrat also popular)
@@ -297,6 +333,11 @@ function App() {
           </PlaybackControllerProvider>
         )}
       </main>
+
+      {/* Model Loading Screen - shown at app startup */}
+      {isModelLoading && (
+        <ModelLoadingScreen progress={modelLoadingProgress} />
+      )}
 
       {/* Modal Overlays with backdrop blur */}
       {isTranscribing && (

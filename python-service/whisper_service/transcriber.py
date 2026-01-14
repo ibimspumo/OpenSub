@@ -31,9 +31,10 @@ class WhisperTranscriber:
         language: str = "de",
         device: str = "mps",
         compute_type: str = "float16",
-        hf_token: Optional[str] = None
+        hf_token: Optional[str] = None,
+        progress_callback: Optional[Callable] = None
     ):
-        """Load all required models"""
+        """Load all required models including Whisper model for instant transcription"""
         import whisperx_mlx
 
         logger.info(f"Initializing WhisperX-MLX with model={model_name}, backend=mlx")
@@ -42,15 +43,54 @@ class WhisperTranscriber:
         self.language = language
         self.model_name = model_name
 
-        # Load alignment model for word-level timestamps
+        # Stage 1: Load alignment model for word-level timestamps (0-30%)
+        if progress_callback:
+            progress_callback("initializing", 0, "Lade Alignment-Modell...")
+
         logger.info("Loading alignment model...")
         self.align_model, self.align_metadata = whisperx_mlx.load_align_model(
             language_code=language,
             device="cpu"  # Alignment model runs on CPU
         )
 
+        if progress_callback:
+            progress_callback("initializing", 30, "Alignment-Modell geladen")
+
+        # Stage 2: Pre-load Whisper model by doing a warmup transcription (30-100%)
+        if progress_callback:
+            progress_callback("initializing", 35, f"Lade Whisper {model_name} Modell...")
+
+        logger.info(f"Pre-loading Whisper model: {model_name}")
+
+        # Create a short silence buffer for warmup (1 second at 16kHz)
+        import numpy as np
+        warmup_audio = np.zeros(16000, dtype=np.float32)
+
+        if progress_callback:
+            progress_callback("initializing", 50, "Initialisiere MLX-Backend...")
+
+        # Run warmup transcription to load and cache the model
+        # This ensures the model is in memory for instant transcription later
+        try:
+            _ = whisperx_mlx.transcribe(
+                warmup_audio,
+                model=model_name,
+                backend="mlx",
+                language=language,
+                batch_size=1,
+                print_progress=False,
+                verbose=False
+            )
+            logger.info("Whisper model warmup complete")
+        except Exception as e:
+            # Warmup might fail on silence, but model should still be cached
+            logger.warning(f"Warmup transcription had an issue (expected): {e}")
+
+        if progress_callback:
+            progress_callback("initializing", 100, "KI-Modelle geladen")
+
         self.is_initialized = True
-        logger.info("WhisperX-MLX initialization complete")
+        logger.info("WhisperX-MLX initialization complete - models pre-loaded")
 
     def transcribe(
         self,
@@ -182,4 +222,5 @@ class WhisperTranscriber:
         """Release all resources"""
         logger.info("Cleaning up WhisperX-MLX resources...")
         self.align_model = None
+        self.align_metadata = None
         gc.collect()

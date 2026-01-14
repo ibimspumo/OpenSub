@@ -45,12 +45,21 @@ class RPCHandler:
         compute_type = params.get("compute_type", "float16")
         hf_token = params.get("hf_token")
 
+        # Progress callback sends notifications during model loading
+        def on_progress(stage: str, percent: float, message: str = ""):
+            self._send_notification("progress", {
+                "stage": stage,
+                "percent": percent,
+                "message": message
+            })
+
         self.transcriber.initialize(
             model_name=model_name,
             language=language,
             device=device,
             compute_type=compute_type,
-            hf_token=hf_token
+            hf_token=hf_token,
+            progress_callback=on_progress
         )
         return {"status": "initialized", "model": model_name}
 

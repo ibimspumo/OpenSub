@@ -86,7 +86,7 @@ export class WhisperService extends EventEmitter {
 
       const timeout = setTimeout(() => {
         reject(new Error('WhisperService startup timeout'))
-      }, 60000) // 60s timeout for model loading
+      }, 300000) // 5 min timeout for model loading (first run may need to download models)
 
       const serviceDir = this.getServiceDir()
       console.log(`Starting WhisperX service: ${pythonPath} ${servicePath}`)

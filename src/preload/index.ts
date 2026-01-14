@@ -42,6 +42,9 @@ contextBridge.exposeInMainWorld('api', {
 
     stop: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.WHISPER_STOP),
 
+    isModelReady: (): Promise<{ ready: boolean }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.WHISPER_MODEL_READY),
+
     onProgress: (callback: (progress: TranscriptionProgress) => void): (() => void) => {
       const handler = (_event: Electron.IpcRendererEvent, progress: TranscriptionProgress) => {
         callback(progress)
@@ -56,6 +59,14 @@ contextBridge.exposeInMainWorld('api', {
       }
       ipcRenderer.on(IPC_CHANNELS.WHISPER_ERROR, handler)
       return () => ipcRenderer.removeListener(IPC_CHANNELS.WHISPER_ERROR, handler)
+    },
+
+    onModelReady: (callback: (data: { ready: boolean }) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { ready: boolean }) => {
+        callback(data)
+      }
+      ipcRenderer.on(IPC_CHANNELS.WHISPER_MODEL_READY, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.WHISPER_MODEL_READY, handler)
     }
   },
 
@@ -210,8 +221,10 @@ declare global {
         cancel: () => Promise<void>
         getStatus: () => Promise<{ initialized: boolean; processing: boolean }>
         stop: () => Promise<void>
+        isModelReady: () => Promise<{ ready: boolean }>
         onProgress: (callback: (progress: TranscriptionProgress) => void) => () => void
         onError: (callback: (error: { message: string }) => void) => () => void
+        onModelReady: (callback: (data: { ready: boolean }) => void) => () => void
       }
       ffmpeg: {
         extractAudio: (videoPath: string, outputPath: string) => Promise<string>

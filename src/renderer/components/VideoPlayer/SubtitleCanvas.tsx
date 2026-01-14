@@ -9,7 +9,7 @@ interface SubtitleCanvasProps {
   style: SubtitleStyle
   videoWidth: number
   videoHeight: number
-  videoRef: RefObject<HTMLVideoElement>
+  videoRef: RefObject<HTMLVideoElement | null>
 }
 
 export default function SubtitleCanvas({

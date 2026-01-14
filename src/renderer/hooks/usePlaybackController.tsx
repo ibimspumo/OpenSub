@@ -37,6 +37,7 @@ export interface PlaybackControllerState {
   // Event handlers for video element
   handleEnded: () => void
   handleError: (error: MediaError | null) => void
+  handleLoadedMetadata: () => void
 }
 
 const PlaybackControllerContext = createContext<PlaybackControllerState | null>(null)
@@ -118,9 +119,10 @@ export function PlaybackControllerProvider({ children }: { children: ReactNode }
     // Update store first (source of truth during seek)
     setCurrentTime(clampedTime)
 
-    // Sync video to store
+    // Sync video to store - always try to set, even if readyState is low
+    // The browser will buffer if needed
     const video = videoRef.current
-    if (video && video.readyState >= 1) {
+    if (video) {
       video.currentTime = clampedTime
     }
 
@@ -137,11 +139,10 @@ export function PlaybackControllerProvider({ children }: { children: ReactNode }
     const video = videoRef.current
     if (!video) return
 
-    // Ensure video is at correct position before playing
+    // ALWAYS sync video position to store time before playing
+    // This is critical - the store is the source of truth
     const storeTime = useUIStore.getState().currentTime
-    if (Math.abs(video.currentTime - storeTime) > 0.1) {
-      video.currentTime = storeTime
-    }
+    video.currentTime = storeTime
 
     const playPromise = video.play()
     if (playPromise !== undefined) {
@@ -253,6 +254,20 @@ export function PlaybackControllerProvider({ children }: { children: ReactNode }
     }
   }, [pause])
 
+  /**
+   * Handle video metadata loaded - sync video position to store
+   */
+  const handleLoadedMetadata = useCallback(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    // Sync video to current store time when metadata is ready
+    const storeTime = useUIStore.getState().currentTime
+    if (storeTime > 0) {
+      video.currentTime = storeTime
+    }
+  }, [])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -289,6 +304,7 @@ export function PlaybackControllerProvider({ children }: { children: ReactNode }
     videoRef,
     handleEnded,
     handleError,
+    handleLoadedMetadata,
   }
 
   return (

@@ -239,7 +239,7 @@ export interface TranscriptionWord {
 }
 
 export interface TranscriptionProgress {
-  stage: 'loading' | 'transcribing' | 'aligning' | 'complete'
+  stage: 'initializing' | 'loading' | 'transcribing' | 'aligning' | 'complete'
   percent: number
   message: string
 }
@@ -291,6 +291,7 @@ export const IPC_CHANNELS = {
   WHISPER_STOP: 'whisper:stop',
   WHISPER_PROGRESS: 'whisper:progress',
   WHISPER_ERROR: 'whisper:error',
+  WHISPER_MODEL_READY: 'whisper:model-ready',  // Emitted when model is loaded at startup
 
   // FFmpeg
   FFMPEG_EXTRACT_AUDIO: 'ffmpeg:extract-audio',

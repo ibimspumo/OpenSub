@@ -235,6 +235,7 @@ export default function VideoPlayer() {
           className="w-full h-full object-contain transition-transform duration-500 ease-smooth"
           onEnded={controller.handleEnded}
           onError={(e) => controller.handleError(e.currentTarget.error)}
+          onLoadedMetadata={controller.handleLoadedMetadata}
           onClick={handleTogglePlay}
         />
 

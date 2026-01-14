@@ -3,7 +3,7 @@ import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { config } from 'dotenv'
-import { registerWhisperHandlers, cleanupWhisperService } from './ipc/whisper-handlers'
+import { registerWhisperHandlers, cleanupWhisperService, initializeWhisperServiceAtStartup } from './ipc/whisper-handlers'
 import { registerFFmpegHandlers } from './ipc/ffmpeg-handlers'
 import { registerFileHandlers } from './ipc/file-handlers'
 import { registerProjectHandlers, cleanupProjectHandlers } from './ipc/project-handlers'
@@ -48,6 +48,12 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
+
+    // Start loading AI model after window is shown
+    // This allows the loading screen to display progress
+    initializeWhisperServiceAtStartup().catch((error) => {
+      console.error('Failed to initialize AI model at startup:', error)
+    })
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {

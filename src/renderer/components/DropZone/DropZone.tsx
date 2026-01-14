@@ -79,14 +79,8 @@ export default function DropZone() {
         setIsLoading(false)
         setLoadingStep(null)
 
-        // Ask user if they want to transcribe
-        const shouldTranscribe = confirm(
-          'Video geladen! Möchtest du jetzt die Transkription starten?'
-        )
-
-        if (shouldTranscribe) {
-          await startTranscription(extractedPath)
-        }
+        // Start transcription automatically
+        await startTranscription(extractedPath)
       } catch (err) {
         setIsLoading(false)
         setLoadingStep(null)
