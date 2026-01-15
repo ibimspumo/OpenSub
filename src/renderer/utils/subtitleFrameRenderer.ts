@@ -14,6 +14,7 @@ import {
   ANIMATION_CONSTANTS
 } from '../../shared/styleConstants'
 import { getWorkerPool, terminateWorkerPool as _terminateWorkerPool, type FrameResult } from './workerPool'
+import { ensureFontWeightLoaded } from './fontLoader'
 
 // Re-export for cleanup
 export const cleanupWorkerPool = _terminateWorkerPool
@@ -696,6 +697,14 @@ export async function generateExportFrames(
   fps: number,
   onProgress?: (percent: number) => void
 ): Promise<FrameInfo[]> {
+  // IMPORTANT: Ensure font weight is loaded before rendering
+  // Web Workers don't have access to document.fonts, so we load it here first
+  const weight = typeof style.fontWeight === 'number'
+    ? style.fontWeight
+    : style.fontWeight === 'bold' ? 700 : 400
+  console.log(`[FrameRenderer] Ensuring font ${style.fontFamily} weight ${weight} is loaded...`)
+  await ensureFontWeightLoaded(style.fontFamily, weight)
+
   const frameTimes = calculateFrameTimes(subtitles, fps, style.animation)
 
   if (frameTimes.length === 0) {
@@ -756,6 +765,13 @@ export async function generateExportFramesSequential(
   fps: number,
   onProgress?: (percent: number) => void
 ): Promise<FrameInfo[]> {
+  // IMPORTANT: Ensure font weight is loaded before rendering
+  const weight = typeof style.fontWeight === 'number'
+    ? style.fontWeight
+    : style.fontWeight === 'bold' ? 700 : 400
+  console.log(`[FrameRenderer] Ensuring font ${style.fontFamily} weight ${weight} is loaded...`)
+  await ensureFontWeightLoaded(style.fontFamily, weight)
+
   const frames: FrameInfo[] = []
   const frameTimes = calculateFrameTimes(subtitles, fps, style.animation)
 

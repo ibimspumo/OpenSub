@@ -33,13 +33,108 @@ interface RenderResult {
 type WorkerMessage =
   | { type: 'render'; tasks: RenderTask[] }
   | { type: 'init'; workerIndex: number }
+  | { type: 'loadFont'; family: string; weight: number }
 
 type WorkerResponse =
   | { type: 'ready'; workerIndex: number }
   | { type: 'results'; results: RenderResult[] }
   | { type: 'progress'; completed: number; total: number }
+  | { type: 'fontLoaded'; family: string; weight: number; success: boolean }
 
 let workerIndex = 0
+
+// Cache of loaded fonts in this worker
+const loadedFontsInWorker = new Set<string>()
+
+/**
+ * Load a Google Font directly in the worker using FontFace API
+ * Workers don't have access to the main thread's document.fonts,
+ * so we need to fetch and load fonts ourselves
+ *
+ * IMPORTANT: Google Fonts CSS contains multiple @font-face rules for different
+ * unicode ranges (latin, latin-ext, devanagari, etc.). We need to load ALL of them
+ * to ensure all characters render correctly.
+ */
+async function loadFontInWorker(family: string, weight: number): Promise<boolean> {
+  const cacheKey = `${family}:${weight}`
+  if (loadedFontsInWorker.has(cacheKey)) {
+    console.log(`[Worker] Font already loaded: ${family} ${weight}`)
+    return true
+  }
+
+  try {
+    console.log(`[Worker] Starting font load: ${family} ${weight}`)
+
+    // Fetch the Google Fonts CSS to get all woff2 URLs
+    const cssUrl = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:wght@${weight}&display=swap`
+    const response = await fetch(cssUrl)
+    const css = await response.text()
+
+    // Parse CSS to find ALL woff2 URLs (for different unicode ranges)
+    // Google Fonts returns multiple @font-face rules for latin, latin-ext, etc.
+    const woff2Regex = /url\((https:\/\/fonts\.gstatic\.com[^)]+\.woff2)\)/g
+    const woff2Urls: string[] = []
+    let match
+    while ((match = woff2Regex.exec(css)) !== null) {
+      woff2Urls.push(match[1])
+    }
+
+    if (woff2Urls.length === 0) {
+      console.warn(`[Worker] Could not find any woff2 URLs for ${family} ${weight}`)
+      return false
+    }
+
+    console.log(`[Worker] Found ${woff2Urls.length} font subsets to load`)
+
+    // Load ALL font subsets in parallel
+    const loadPromises = woff2Urls.map(async (fontUrl, index) => {
+      try {
+        const fontResponse = await fetch(fontUrl)
+        const fontData = await fontResponse.arrayBuffer()
+        console.log(`[Worker] Font subset ${index + 1}/${woff2Urls.length} downloaded: ${fontData.byteLength} bytes`)
+
+        // Create FontFace with the actual font data
+        const font = new FontFace(family, fontData, {
+          weight: String(weight),
+          style: 'normal'
+        })
+
+        await font.load()
+
+        // Add to worker's font set
+        // @ts-expect-error - Workers have fonts property in modern browsers
+        self.fonts.add(font)
+
+        return true
+      } catch (err) {
+        console.warn(`[Worker] Failed to load font subset from ${fontUrl}:`, err)
+        return false
+      }
+    })
+
+    const results = await Promise.all(loadPromises)
+    const successCount = results.filter(Boolean).length
+
+    console.log(`[Worker] Loaded ${successCount}/${woff2Urls.length} font subsets for ${family} ${weight}`)
+
+    if (successCount === 0) {
+      console.error(`[Worker] Failed to load any font subsets for ${family} ${weight}`)
+      return false
+    }
+
+    // Verify the font was added successfully
+    // @ts-expect-error - Workers have fonts property in modern browsers
+    const fontsInWorker = Array.from(self.fonts).map((f: FontFace) => `${f.family}:${f.weight}`)
+    console.log(`[Worker] Fonts now available in worker:`, fontsInWorker)
+
+    loadedFontsInWorker.add(cacheKey)
+    console.log(`[Worker] Font fully loaded and ready: ${family} ${weight}`)
+    return true
+  } catch (error) {
+    console.error(`[Worker] Failed to load font ${family} ${weight}:`, error)
+    return false
+  }
+}
 
 // Listen for messages from main thread
 self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
@@ -51,7 +146,30 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
     return
   }
 
+  if (message.type === 'loadFont') {
+    const success = await loadFontInWorker(message.family, message.weight)
+    self.postMessage({
+      type: 'fontLoaded',
+      family: message.family,
+      weight: message.weight,
+      success
+    } as WorkerResponse)
+    return
+  }
+
   if (message.type === 'render') {
+    // Ensure font is loaded before rendering
+    const firstTask = message.tasks[0]
+    if (firstTask) {
+      const weight = typeof firstTask.style.fontWeight === 'number'
+        ? firstTask.style.fontWeight
+        : firstTask.style.fontWeight === 'bold' ? 700 : 400
+      // Extract font family and strip quotes (value is like '"Poppins", sans-serif')
+      const family = firstTask.style.fontFamily.split(',')[0].trim().replace(/['"]/g, '')
+      console.log(`[Worker] Render request - Loading font: ${family} weight ${weight}`)
+      const fontLoaded = await loadFontInWorker(family, weight)
+      console.log(`[Worker] Font load result: ${fontLoaded}, starting render of ${message.tasks.length} frames`)
+    }
     const results: RenderResult[] = []
     const tasks = message.tasks
 
@@ -108,12 +226,22 @@ async function renderFrame(task: RenderTask): Promise<string | null> {
     return null
   }
 
+  // IMPORTANT: Extract just the font family name (without fallbacks like ", sans-serif")
+  // and strip quotes because the FontFace was registered with just the family name
+  const fontFamily = style.fontFamily.split(',')[0].trim().replace(/['"]/g, '')
+
   const currentWordIndex = getCurrentWordIndex(currentSubtitle, currentTime)
 
   const fontSize = style.fontSize
-  ctx.font = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`
+  const fontString = `${style.fontWeight} ${fontSize}px "${fontFamily}"`
+  ctx.font = fontString
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
+
+  // Debug: Log on first frame to verify font is correct
+  if (currentTime < 1) {
+    console.log(`[Worker] Setting font: ${fontString}, Canvas reports: ${ctx.font}`)
+  }
 
   const xCenter = width * style.positionX
   const yPosition = height * style.positionY
