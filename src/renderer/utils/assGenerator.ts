@@ -1,4 +1,5 @@
-import type { Project, Subtitle, SubtitleStyle } from '../../shared/types'
+import type { Project, Subtitle, SubtitleStyle, BoxPadding } from '../../shared/types'
+import { DEFAULT_BOX_PADDING } from '../../shared/types'
 import {
   RENDERING_CONSTANTS,
   ANIMATION_CONSTANTS,
@@ -264,17 +265,22 @@ export function generateASS(project: Project): string {
       // When enabled, the highlighted word gets a colored border/shadow that acts as a background box
       const karaokeBoxEnabled = style.karaokeBoxEnabled ?? false
       const karaokeBoxColor = style.karaokeBoxColor ?? '#32CD32'
-      const karaokeBoxPadding = style.karaokeBoxPadding ?? 4
+      const karaokeBoxPadding: BoxPadding = style.karaokeBoxPadding ?? DEFAULT_BOX_PADDING
 
       // Convert karaoke box color to ASS format for use in override tags
       const boxColorASS = toASSColor(karaokeBoxColor)
 
+      // Calculate horizontal and vertical padding for ASS
+      // ASS uses \xbord for horizontal and \ybord for vertical border
+      // We use the average of left/right for horizontal and top/bottom for vertical
+      const horizontalPadding = Math.round((karaokeBoxPadding.left + karaokeBoxPadding.right) / 2)
+      const verticalPadding = Math.round((karaokeBoxPadding.top + karaokeBoxPadding.bottom) / 2)
+
       // Build karaoke box override tags
       // \3c sets border color, \4c sets shadow color
-      // \bord sets border thickness (acts as padding), \shad adds shadow depth
-      // \xbord and \ybord can control horizontal and vertical border separately
+      // \xbord and \ybord control horizontal and vertical border separately
       const boxStartTag = karaokeBoxEnabled
-        ? `\\3c${boxColorASS}\\4c${boxColorASS}\\bord${karaokeBoxPadding}\\shad0`
+        ? `\\3c${boxColorASS}\\4c${boxColorASS}\\xbord${horizontalPadding}\\ybord${verticalPadding}\\shad0`
         : ''
 
       // Reset tags to restore normal styling after highlighted word

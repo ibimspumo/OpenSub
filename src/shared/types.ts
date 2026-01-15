@@ -48,6 +48,32 @@ export interface Word {
 // Font weight type - supports CSS keywords and numeric values (100-900)
 export type FontWeight = 'normal' | 'bold' | 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900
 
+// Box padding type - individual padding values for each side (CSS-like: top, right, bottom, left)
+export interface BoxPadding {
+  top: number
+  right: number
+  bottom: number
+  left: number
+}
+
+// Default box padding (used for karaoke box)
+export const DEFAULT_BOX_PADDING: BoxPadding = {
+  top: 8,
+  right: 24,
+  bottom: 8,
+  left: 24
+}
+
+// Helper to create uniform padding
+export function createUniformPadding(value: number): BoxPadding {
+  return { top: value, right: value, bottom: value, left: value }
+}
+
+// Helper to create symmetric padding (vertical, horizontal)
+export function createSymmetricPadding(vertical: number, horizontal: number): BoxPadding {
+  return { top: vertical, right: horizontal, bottom: vertical, left: horizontal }
+}
+
 // Styling Optionen
 export interface SubtitleStyle {
   fontFamily: string
@@ -75,7 +101,7 @@ export interface SubtitleStyle {
   // Karaoke box settings (background box behind the current highlighted word)
   karaokeBoxEnabled: boolean      // Whether to show a box behind the current karaoke word
   karaokeBoxColor: string         // Background color of the karaoke box
-  karaokeBoxPadding: number       // Padding around the word in pixels
+  karaokeBoxPadding: BoxPadding   // Individual padding values (top, right, bottom, left)
   karaokeBoxBorderRadius: number  // Border radius of the box in pixels
 }
 
@@ -145,7 +171,7 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   // Karaoke box settings (disabled by default)
   karaokeBoxEnabled: false,
   karaokeBoxColor: '#32CD32',    // Lime green (as shown in reference image)
-  karaokeBoxPadding: 24,         // 24px padding around the word
+  karaokeBoxPadding: DEFAULT_BOX_PADDING,  // Individual padding values
   karaokeBoxBorderRadius: 32    // 32px border radius for rounded corners
 }
 
@@ -193,7 +219,8 @@ export function validateAndNormalizeStyle(importedStyle: Record<string, unknown>
   for (const key of SUBTITLE_STYLE_KEYS) {
     if (key in importedStyle && importedStyle[key] !== undefined) {
       // Use the imported value (with type assertion since we validated the key)
-      ;(normalizedStyle as Record<string, unknown>)[key] = importedStyle[key]
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(normalizedStyle as any)[key] = importedStyle[key]
     } else {
       // Track missing properties
       missingProperties.push(key)

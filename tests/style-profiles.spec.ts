@@ -318,7 +318,7 @@ test.describe('Style Profile Management', () => {
               maxLines: 2,
               karaokeBoxEnabled: false,
               karaokeBoxColor: '#32CD32',
-              karaokeBoxPadding: 4,
+              karaokeBoxPadding: { top: 8, right: 24, bottom: 8, left: 24 },
               karaokeBoxBorderRadius: 4
             },
             createdAt: Date.now(),

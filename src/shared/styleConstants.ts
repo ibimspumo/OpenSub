@@ -104,7 +104,11 @@ export const SLIDER_RANGES: Record<string, SliderRange> = {
   shadowOffsetX: { min: -50, max: 50, step: 1, unit: 'px' },
   shadowOffsetY: { min: -50, max: 50, step: 1, unit: 'px' },
   maxWidth: { min: 50, max: 100, step: 5, unit: '%' },
-  karaokeBoxPadding: { min: 0, max: 100, step: 1, unit: 'px' },
+  // Individual karaoke box padding values
+  karaokeBoxPaddingTop: { min: 0, max: 100, step: 1, unit: 'px' },
+  karaokeBoxPaddingRight: { min: 0, max: 100, step: 1, unit: 'px' },
+  karaokeBoxPaddingBottom: { min: 0, max: 100, step: 1, unit: 'px' },
+  karaokeBoxPaddingLeft: { min: 0, max: 100, step: 1, unit: 'px' },
   karaokeBoxBorderRadius: { min: 0, max: 300, step: 1, unit: 'px' }
 } as const
 

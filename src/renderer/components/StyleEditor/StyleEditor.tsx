@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { parseColor } from 'react-aria-components'
 import { useProjectStore } from '../../store/projectStore'
 import { useUIStore } from '../../store/uiStore'
-import type { AnimationType, SubtitlePosition, SubtitleStyle, FontWeight } from '../../../shared/types'
+import type { AnimationType, SubtitlePosition, SubtitleStyle, FontWeight, BoxPadding } from '../../../shared/types'
 import {
   DEFAULT_SUBTITLE_STYLE,
   COLOR_PRESETS,
@@ -51,7 +51,9 @@ import {
   Sparkles,
   RotateCcw,
   Lightbulb,
-  Info
+  Info,
+  Link,
+  Unlink
 } from 'lucide-react'
 
 // Collapsible section component with smooth animations
@@ -414,6 +416,174 @@ function PremiumButtonGroup({
   )
 }
 
+// Box Padding Input Component - Smart UI for individual padding values
+interface BoxPaddingInputProps {
+  label: string
+  value: BoxPadding
+  onChange: (value: BoxPadding) => void
+}
+
+function BoxPaddingInput({ label, value, onChange }: BoxPaddingInputProps) {
+  const [isLinked, setIsLinked] = useState(
+    value.top === value.right && value.right === value.bottom && value.bottom === value.left
+  )
+  const [localValues, setLocalValues] = useState(value)
+
+  // Sync local values with prop when not actively editing
+  useEffect(() => {
+    setLocalValues(value)
+    // Check if all values are equal to determine linked state
+    const allEqual = value.top === value.right && value.right === value.bottom && value.bottom === value.left
+    setIsLinked(allEqual)
+  }, [value])
+
+  const handleChange = (side: keyof BoxPadding, newValue: number) => {
+    const clampedValue = Math.max(0, Math.min(100, newValue))
+
+    if (isLinked) {
+      // When linked, update all values
+      const newPadding: BoxPadding = {
+        top: clampedValue,
+        right: clampedValue,
+        bottom: clampedValue,
+        left: clampedValue
+      }
+      setLocalValues(newPadding)
+      onChange(newPadding)
+    } else {
+      // When unlinked, update only the specific side
+      const newPadding: BoxPadding = {
+        ...localValues,
+        [side]: clampedValue
+      }
+      setLocalValues(newPadding)
+      onChange(newPadding)
+    }
+  }
+
+  const handleInputChange = (side: keyof BoxPadding, inputValue: string) => {
+    const parsed = parseInt(inputValue, 10)
+    if (!isNaN(parsed)) {
+      handleChange(side, parsed)
+    }
+  }
+
+  const toggleLinked = () => {
+    if (!isLinked) {
+      // When enabling link, sync all values to the top value
+      const syncedPadding: BoxPadding = {
+        top: localValues.top,
+        right: localValues.top,
+        bottom: localValues.top,
+        left: localValues.top
+      }
+      setLocalValues(syncedPadding)
+      onChange(syncedPadding)
+    }
+    setIsLinked(!isLinked)
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider block">
+        {label}
+      </Label>
+
+      {/* Visual padding editor */}
+      <div className="relative bg-muted/40 border border-border rounded-lg p-3">
+        {/* Outer container with padding indicators */}
+        <div className="relative flex flex-col items-center gap-1.5">
+          {/* Top input */}
+          <div className="flex items-center gap-1">
+            <Input
+              type="number"
+              value={localValues.top}
+              onChange={(e) => handleInputChange('top', e.target.value)}
+              className="w-14 h-7 text-center text-xs font-mono bg-background/80 border-input px-1"
+              min={0}
+              max={100}
+            />
+            <span className="text-[9px] text-muted-foreground">px</span>
+          </div>
+
+          {/* Middle row: Left - Box - Right */}
+          <div className="flex items-center gap-1.5">
+            {/* Left input */}
+            <div className="flex items-center gap-1">
+              <Input
+                type="number"
+                value={localValues.left}
+                onChange={(e) => handleInputChange('left', e.target.value)}
+                className="w-14 h-7 text-center text-xs font-mono bg-background/80 border-input px-1"
+                min={0}
+                max={100}
+              />
+            </div>
+
+            {/* Center box with link button */}
+            <div className="relative w-16 h-12 rounded-md border-2 border-dashed border-primary/30 bg-primary/5 flex items-center justify-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleLinked}
+                className={cn(
+                  'w-8 h-8 rounded-full transition-all duration-200',
+                  isLinked
+                    ? 'bg-primary/20 text-primary hover:bg-primary/30'
+                    : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
+                )}
+                title={isLinked ? 'Werte entkoppeln' : 'Werte koppeln'}
+              >
+                {isLinked ? (
+                  <Link className="w-3.5 h-3.5" />
+                ) : (
+                  <Unlink className="w-3.5 h-3.5" />
+                )}
+              </Button>
+            </div>
+
+            {/* Right input */}
+            <div className="flex items-center gap-1">
+              <Input
+                type="number"
+                value={localValues.right}
+                onChange={(e) => handleInputChange('right', e.target.value)}
+                className="w-14 h-7 text-center text-xs font-mono bg-background/80 border-input px-1"
+                min={0}
+                max={100}
+              />
+            </div>
+          </div>
+
+          {/* Bottom input */}
+          <div className="flex items-center gap-1">
+            <Input
+              type="number"
+              value={localValues.bottom}
+              onChange={(e) => handleInputChange('bottom', e.target.value)}
+              className="w-14 h-7 text-center text-xs font-mono bg-background/80 border-input px-1"
+              min={0}
+              max={100}
+            />
+            <span className="text-[9px] text-muted-foreground">px</span>
+          </div>
+        </div>
+
+        {/* Labels */}
+        <div className="absolute top-1 left-2 text-[8px] text-muted-foreground/60 uppercase tracking-wider">Oben</div>
+        <div className="absolute bottom-1 left-2 text-[8px] text-muted-foreground/60 uppercase tracking-wider">Unten</div>
+        <div className="absolute top-1/2 -translate-y-1/2 left-1 text-[8px] text-muted-foreground/60 uppercase tracking-wider rotate-[-90deg] origin-center">Links</div>
+        <div className="absolute top-1/2 -translate-y-1/2 right-1 text-[8px] text-muted-foreground/60 uppercase tracking-wider rotate-90 origin-center">Rechts</div>
+      </div>
+
+      {/* Helper text */}
+      <p className="text-[9px] text-muted-foreground text-center">
+        {isLinked ? 'Alle Seiten synchronisiert' : 'Individuelle Werte pro Seite'}
+      </p>
+    </div>
+  )
+}
+
 // AI Analysis Button Component
 function AIAnalysisButton() {
   const { project } = useProjectStore()
@@ -761,27 +931,22 @@ export default function StyleEditor() {
                     presets={COLOR_PRESETS.karaokeBox}
                   />
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <PremiumSlider
-                      label="Innenabstand"
-                      value={style.karaokeBoxPadding}
-                      min={0}
-                      max={100}
-                      step={1}
-                      unit="px"
-                      onChange={(value) => handleUpdateStyle({ karaokeBoxPadding: value })}
-                    />
+                  {/* Individual padding control */}
+                  <BoxPaddingInput
+                    label="Innenabstand"
+                    value={style.karaokeBoxPadding}
+                    onChange={(value) => handleUpdateStyle({ karaokeBoxPadding: value })}
+                  />
 
-                    <PremiumSlider
-                      label="Ecken-Radius"
-                      value={style.karaokeBoxBorderRadius}
-                      min={0}
-                      max={300}
-                      step={1}
-                      unit="px"
-                      onChange={(value) => handleUpdateStyle({ karaokeBoxBorderRadius: value })}
-                    />
-                  </div>
+                  <PremiumSlider
+                    label="Ecken-Radius"
+                    value={style.karaokeBoxBorderRadius}
+                    min={0}
+                    max={300}
+                    step={1}
+                    unit="px"
+                    onChange={(value) => handleUpdateStyle({ karaokeBoxBorderRadius: value })}
+                  />
 
                   {/* Karaoke Box Preview */}
                   <div className="p-3 rounded-lg bg-muted/40 border border-border">
@@ -792,7 +957,10 @@ export default function StyleEditor() {
                         style={{
                           color: style.highlightColor,
                           backgroundColor: style.karaokeBoxColor,
-                          padding: `${Math.max(2, style.karaokeBoxPadding / 2)}px ${style.karaokeBoxPadding}px`,
+                          paddingTop: `${style.karaokeBoxPadding.top}px`,
+                          paddingRight: `${style.karaokeBoxPadding.right}px`,
+                          paddingBottom: `${style.karaokeBoxPadding.bottom}px`,
+                          paddingLeft: `${style.karaokeBoxPadding.left}px`,
                           borderRadius: `${style.karaokeBoxBorderRadius}px`
                         }}
                       >

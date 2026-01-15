@@ -423,10 +423,10 @@ export default function SubtitleCanvas({
         if (isCurrent && style.karaokeBoxEnabled) {
           ctx.save()
           const padding = style.karaokeBoxPadding
-          const boxX = currentX - padding
-          const boxY = lineY - fontSize / 2 - padding
-          const boxWidth = wordWidth + padding * 2
-          const boxHeight = fontSize + padding * 2
+          const boxX = currentX - padding.left
+          const boxY = lineY - fontSize / 2 - padding.top
+          const boxWidth = wordWidth + padding.left + padding.right
+          const boxHeight = fontSize + padding.top + padding.bottom
           const borderRadius = Math.min(style.karaokeBoxBorderRadius, boxHeight / 2, boxWidth / 2)
 
           ctx.fillStyle = style.karaokeBoxColor
@@ -857,10 +857,10 @@ export default function SubtitleCanvas({
         if (isCurrent && style.karaokeBoxEnabled) {
           ctx.save()
           const padding = style.karaokeBoxPadding
-          const boxX = currentX - padding
-          const boxY = lineY - fontSize / 2 - padding
-          const boxWidth = wordWidth + padding * 2
-          const boxHeight = fontSize + padding * 2
+          const boxX = currentX - padding.left
+          const boxY = lineY - fontSize / 2 - padding.top
+          const boxWidth = wordWidth + padding.left + padding.right
+          const boxHeight = fontSize + padding.top + padding.bottom
           const borderRadius = Math.min(style.karaokeBoxBorderRadius, boxHeight / 2, boxWidth / 2)
 
           ctx.fillStyle = style.karaokeBoxColor
