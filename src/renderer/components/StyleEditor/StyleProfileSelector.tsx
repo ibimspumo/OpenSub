@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useStyleProfileStore } from '../../store/styleProfileStore'
 import type { SubtitleStyle } from '../../../shared/types'
 import { Button } from '@/components/ui/button'
@@ -31,6 +32,7 @@ export default function StyleProfileSelector({
   currentStyle,
   onApplyProfile
 }: StyleProfileSelectorProps) {
+  const { t } = useTranslation()
   const { profiles, createProfile, deleteProfile, exportProfile, importProfile } =
     useStyleProfileStore()
 
@@ -54,17 +56,17 @@ export default function StyleProfileSelector({
         const profile = profiles.find((p) => p.id === profileId)
         if (profile) {
           onApplyProfile(profile.style)
-          showFeedback('success', `Profil "${profile.name}" angewendet`)
+          showFeedback('success', t('styleProfiles.profileApplied', { name: profile.name }))
         }
       }
     },
-    [profiles, onApplyProfile, showFeedback]
+    [profiles, onApplyProfile, showFeedback, t]
   )
 
   // Handle save new profile
   const handleSaveProfile = useCallback(() => {
     if (!newProfileName.trim()) {
-      showFeedback('error', 'Bitte gib einen Namen ein')
+      showFeedback('error', t('styleProfiles.enterName'))
       return
     }
 
@@ -72,8 +74,8 @@ export default function StyleProfileSelector({
     setSelectedProfileId(profile.id)
     setNewProfileName('')
     setIsCreating(false)
-    showFeedback('success', `Profil "${profile.name}" gespeichert`)
-  }, [newProfileName, currentStyle, createProfile, showFeedback])
+    showFeedback('success', t('styleProfiles.profileSaved', { name: profile.name }))
+  }, [newProfileName, currentStyle, createProfile, showFeedback, t])
 
   // Handle delete profile
   const handleDeleteProfile = useCallback(() => {
@@ -82,23 +84,23 @@ export default function StyleProfileSelector({
     const profile = profiles.find((p) => p.id === selectedProfileId)
     if (!profile) return
 
-    if (confirm(`Moechtest du das Profil "${profile.name}" wirklich loeschen?`)) {
+    if (confirm(t('styleProfiles.deleteConfirm', { name: profile.name }))) {
       deleteProfile(selectedProfileId)
       setSelectedProfileId('')
-      showFeedback('success', `Profil "${profile.name}" geloescht`)
+      showFeedback('success', t('styleProfiles.profileDeleted', { name: profile.name }))
     }
-  }, [selectedProfileId, profiles, deleteProfile, showFeedback])
+  }, [selectedProfileId, profiles, deleteProfile, showFeedback, t])
 
   // Handle export profile
   const handleExportProfile = useCallback(async () => {
     if (!selectedProfileId) {
-      showFeedback('error', 'Bitte waehle zuerst ein Profil aus')
+      showFeedback('error', t('styleProfiles.selectFirst'))
       return
     }
 
     const profileExport = exportProfile(selectedProfileId)
     if (!profileExport) {
-      showFeedback('error', 'Profil nicht gefunden')
+      showFeedback('error', t('styleProfiles.profileNotFound'))
       return
     }
 
@@ -112,17 +114,17 @@ export default function StyleProfileSelector({
       if (result.canceled) {
         // User canceled, no feedback needed
       } else if (result.success) {
-        showFeedback('success', 'Profil erfolgreich exportiert')
+        showFeedback('success', t('styleProfiles.exportSuccess'))
       } else {
-        showFeedback('error', result.error || 'Export fehlgeschlagen')
+        showFeedback('error', result.error || t('styleProfiles.exportFailed'))
       }
     } catch (err) {
-      showFeedback('error', 'Export fehlgeschlagen')
+      showFeedback('error', t('styleProfiles.exportFailed'))
       console.error('Export error:', err)
     } finally {
       setIsLoading(false)
     }
-  }, [selectedProfileId, exportProfile, showFeedback])
+  }, [selectedProfileId, exportProfile, showFeedback, t])
 
   // Handle import profile
   const handleImportProfile = useCallback(async () => {
@@ -141,28 +143,28 @@ export default function StyleProfileSelector({
           if (validation?.hasIssues) {
             const issues: string[] = []
             if (validation.unknownProperties.length > 0) {
-              issues.push(`${validation.unknownProperties.length} nicht unterstuetzte Eigenschaften entfernt`)
+              issues.push(t('styleProfiles.unsupportedPropertiesRemoved', { count: validation.unknownProperties.length }))
             }
             if (validation.missingProperties.length > 0) {
-              issues.push(`${validation.missingProperties.length} fehlende Eigenschaften mit Standardwerten ergaenzt`)
+              issues.push(t('styleProfiles.missingPropertiesFilled', { count: validation.missingProperties.length }))
             }
-            showFeedback('success', `Profil "${imported.name}" importiert (${issues.join(', ')})`)
+            showFeedback('success', t('styleProfiles.importSuccessWithIssues', { name: imported.name, issues: issues.join(', ') }))
           } else {
-            showFeedback('success', `Profil "${imported.name}" importiert`)
+            showFeedback('success', t('styleProfiles.importSuccess', { name: imported.name }))
           }
         } else {
-          showFeedback('error', 'Ungueltiges Profil-Format')
+          showFeedback('error', t('styleProfiles.invalidFormat'))
         }
       } else {
-        showFeedback('error', result.error || 'Import fehlgeschlagen')
+        showFeedback('error', result.error || t('styleProfiles.importFailed'))
       }
     } catch (err) {
-      showFeedback('error', 'Import fehlgeschlagen')
+      showFeedback('error', t('styleProfiles.importFailed'))
       console.error('Import error:', err)
     } finally {
       setIsLoading(false)
     }
-  }, [importProfile, showFeedback])
+  }, [importProfile, showFeedback, t])
 
   // Cancel creating new profile
   const handleCancelCreate = useCallback(() => {
@@ -178,7 +180,7 @@ export default function StyleProfileSelector({
           <FolderOpen className="w-4 h-4" />
         </div>
         <span className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
-          Stil-Profile
+          {t('styleProfiles.title')}
         </span>
       </div>
 
@@ -208,12 +210,12 @@ export default function StyleProfileSelector({
         disabled={isLoading}
       >
         <SelectTrigger className="w-full h-9 bg-muted/60 border-input hover:border-ring">
-          <SelectValue placeholder="— Profil auswaehlen —" />
+          <SelectValue placeholder={t('styleProfiles.selectProfile')} />
         </SelectTrigger>
         <SelectContent>
           {profiles.length === 0 ? (
             <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-              Keine Profile vorhanden
+              {t('styleProfiles.noProfiles')}
             </div>
           ) : (
             profiles.map((profile) => (
@@ -232,7 +234,7 @@ export default function StyleProfileSelector({
             type="text"
             value={newProfileName}
             onChange={(e) => setNewProfileName(e.target.value)}
-            placeholder="Profilname eingeben..."
+            placeholder={t('styleProfiles.profileNamePlaceholder')}
             autoFocus
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleSaveProfile()
@@ -247,7 +249,7 @@ export default function StyleProfileSelector({
               className="flex-1 h-8"
             >
               <Check className="w-4 h-4" />
-              Speichern
+              {t('common.save')}
             </Button>
             <Button
               variant="outline"
@@ -270,7 +272,7 @@ export default function StyleProfileSelector({
             className="h-8"
           >
             <Save className="w-4 h-4" />
-            <span>Speichern</span>
+            <span>{t('common.save')}</span>
           </Button>
 
           {/* Delete Profile */}
@@ -285,7 +287,7 @@ export default function StyleProfileSelector({
             )}
           >
             <Trash2 className="w-4 h-4" />
-            <span>Loeschen</span>
+            <span>{t('common.delete')}</span>
           </Button>
 
           {/* Import Profile */}
@@ -297,7 +299,7 @@ export default function StyleProfileSelector({
             className="h-8 bg-muted/60"
           >
             <Upload className="w-4 h-4" />
-            <span>Import</span>
+            <span>{t('styleProfiles.import')}</span>
           </Button>
 
           {/* Export Profile */}
@@ -309,7 +311,7 @@ export default function StyleProfileSelector({
             className="h-8 bg-muted/60"
           >
             <Download className="w-4 h-4" />
-            <span>Export</span>
+            <span>{t('styleProfiles.export')}</span>
           </Button>
         </div>
       )}
@@ -317,7 +319,7 @@ export default function StyleProfileSelector({
       {/* Profile count indicator */}
       {profiles.length > 0 && (
         <p className="text-[10px] text-muted-foreground text-center">
-          {profiles.length} {profiles.length === 1 ? 'Profil' : 'Profile'} gespeichert
+          {t('styleProfiles.profileCount', { count: profiles.length })}
         </p>
       )}
     </div>

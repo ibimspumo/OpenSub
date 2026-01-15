@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Loader2,
   CheckCircle,
@@ -30,43 +31,43 @@ interface AnalysisProgressProps {
 
 const STAGE_CONFIG = {
   extracting: {
-    label: 'Audio extrahieren...',
-    description: 'MP3 wird aus dem Video extrahiert',
+    labelKey: 'analysis.extractingAudio',
+    descriptionKey: 'analysis.extractingAudioDesc',
     icon: Music,
     color: 'text-blue-400',
     bgColor: 'bg-blue-500/10',
   },
   uploading: {
-    label: 'Vorbereiten...',
-    description: 'Daten werden an die KI gesendet',
+    labelKey: 'analysis.preparing',
+    descriptionKey: 'analysis.preparingDesc',
     icon: Upload,
     color: 'text-violet-400',
     bgColor: 'bg-violet-500/10',
   },
   analyzing: {
-    label: 'KI analysiert...',
-    description: 'Gemini vergleicht Audio mit Transkription',
+    labelKey: 'analysis.analyzing',
+    descriptionKey: 'analysis.analyzingDesc',
     icon: Sparkles,
     color: 'text-amber-400',
     bgColor: 'bg-amber-500/10',
   },
   comparing: {
-    label: 'Vergleiche...',
-    description: 'Aenderungen werden ermittelt',
+    labelKey: 'analysis.comparing',
+    descriptionKey: 'analysis.comparingDesc',
     icon: ClipboardCheck,
     color: 'text-emerald-400',
     bgColor: 'bg-emerald-500/10',
   },
   complete: {
-    label: 'Fertig!',
-    description: 'Analyse abgeschlossen',
+    labelKey: 'analysis.complete',
+    descriptionKey: 'analysis.completeDesc',
     icon: CheckCircle,
     color: 'text-emerald-400',
     bgColor: 'bg-emerald-500/10',
   },
   error: {
-    label: 'Fehler',
-    description: 'Ein Fehler ist aufgetreten',
+    labelKey: 'analysis.error',
+    descriptionKey: 'analysis.errorDesc',
     icon: XCircle,
     color: 'text-red-400',
     bgColor: 'bg-red-500/10',
@@ -88,6 +89,7 @@ function SparkleAnimation() {
 }
 
 export default function AnalysisProgress({ progress, onCancel }: AnalysisProgressProps) {
+  const { t } = useTranslation()
   const stage = progress?.stage || 'extracting'
   const config = STAGE_CONFIG[stage] || STAGE_CONFIG.extracting
   const isAnimating = stage !== 'complete' && stage !== 'error'
@@ -131,11 +133,11 @@ export default function AnalysisProgress({ progress, onCancel }: AnalysisProgres
               stage === 'error' && 'text-red-400'
             )}
           >
-            {config.label}
+            {t(config.labelKey)}
           </DialogTitle>
 
           <DialogDescription className="text-center">
-            {progress?.message || config.description}
+            {progress?.message || t(config.descriptionKey)}
           </DialogDescription>
         </DialogHeader>
 
@@ -148,7 +150,7 @@ export default function AnalysisProgress({ progress, onCancel }: AnalysisProgres
 
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground font-medium">
-              {progressWidth > 0 ? 'Fortschritt' : 'Initialisiere...'}
+              {progressWidth > 0 ? t('common.progress') : t('common.initializing')}
             </span>
             <span
               className={cn(
@@ -175,7 +177,7 @@ export default function AnalysisProgress({ progress, onCancel }: AnalysisProgres
             className="w-full"
           >
             <X className="h-4 w-4" />
-            Abbrechen
+            {t('common.cancel')}
           </Button>
         </DialogFooter>
       </DialogContent>

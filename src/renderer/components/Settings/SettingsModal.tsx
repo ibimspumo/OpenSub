@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -10,8 +11,10 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { Settings, Eye, EyeOff, Check, Info, Brain, Sparkles, Loader2 } from 'lucide-react'
-import type { ModelInfo } from '../../../shared/types'
+import { Settings, Eye, EyeOff, Check, Info, Brain, Sparkles, Loader2, Globe } from 'lucide-react'
+import type { ModelInfo, AppLanguage } from '../../../shared/types'
+import { SUPPORTED_LANGUAGES } from '../../../shared/types'
+import { changeLanguage, getCurrentLanguage, type SupportedLanguage } from '../../i18n'
 
 interface SettingsModalProps {
   open: boolean
@@ -19,6 +22,7 @@ interface SettingsModalProps {
 }
 
 export default function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
+  const { t } = useTranslation()
   const [apiKey, setApiKey] = useState('')
   const [showApiKey, setShowApiKey] = useState(false)
   const [hasEnvApiKey, setHasEnvApiKey] = useState(false)
@@ -30,6 +34,9 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
   const [selectedModelId, setSelectedModelId] = useState<string>('')
   const [originalModelId, setOriginalModelId] = useState<string>('')
   const [isChangingModel, setIsChangingModel] = useState(false)
+
+  // Language selection state
+  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>(getCurrentLanguage())
 
   // Load settings when modal opens
   useEffect(() => {
@@ -51,6 +58,8 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
       setModels(modelList)
       setSelectedModelId(currentModel)
       setOriginalModelId(currentModel)
+      // Set language from current i18n state (which may have been loaded from localStorage or system)
+      setSelectedLanguage(getCurrentLanguage())
     } catch (error) {
       console.error('Failed to load settings:', error)
     }
@@ -61,8 +70,14 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
     setSaveSuccess(false)
 
     try {
-      // Save API key
-      await window.api.settings.set({ openRouterApiKey: apiKey })
+      // Save API key and language preference
+      await window.api.settings.set({
+        openRouterApiKey: apiKey,
+        language: selectedLanguage as AppLanguage
+      })
+
+      // Change language immediately (this updates the UI)
+      await changeLanguage(selectedLanguage)
 
       // Change model if different from original
       if (selectedModelId !== originalModelId) {
@@ -86,7 +101,7 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
       setIsSaving(false)
       setIsChangingModel(false)
     }
-  }, [apiKey, selectedModelId, originalModelId, onOpenChange])
+  }, [apiKey, selectedLanguage, selectedModelId, originalModelId, onOpenChange])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -106,9 +121,9 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/20">
             <Settings className="h-6 w-6 text-primary" />
           </div>
-          <DialogTitle className="text-center">Einstellungen</DialogTitle>
+          <DialogTitle className="text-center">{t('settings.title')}</DialogTitle>
           <DialogDescription className="text-center">
-            Konfiguriere KI-Modell und API-Key.
+            {t('settings.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -118,7 +133,7 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
             <div className="flex items-center gap-2">
               <Brain className="h-4 w-4 text-violet-500" />
               <label className="text-sm font-medium text-foreground">
-                KI-Modell fuer Transkription
+                {t('settings.aiModel')}
               </label>
             </div>
             <div className="space-y-2">
@@ -142,13 +157,13 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
                       {model.quality === 'high' && (
                         <span className="flex items-center gap-1 text-xs bg-violet-600 text-white px-1.5 py-0.5 rounded">
                           <Sparkles className="h-3 w-3" />
-                          Empfohlen
+                          {t('settings.recommended')}
                         </span>
                       )}
                       {model.downloaded && (
                         <span className="flex items-center gap-1 text-xs bg-green-600/20 text-green-500 px-1.5 py-0.5 rounded">
                           <Check className="h-3 w-3" />
-                          Installiert
+                          {t('settings.installed')}
                         </span>
                       )}
                     </div>
@@ -161,9 +176,47 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
             </div>
             {modelHasChanged && (
               <p className="text-xs text-amber-500">
-                Das Modell wird beim Speichern neu geladen. Dies kann einige Minuten dauern.
+                {t('settings.modelChangeWarning')}
               </p>
             )}
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-border" />
+
+          {/* Language Selection */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Globe className="h-4 w-4 text-blue-500" />
+              <label className="text-sm font-medium text-foreground">
+                {t('settings.language')}
+              </label>
+            </div>
+            <div className="space-y-2">
+              {SUPPORTED_LANGUAGES.map((lang) => (
+                <button
+                  key={lang.code}
+                  onClick={() => setSelectedLanguage(lang.code as SupportedLanguage)}
+                  disabled={isSaving || isChangingModel}
+                  className={cn(
+                    'w-full p-3 rounded-lg border text-left transition-all',
+                    'hover:border-blue-500/50 hover:bg-blue-500/5',
+                    'disabled:opacity-50 disabled:cursor-not-allowed',
+                    selectedLanguage === lang.code
+                      ? 'border-blue-500 bg-blue-500/10'
+                      : 'border-border bg-card/50'
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg">{lang.flag}</span>
+                    <span className="font-medium text-sm">{lang.name}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t('settings.languageDescription')}
+            </p>
           </div>
 
           {/* Divider */}
@@ -179,9 +232,9 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
             >
               <Info className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
               <div className="text-sm">
-                <p className="font-medium text-primary">Umgebungsvariable aktiv</p>
+                <p className="font-medium text-primary">{t('settings.envVariableActive')}</p>
                 <p className="text-muted-foreground mt-0.5">
-                  Der API-Key wird aus der Umgebungsvariable gelesen.
+                  {t('settings.envVariableHint')}
                 </p>
               </div>
             </div>
@@ -190,7 +243,7 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
           {/* API Key Input */}
           <div className="space-y-2">
             <label htmlFor="api-key" className="text-sm font-medium text-foreground">
-              OpenRouter API-Key (fuer KI-Korrektur)
+              {t('settings.apiKeyLabel')}
             </label>
             <div className="relative">
               <Input
@@ -215,30 +268,30 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
               </button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Optional. Wird nur fuer die KI-Korrektur-Funktion benoetigt.
+              {t('settings.apiKeyHint')}
             </p>
           </div>
         </div>
 
         <DialogFooter className="flex-row gap-3 sm:justify-end">
           <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={isSaving || isChangingModel}>
-            Abbrechen
+            {t('common.cancel')}
           </Button>
           <Button onClick={handleSave} disabled={isSaving || isChangingModel} className="min-w-[120px]">
             {saveSuccess ? (
               <span className="flex items-center gap-2">
                 <Check className="h-4 w-4" />
-                Gespeichert
+                {t('settings.saved')}
               </span>
             ) : isChangingModel ? (
               <span className="flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Modell laden...
+                {t('settings.loadingModel')}
               </span>
             ) : isSaving ? (
-              'Speichern...'
+              t('settings.saving')
             ) : (
-              'Speichern'
+              t('common.save')
             )}
           </Button>
         </DialogFooter>

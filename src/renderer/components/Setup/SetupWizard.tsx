@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Brain, Download, Check, ChevronRight, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -13,6 +14,7 @@ interface SetupWizardProps {
 type SetupStep = 'welcome' | 'model' | 'downloading' | 'complete'
 
 export default function SetupWizard({ onComplete, progress }: SetupWizardProps) {
+  const { t } = useTranslation()
   const [step, setStep] = useState<SetupStep>('welcome')
   const [models, setModels] = useState<ModelInfo[]>([])
   const [selectedModel, setSelectedModel] = useState<string>('mlx-community/whisper-large-v3-mlx')
@@ -57,7 +59,7 @@ export default function SetupWizard({ onComplete, progress }: SetupWizardProps) 
   }
 
   const percent = progress?.percent ?? 0
-  const message = progress?.message || 'Modell wird geladen...'
+  const message = progress?.message || t('setupWizard.modelLoading')
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm">
@@ -84,11 +86,10 @@ export default function SetupWizard({ onComplete, progress }: SetupWizardProps) 
 
             <div>
               <h1 className="text-3xl font-bold tracking-tight mb-2">
-                Willkommen bei OpenSub
+                {t('setupWizard.welcome')}
               </h1>
               <p className="text-muted-foreground max-w-sm mx-auto">
-                Bevor du loslegst, muessen wir ein KI-Modell fuer die
-                Spracherkennung einrichten.
+                {t('setupWizard.welcomeDescription')}
               </p>
             </div>
 
@@ -97,7 +98,7 @@ export default function SetupWizard({ onComplete, progress }: SetupWizardProps) 
               onClick={() => setStep('model')}
               className="gap-2"
             >
-              Einrichtung starten
+              {t('setupWizard.startSetup')}
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
@@ -108,10 +109,10 @@ export default function SetupWizard({ onComplete, progress }: SetupWizardProps) 
           <div className="space-y-6 animate-fade-in">
             <div className="text-center mb-6">
               <h2 className="text-2xl font-bold tracking-tight mb-2">
-                Waehle ein Modell
+                {t('setupWizard.selectModel')}
               </h2>
               <p className="text-sm text-muted-foreground">
-                Groessere Modelle liefern bessere Ergebnisse, benoetigen aber mehr Speicherplatz.
+                {t('setupWizard.modelSizeHint')}
               </p>
             </div>
 
@@ -135,20 +136,20 @@ export default function SetupWizard({ onComplete, progress }: SetupWizardProps) 
                         {model.quality === 'high' && (
                           <span className="flex items-center gap-1 text-xs bg-violet-600 text-white px-2 py-0.5 rounded-full">
                             <Sparkles className="h-3 w-3" />
-                            Empfohlen
+                            {t('settings.recommended')}
                           </span>
                         )}
                         {model.downloaded && (
                           <span className="flex items-center gap-1 text-xs bg-green-600/20 text-green-500 px-2 py-0.5 rounded-full">
                             <Check className="h-3 w-3" />
-                            Installiert
+                            {t('settings.installed')}
                           </span>
                         )}
                       </div>
                       <div className="text-sm text-muted-foreground mt-1">
-                        {model.quality === 'high' && 'Beste Qualitaet - ideal fuer professionelle Projekte'}
-                        {model.quality === 'medium' && 'Gute Qualitaet - Balance aus Geschwindigkeit und Genauigkeit'}
-                        {model.quality === 'low' && 'Schnellste Option - fuer einfache Transkriptionen'}
+                        {model.quality === 'high' && t('setupWizard.qualityHigh')}
+                        {model.quality === 'medium' && t('setupWizard.qualityMedium')}
+                        {model.quality === 'low' && t('setupWizard.qualityLow')}
                       </div>
                     </div>
                     <div className="text-sm text-muted-foreground tabular-nums">
@@ -166,7 +167,7 @@ export default function SetupWizard({ onComplete, progress }: SetupWizardProps) 
               className="w-full gap-2"
             >
               <Download className="h-4 w-4" />
-              Modell herunterladen & installieren
+              {t('setupWizard.downloadAndInstall')}
             </Button>
           </div>
         )}
@@ -197,7 +198,7 @@ export default function SetupWizard({ onComplete, progress }: SetupWizardProps) 
 
             <div>
               <h2 className="text-2xl font-bold tracking-tight mb-2">
-                Modell wird installiert...
+                {t('setupWizard.installing')}
               </h2>
               <p className="text-muted-foreground">
                 {message}
@@ -208,13 +209,13 @@ export default function SetupWizard({ onComplete, progress }: SetupWizardProps) 
             <div className="space-y-3 px-8">
               <Progress value={percent} className="h-2 bg-violet-500/10" />
               <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>Fortschritt</span>
+                <span>{t('common.progress')}</span>
                 <span className="font-mono">{Math.round(percent)}%</span>
               </div>
             </div>
 
             <p className="text-xs text-muted-foreground/60">
-              Dies ist nur beim ersten Start noetig und kann einige Minuten dauern.
+              {t('setupWizard.firstTimeHint')}
             </p>
           </div>
         )}
@@ -237,11 +238,10 @@ export default function SetupWizard({ onComplete, progress }: SetupWizardProps) 
 
             <div>
               <h2 className="text-2xl font-bold tracking-tight mb-2">
-                Einrichtung abgeschlossen!
+                {t('setupWizard.setupComplete')}
               </h2>
               <p className="text-muted-foreground">
-                OpenSub ist jetzt einsatzbereit. Du kannst jederzeit in den
-                Einstellungen ein anderes Modell waehlen.
+                {t('setupWizard.setupCompleteDescription')}
               </p>
             </div>
 
@@ -250,7 +250,7 @@ export default function SetupWizard({ onComplete, progress }: SetupWizardProps) 
               onClick={handleComplete}
               className="gap-2"
             >
-              OpenSub starten
+              {t('setupWizard.startApp')}
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>

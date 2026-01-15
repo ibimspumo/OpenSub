@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   DEFAULT_FONTS,
   GOOGLE_FONTS,
@@ -34,6 +35,7 @@ interface FontSelectorProps {
 }
 
 export default function FontSelector({ value, onChange }: FontSelectorProps) {
+  const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [systemFonts, setSystemFonts] = useState<FontInfo[]>([])
@@ -85,8 +87,8 @@ export default function FontSelector({ value, onChange }: FontSelectorProps) {
 
     // Fallback: extract font name from value
     const firstFont = value.split(',')[0].trim().replace(/['"]/g, '')
-    return firstFont || 'Unbekannt'
-  }, [value, systemFonts])
+    return firstFont || t('fontSelector.unknown')
+  }, [value, systemFonts, t])
 
   // Filter fonts based on search
   const filteredFonts = useMemo(() => {
@@ -190,7 +192,7 @@ export default function FontSelector({ value, onChange }: FontSelectorProps) {
     <div className="space-y-2">
       {/* Label */}
       <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-        Schriftart
+        {t('fontSelector.fontFamily')}
       </Label>
 
       {/* Font selector using ShadCN Popover */}
@@ -226,7 +228,7 @@ export default function FontSelector({ value, onChange }: FontSelectorProps) {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Schriftart suchen..."
+                placeholder={t('fontSelector.searchPlaceholder')}
                 className="h-8 pl-8 bg-muted/60"
               />
             </div>
@@ -236,7 +238,7 @@ export default function FontSelector({ value, onChange }: FontSelectorProps) {
           <ScrollArea className="max-h-64">
             {totalResults === 0 ? (
               <div className="px-3 py-6 text-center text-muted-foreground text-sm">
-                Keine Schriftarten gefunden
+                {t('fontSelector.noFontsFound')}
               </div>
             ) : (
               <>
@@ -244,7 +246,7 @@ export default function FontSelector({ value, onChange }: FontSelectorProps) {
                 {filteredFonts.default.length > 0 && (
                   <div>
                     {renderCategoryHeader(
-                      'Standard',
+                      t('fontSelector.categoryDefault'),
                       <Monitor className="w-3 h-3" />,
                       filteredFonts.default.length
                     )}
@@ -258,7 +260,7 @@ export default function FontSelector({ value, onChange }: FontSelectorProps) {
                 {filteredFonts.google.length > 0 && (
                   <div>
                     {renderCategoryHeader(
-                      'Google Fonts',
+                      t('fontSelector.categoryGoogle'),
                       <Globe className="w-3 h-3" />,
                       filteredFonts.google.length
                     )}
@@ -272,7 +274,7 @@ export default function FontSelector({ value, onChange }: FontSelectorProps) {
                 {filteredFonts.system.length > 0 && (
                   <div>
                     {renderCategoryHeader(
-                      loadingSystemFonts ? 'System (Laden...)' : 'System',
+                      loadingSystemFonts ? t('fontSelector.systemLoading') : t('fontSelector.categorySystem'),
                       <Laptop className="w-3 h-3" />,
                       filteredFonts.system.length
                     )}
@@ -289,10 +291,10 @@ export default function FontSelector({ value, onChange }: FontSelectorProps) {
           <div className="px-3 py-2 border-t border-border bg-muted/40">
             <div className="flex items-center justify-between text-[10px] text-muted-foreground">
               <span>
-                {DEFAULT_FONTS.length} Standard · {GOOGLE_FONTS.length} Google ·{' '}
-                {systemFonts.length} System
+                {DEFAULT_FONTS.length} {t('fontSelector.categoryDefault')} · {GOOGLE_FONTS.length} Google ·{' '}
+                {systemFonts.length} {t('fontSelector.categorySystem')}
               </span>
-              {search && <span>{totalResults} Ergebnisse</span>}
+              {search && <span>{totalResults} {t('fontSelector.results')}</span>}
             </div>
           </div>
         </PopoverContent>

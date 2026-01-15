@@ -17,18 +17,18 @@ export const RESOLUTION_PRESETS: ResolutionPreset[] = [
 export const QUALITY_OPTIONS = [
   {
     value: 'high' as const,
-    label: 'Hoch',
-    description: 'Beste Qualitaet, groessere Datei'
+    labelKey: 'export.qualityHigh',
+    descriptionKey: 'export.qualityHighDesc'
   },
   {
     value: 'medium' as const,
-    label: 'Mittel',
-    description: 'Ausgewogene Qualitaet und Groesse'
+    labelKey: 'export.qualityMedium',
+    descriptionKey: 'export.qualityMediumDesc'
   },
   {
     value: 'low' as const,
-    label: 'Niedrig',
-    description: 'Kleinste Datei, reduzierte Qualitaet'
+    labelKey: 'export.qualityLow',
+    descriptionKey: 'export.qualityLowDesc'
   }
 ]
 

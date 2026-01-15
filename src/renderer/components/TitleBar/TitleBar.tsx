@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useProjectStore } from '../../store/projectStore'
 import { useUIStore } from '../../store/uiStore'
 import SaveIndicator from '../SaveIndicator/SaveIndicator'
@@ -35,6 +36,7 @@ interface TitleBarProps {
  * - Export and new project buttons
  */
 export default function TitleBar({ isAppMounted, onExport }: TitleBarProps) {
+  const { t } = useTranslation()
   const { project, hasProject, clearProject, renameProject } = useProjectStore()
   const { hasUnsavedChanges } = useUIStore()
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
@@ -118,7 +120,7 @@ export default function TitleBar({ isAppMounted, onExport }: TitleBarProps) {
             </TooltipTrigger>
             {hasProject() && (
               <TooltipContent side="bottom">
-                <p>Zur Startseite</p>
+                <p>{t('app.toHome')}</p>
               </TooltipContent>
             )}
           </Tooltip>
@@ -138,7 +140,7 @@ export default function TitleBar({ isAppMounted, onExport }: TitleBarProps) {
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
-                    <p>Zur Startseite</p>
+                    <p>{t('app.toHome')}</p>
                   </TooltipContent>
                 </Tooltip>
                 <span className="text-dark-600">/</span>
@@ -175,7 +177,7 @@ export default function TitleBar({ isAppMounted, onExport }: TitleBarProps) {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
-                  <p>Neues Projekt</p>
+                  <p>{t('titleBar.newProject')}</p>
                 </TooltipContent>
               </Tooltip>
 
@@ -199,7 +201,7 @@ export default function TitleBar({ isAppMounted, onExport }: TitleBarProps) {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
-                  <p>Video exportieren</p>
+                  <p>{t('titleBar.exportVideo')}</p>
                 </TooltipContent>
               </Tooltip>
             </>
@@ -223,7 +225,7 @@ export default function TitleBar({ isAppMounted, onExport }: TitleBarProps) {
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              <p>Einstellungen</p>
+              <p>{t('titleBar.settings')}</p>
             </TooltipContent>
           </Tooltip>
         </div>
@@ -236,10 +238,9 @@ export default function TitleBar({ isAppMounted, onExport }: TitleBarProps) {
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/20">
               <AlertTriangle className="h-6 w-6 text-amber-400" />
             </div>
-            <DialogTitle className="text-center">Ungespeicherte Änderungen</DialogTitle>
+            <DialogTitle className="text-center">{t('titleBar.unsavedChanges')}</DialogTitle>
             <DialogDescription className="text-center">
-              Du hast ungespeicherte Änderungen. Möchtest du wirklich fortfahren? Alle Änderungen
-              gehen verloren.
+              {t('titleBar.unsavedChangesMessage')}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-row gap-3 sm:justify-center">
@@ -248,14 +249,14 @@ export default function TitleBar({ isAppMounted, onExport }: TitleBarProps) {
               onClick={handleCancelNavigation}
               className="flex-1 sm:flex-none"
             >
-              Abbrechen
+              {t('common.cancel')}
             </Button>
             <Button
               variant="destructive"
               onClick={handleConfirmNavigation}
               className="flex-1 sm:flex-none"
             >
-              Verwerfen
+              {t('titleBar.discard')}
             </Button>
           </DialogFooter>
         </DialogContent>

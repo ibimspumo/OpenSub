@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ClipboardList, CheckCircle, Loader2 } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore'
 import { useProjectStore } from '../../store/projectStore'
@@ -78,6 +79,7 @@ interface AlignmentStatus {
 }
 
 export default function DiffPreview({ onClose, onApply }: DiffPreviewProps) {
+  const { t } = useTranslation()
   const { pendingChanges, updateChangeStatus, acceptAllChanges, rejectAllChanges } = useUIStore()
   const { project, updateSubtitleWithWords } = useProjectStore()
   const [isAligning, setIsAligning] = useState(false)
@@ -110,7 +112,7 @@ export default function DiffPreview({ onClose, onApply }: DiffPreviewProps) {
 
     setIsAligning(true)
     setAlignError(null)
-    setAlignStatus({ stage: 'whisperx', message: 'Starte WhisperX Alignment...', current: 0, total: acceptedChanges.length })
+    setAlignStatus({ stage: 'whisperx', message: t('diffPreview.alignment.startingWhisperX'), current: 0, total: acceptedChanges.length })
 
     let tempAudioPath: string | null = null
 
@@ -131,19 +133,19 @@ export default function DiffPreview({ onClose, onApply }: DiffPreviewProps) {
       // Try alignment with existing audio first, if it fails extract new audio
       let result
       try {
-        setAlignStatus({ stage: 'whisperx', message: `WhisperX: Alignment für ${segments.length} Segmente...`, current: 0, total: acceptedChanges.length })
+        setAlignStatus({ stage: 'whisperx', message: t('diffPreview.alignment.whisperXSegments', { count: segments.length }), current: 0, total: acceptedChanges.length })
         result = await window.api.whisper.align(audioPath, segments)
       } catch (whisperError) {
         // Audio file might not exist, extract from video
         console.log('Audio file not found, extracting from video...')
-        setAlignStatus({ stage: 'extracting', message: 'Audio wird aus Video extrahiert...', current: 0, total: acceptedChanges.length })
+        setAlignStatus({ stage: 'extracting', message: t('diffPreview.alignment.extractingAudio'), current: 0, total: acceptedChanges.length })
         const tempDir = await window.api.file.getTempDir()
         tempAudioPath = `${tempDir}/opensub_align_${Date.now()}.wav`
         await window.api.ffmpeg.extractAudio(project.videoPath, tempAudioPath)
         audioPath = tempAudioPath
 
         // Retry alignment with freshly extracted audio
-        setAlignStatus({ stage: 'whisperx', message: `WhisperX: Alignment für ${segments.length} Segmente...`, current: 0, total: acceptedChanges.length })
+        setAlignStatus({ stage: 'whisperx', message: t('diffPreview.alignment.whisperXSegments', { count: segments.length }), current: 0, total: acceptedChanges.length })
         result = await window.api.whisper.align(audioPath, segments)
       }
 
@@ -151,7 +153,7 @@ export default function DiffPreview({ onClose, onApply }: DiffPreviewProps) {
       const segmentsNeedingGemini: number[] = []
 
       // Check each alignment result for validity
-      setAlignStatus({ stage: 'validating', message: 'Validiere WhisperX Ergebnisse...', current: 0, total: acceptedChanges.length })
+      setAlignStatus({ stage: 'validating', message: t('diffPreview.alignment.validating'), current: 0, total: acceptedChanges.length })
       for (let i = 0; i < acceptedChanges.length; i++) {
         const change = acceptedChanges[i]
         const subtitle = project.subtitles.find(s => s.id === change.subtitleId)
@@ -184,7 +186,7 @@ export default function DiffPreview({ onClose, onApply }: DiffPreviewProps) {
           geminiProcessed++
           setAlignStatus({
             stage: 'gemini',
-            message: `Gemini Fallback: Segment ${geminiProcessed}/${segmentsNeedingGemini.length}...`,
+            message: t('diffPreview.alignment.geminiSegment', { current: geminiProcessed, total: segmentsNeedingGemini.length }),
             current: geminiProcessed,
             total: segmentsNeedingGemini.length
           })
@@ -221,13 +223,13 @@ export default function DiffPreview({ onClose, onApply }: DiffPreviewProps) {
       }
 
       // Apply aligned words to each subtitle
-      setAlignStatus({ stage: 'applying', message: 'Wende Änderungen an...', current: 0, total: acceptedChanges.length })
+      setAlignStatus({ stage: 'applying', message: t('diffPreview.alignment.applyingChanges'), current: 0, total: acceptedChanges.length })
       for (let i = 0; i < acceptedChanges.length; i++) {
         const change = acceptedChanges[i]
         const alignedSegment = result.segments[i]
         const subtitle = project.subtitles.find(s => s.id === change.subtitleId)
 
-        setAlignStatus({ stage: 'applying', message: `Wende Änderung ${i + 1}/${acceptedChanges.length} an...`, current: i + 1, total: acceptedChanges.length })
+        setAlignStatus({ stage: 'applying', message: t('diffPreview.alignment.applyingChange', { current: i + 1, total: acceptedChanges.length }), current: i + 1, total: acceptedChanges.length })
 
         if (alignedSegment && alignedSegment.words && alignedSegment.words.length > 0) {
           // Find the next subtitle to prevent overlap
@@ -314,11 +316,11 @@ export default function DiffPreview({ onClose, onApply }: DiffPreviewProps) {
         }
       }
 
-      setAlignStatus({ stage: 'complete', message: 'Fertig!', current: acceptedChanges.length, total: acceptedChanges.length })
+      setAlignStatus({ stage: 'complete', message: t('diffPreview.alignment.complete'), current: acceptedChanges.length, total: acceptedChanges.length })
       onApply()
     } catch (error) {
       console.error('Alignment failed:', error)
-      setAlignError(error instanceof Error ? error.message : 'Alignment fehlgeschlagen')
+      setAlignError(error instanceof Error ? error.message : t('diffPreview.alignment.alignmentFailed'))
     } finally {
       // Clean up temporary audio file
       if (tempAudioPath) {
@@ -344,8 +346,8 @@ export default function DiffPreview({ onClose, onApply }: DiffPreviewProps) {
               <ClipboardList className="w-5 h-5 text-white" />
             </div>
             <div>
-              <DialogTitle className="text-lg">KI-Korrektur Vorschau</DialogTitle>
-              <DialogDescription>{summary.total} Änderungen gefunden</DialogDescription>
+              <DialogTitle className="text-lg">{t('diffPreview.title')}</DialogTitle>
+              <DialogDescription>{t('diffPreview.changesFound', { count: summary.total })}</DialogDescription>
             </div>
           </div>
         </DialogHeader>
@@ -354,27 +356,27 @@ export default function DiffPreview({ onClose, onApply }: DiffPreviewProps) {
         <div className="px-6 py-3 border-b border-border flex flex-wrap gap-2">
           {summary.spelling > 0 && (
             <Badge variant="outline" className="bg-blue-500/20 text-blue-300 border-blue-500/30">
-              {summary.spelling} Rechtschreibung
+              {summary.spelling} {t('diffPreview.spelling')}
             </Badge>
           )}
           {summary.grammar > 0 && (
             <Badge variant="outline" className="bg-amber-500/20 text-amber-300 border-amber-500/30">
-              {summary.grammar} Grammatik
+              {summary.grammar} {t('diffPreview.grammar')}
             </Badge>
           )}
           {summary.context > 0 && (
             <Badge variant="outline" className="bg-violet-500/20 text-violet-300 border-violet-500/30">
-              {summary.context} Kontext
+              {summary.context} {t('diffPreview.context')}
             </Badge>
           )}
           {summary.name > 0 && (
             <Badge variant="outline" className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
-              {summary.name} Namen
+              {summary.name} {t('diffPreview.name')}
             </Badge>
           )}
           {summary.punctuation > 0 && (
             <Badge variant="outline" className="bg-rose-500/20 text-rose-300 border-rose-500/30">
-              {summary.punctuation} Zeichensetzung
+              {summary.punctuation} {t('diffPreview.punctuation')}
             </Badge>
           )}
         </div>
@@ -387,7 +389,7 @@ export default function DiffPreview({ onClose, onApply }: DiffPreviewProps) {
             size="sm"
             className="bg-emerald-600/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-600/30"
           >
-            Alle akzeptieren
+            {t('diffPreview.acceptAll')}
           </Button>
           <Button
             onClick={rejectAllChanges}
@@ -395,11 +397,11 @@ export default function DiffPreview({ onClose, onApply }: DiffPreviewProps) {
             size="sm"
             className="bg-red-600/20 text-red-300 border-red-500/30 hover:bg-red-600/30"
           >
-            Alle ablehnen
+            {t('diffPreview.rejectAll')}
           </Button>
           <div className="flex-1" />
           <span className="text-xs text-muted-foreground">
-            {summary.accepted} akzeptiert, {summary.rejected} abgelehnt
+            {summary.accepted} {t('diffPreview.accepted')}, {summary.rejected} {t('diffPreview.rejected')}
           </span>
         </div>
 
@@ -409,8 +411,8 @@ export default function DiffPreview({ onClose, onApply }: DiffPreviewProps) {
             {pendingChanges.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <CheckCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p className="text-sm">Keine Änderungen gefunden</p>
-                <p className="text-xs mt-1">Die Transkription scheint korrekt zu sein</p>
+                <p className="text-sm">{t('diffPreview.noChanges')}</p>
+                <p className="text-xs mt-1">{t('diffPreview.noChangesHint')}</p>
               </div>
             ) : (
               pendingChanges.map((change) => (
@@ -442,11 +444,11 @@ export default function DiffPreview({ onClose, onApply }: DiffPreviewProps) {
                   alignStatus.stage === 'applying' && 'bg-cyan-500'
                 )} />
                 <span className="text-sm font-medium">
-                  {alignStatus.stage === 'extracting' && '📁 FFmpeg'}
-                  {alignStatus.stage === 'whisperx' && '🎤 WhisperX (lokal)'}
-                  {alignStatus.stage === 'validating' && '🔍 Validierung'}
-                  {alignStatus.stage === 'gemini' && '✨ Gemini 3.0 Flash'}
-                  {alignStatus.stage === 'applying' && '💾 Speichern'}
+                  {alignStatus.stage === 'extracting' && `📁 ${t('diffPreview.alignment.ffmpeg')}`}
+                  {alignStatus.stage === 'whisperx' && `🎤 ${t('diffPreview.alignment.whisperx')}`}
+                  {alignStatus.stage === 'validating' && `🔍 ${t('diffPreview.alignment.validation')}`}
+                  {alignStatus.stage === 'gemini' && `✨ ${t('diffPreview.alignment.gemini')}`}
+                  {alignStatus.stage === 'applying' && `💾 ${t('diffPreview.alignment.saving')}`}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">{alignStatus.message}</p>
@@ -480,7 +482,7 @@ export default function DiffPreview({ onClose, onApply }: DiffPreviewProps) {
               variant="outline"
               disabled={isAligning}
             >
-              Abbrechen
+              {t('common.cancel')}
             </Button>
             <Button
               onClick={handleApply}
@@ -498,9 +500,9 @@ export default function DiffPreview({ onClose, onApply }: DiffPreviewProps) {
                   <span className="text-left truncate">{alignStatus.message}</span>
                 </div>
               ) : summary.accepted > 0 ? (
-                `${summary.accepted} Änderungen übernehmen`
+                t('diffPreview.applyChanges', { count: summary.accepted })
               ) : (
-                'Keine Änderungen ausgewählt'
+                t('diffPreview.noChangesSelected')
               )}
             </Button>
           </div>

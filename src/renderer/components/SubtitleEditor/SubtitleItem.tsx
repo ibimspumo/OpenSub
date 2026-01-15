@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Pencil, Trash2, Check, ArrowRight } from 'lucide-react'
 import { useProjectStore } from '../../store/projectStore'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -18,6 +19,7 @@ export default function SubtitleItem({
   isSelected,
   onSelect
 }: SubtitleItemProps) {
+  const { t } = useTranslation()
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(subtitle.text)
   const [isHovered, setIsHovered] = useState(false)
@@ -79,10 +81,10 @@ export default function SubtitleItem({
   }
 
   const handleDelete = useCallback(() => {
-    if (confirm('Untertitel wirklich loeschen?')) {
+    if (confirm(t('subtitleItem.deleteConfirm'))) {
       deleteSubtitle(subtitle.id)
     }
-  }, [subtitle.id, deleteSubtitle])
+  }, [subtitle.id, deleteSubtitle, t])
 
   // Get confidence level for overall indicator
   const getOverallConfidence = () => {
@@ -183,7 +185,7 @@ export default function SubtitleItem({
               confidenceColor,
               isSelected ? 'scale-125 animate-pulse-soft' : 'opacity-60 group-hover:opacity-100'
             )}
-            title={`${Math.round(overallConfidence * 100)}% Konfidenz`}
+            title={t('subtitleItem.confidence', { percent: Math.round(overallConfidence * 100) })}
           />
         )}
 
@@ -205,7 +207,7 @@ export default function SubtitleItem({
               e.stopPropagation()
               setIsEditing(true)
             }}
-            title="Bearbeiten"
+            title={t('common.edit')}
           >
             <Pencil className="w-3.5 h-3.5" />
           </Button>
@@ -217,7 +219,7 @@ export default function SubtitleItem({
               e.stopPropagation()
               handleDelete()
             }}
-            title="Loeschen"
+            title={t('common.delete')}
           >
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
@@ -244,7 +246,7 @@ export default function SubtitleItem({
                 'transition-all duration-200'
               )}
               rows={2}
-              placeholder="Untertiteltext eingeben..."
+              placeholder={t('subtitleItem.placeholderText')}
             />
             <div className="flex gap-2">
               <Button
@@ -256,7 +258,7 @@ export default function SubtitleItem({
                 }}
               >
                 <Check className="w-3.5 h-3.5" />
-                Speichern
+                {t('common.save')}
               </Button>
               <Button
                 variant="outline"
@@ -267,7 +269,7 @@ export default function SubtitleItem({
                   setIsEditing(false)
                 }}
               >
-                Abbrechen
+                {t('common.cancel')}
               </Button>
             </div>
           </div>
@@ -316,7 +318,7 @@ export default function SubtitleItem({
                   style={{
                     transitionDelay: `${index * 10}ms`
                   }}
-                  title={`"${word.text}": ${Math.round(confidence * 100)}% Konfidenz`}
+                  title={`"${word.text}": ${t('subtitleItem.confidence', { percent: Math.round(confidence * 100) })}`}
                 />
               )
             })}

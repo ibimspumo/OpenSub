@@ -1,933 +1,443 @@
 # OpenSub
 
-Ein professioneller Desktop-Untertiteleditor mit KI-gestützter Transkription. Erstelle, bearbeite und gestalte Untertitel mit Wort-für-Wort-Timing-Präzision – ähnlich wie Descript.
+A professional desktop subtitle editor with AI-powered transcription. Create, edit, and style subtitles with word-level timing precision — Descript-style editing for everyone.
 
-![OpenSub Editor](https://img.shields.io/badge/Plattform-macOS-blue) ![Lizenz](https://img.shields.io/badge/Lizenz-MIT-green) ![Electron](https://img.shields.io/badge/Electron-28-47848F)
+![Platform](https://img.shields.io/badge/Platform-macOS-blue)
+![License](https://img.shields.io/badge/License-MIT-green)
+![Electron](https://img.shields.io/badge/Electron-28-47848F)
+![Version](https://img.shields.io/badge/Version-0.2.1-orange)
 
----
-
-## Inhaltsverzeichnis
-
-1. [Überblick](#überblick)
-2. [Funktionen](#funktionen)
-3. [Systemvoraussetzungen](#systemvoraussetzungen)
-4. [Installation – Schritt für Schritt](#installation--schritt-für-schritt)
-   - [Voraussetzungen installieren](#1-voraussetzungen-installieren)
-   - [Projekt herunterladen](#2-projekt-herunterladen)
-   - [Node.js-Abhängigkeiten installieren](#3-nodejs-abhängigkeiten-installieren)
-   - [Python-Umgebung einrichten](#4-python-umgebung-einrichten)
-   - [HuggingFace-Token einrichten](#5-huggingface-token-einrichten-optional)
-   - [Installation überprüfen](#6-installation-überprüfen)
-5. [Fehlerbehebung](#fehlerbehebung)
-6. [Verwendung](#verwendung)
-7. [Entwicklung](#entwicklung)
-8. [Architektur](#architektur)
-9. [Lizenz](#lizenz)
+<p align="center">
+  <strong>Standalone App — No Python or FFmpeg Installation Required</strong>
+</p>
 
 ---
 
-## Überblick
+## What is OpenSub?
 
-OpenSub ist eine Desktop-Anwendung für macOS, die KI-gestützte Spracherkennung nutzt, um automatisch Untertitel aus Videos zu generieren. Die App verwendet WhisperX (basierend auf OpenAIs Whisper) und ist speziell für Apple Silicon Macs (M1/M2/M3/M4) optimiert.
+OpenSub is a macOS desktop application that uses AI-powered speech recognition to automatically generate subtitles from video files. The app uses WhisperX (based on OpenAI's Whisper) and is optimized for Apple Silicon Macs (M1/M2/M3/M4).
 
-### Was macht OpenSub?
+### The Workflow
 
-1. **Video importieren** – Ziehe einfach eine Videodatei in die App
-2. **Automatische Transkription** – WhisperX transkribiert den gesprochenen Text mit präzisem Wort-Timing
-3. **Untertitel bearbeiten** – Texte korrigieren, Timing anpassen, Stil gestalten
-4. **Exportieren** – Als Untertiteldatei (ASS/SRT) oder direkt ins Video eingebrannt
-
----
-
-## Funktionen
-
-### KI-gestützte Transkription
-- **WhisperX Integration** – Modernste Spracherkennung basierend auf OpenAIs Whisper
-- **Wort-genaues Timing** – Präzise Zeitstempel für jedes einzelne Wort (Karaoke-Effekt)
-- **Sprechererkennung** – Automatische Identifikation verschiedener Sprecher (pyannote.audio)
-- **Mehrsprachig** – Unterstützung für über 99 Sprachen
-- **GPU-beschleunigt** – Optimiert für Apple Silicon mit Metal Performance Shaders (MPS)
-
-### Professionelle Untertitelbearbeitung
-- **Visuelle Timeline** – Wellenform-Darstellung für präzises Timing
-- **Drag & Drop** – Video einfach hineinziehen zum Starten
-- **Echtzeit-Vorschau** – Untertitel werden live auf dem Video angezeigt
-- **Segment-Bearbeitung** – Untertitel teilen, zusammenfügen und anpassen
-
-### Erweiterte Gestaltung
-- **Schriftarten & Farben** – Volle Kontrolle über Typografie
-- **Karaoke-Animation** – Wort-für-Wort-Hervorhebung synchron zur Sprache
-- **Verschiedene Animationen** – Karaoke, Einblenden, Erscheinen, Skalieren
-- **Positionierung** – Untertitel frei platzieren mit magnetischen Hilfslinien
-- **Umrandung & Schatten** – Professionelle Texteffekte für bessere Lesbarkeit
-
-### Export-Optionen
-- **ASS-Format** – Advanced SubStation Alpha mit voller Stilunterstützung
-- **SRT-Format** – Universelle Kompatibilität
-- **Eingebrannte Untertitel** – Direkt ins Video rendern via FFmpeg
+1. **Import Video** — Drag and drop any video file into the app
+2. **Automatic Transcription** — WhisperX transcribes speech with precise word-level timing
+3. **Edit Subtitles** — Correct text, adjust timing, and customize styling
+4. **Export** — Save as subtitle file (ASS/SRT) or burn directly into video
 
 ---
 
-## Systemvoraussetzungen
+## Features
 
-### Unterstützte Systeme
+### AI-Powered Transcription
 
-| Komponente | Minimum | Empfohlen |
-|------------|---------|-----------|
-| **Betriebssystem** | macOS 12 (Monterey) | macOS 13+ (Ventura/Sonoma) |
-| **Prozessor** | Intel Mac | Apple Silicon (M1/M2/M3/M4) |
-| **Arbeitsspeicher** | 8 GB | 16 GB oder mehr |
-| **Festplatte** | 10 GB frei | 20 GB frei (für KI-Modelle) |
+- **WhisperX Integration** — State-of-the-art speech recognition based on OpenAI's Whisper
+- **Word-Level Timing** — Precise timestamps for every single word (karaoke-ready)
+- **Speaker Diarization** — Automatic identification of different speakers (via pyannote.audio)
+- **Multilingual Support** — Over 99 languages supported
+- **GPU Accelerated** — Optimized for Apple Silicon with Metal Performance Shaders (MPS)
 
-> **Hinweis**: Intel Macs werden unterstützt, aber die Transkription läuft nur auf der CPU und ist deutlich langsamer. Apple Silicon Macs nutzen die GPU für bis zu 3x schnellere Verarbeitung.
+### Professional Subtitle Editing
 
-### Erforderliche Software
+- **Visual Timeline** — Waveform display for precise timing adjustments
+- **Drag & Drop** — Simply drag a video to get started
+- **Real-Time Preview** — Subtitles are rendered live on the video
+- **Segment Editing** — Split, merge, and adjust subtitle segments
 
-Diese Software muss vor der Installation von OpenSub vorhanden sein:
+### Advanced Styling
 
-| Software | Version | Zweck |
-|----------|---------|-------|
-| **Homebrew** | Aktuell | macOS Paketmanager |
-| **Node.js** | 18.0+ | JavaScript-Laufzeitumgebung |
-| **Python** | 3.10 - 3.12 | KI/ML-Service |
-| **FFmpeg** | 6.0+ | Video-/Audioverarbeitung |
-| **Git** | Aktuell | Repository klonen |
+- **Typography Control** — Full control over fonts, sizes, and colors
+- **Karaoke Animation** — Word-by-word highlighting synchronized with speech
+- **Multiple Animations** — Karaoke, fade-in, appear, scale effects
+- **Free Positioning** — Place subtitles anywhere with magnetic guides
+- **Text Effects** — Outlines, shadows, and backgrounds for better readability
 
----
+### Export Options
 
-## Installation – Schritt für Schritt
-
-Diese Anleitung führt dich durch die komplette Installation. Folge jeden Schritt der Reihe nach.
-
-### 1. Voraussetzungen installieren
-
-#### 1.1 Terminal öffnen
-
-Drücke `Cmd + Leertaste`, tippe "Terminal" und drücke Enter. Das Terminal ist die Kommandozeile von macOS.
-
-#### 1.2 Homebrew installieren
-
-Homebrew ist ein Paketmanager für macOS, der die Installation von Software vereinfacht.
-
-**Prüfen, ob Homebrew bereits installiert ist:**
-```bash
-brew --version
-```
-
-Wenn eine Versionsnummer erscheint (z.B. "Homebrew 4.2.0"), ist Homebrew bereits installiert. Springe zu Schritt 1.3.
-
-**Homebrew installieren (falls nicht vorhanden):**
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
-
-Nach der Installation musst du Homebrew zum PATH hinzufügen. Das Installationsskript zeigt dir am Ende die Befehle an. Für Apple Silicon Macs:
-
-```bash
-echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
-eval "$(/opt/homebrew/bin/brew shellenv)"
-```
-
-**Installation überprüfen:**
-```bash
-brew --version
-```
-
-> **Fehlerbehebung**: Falls `brew: command not found` erscheint, schließe das Terminal und öffne ein neues. Falls das Problem weiterhin besteht, führe den `echo`-Befehl oben erneut aus.
-
-#### 1.3 Node.js installieren
-
-Node.js wird für die Electron-Desktop-Anwendung benötigt.
-
-**Prüfen, ob Node.js bereits installiert ist:**
-```bash
-node --version
-```
-
-Du brauchst Version 18 oder höher (z.B. "v20.10.0").
-
-**Node.js installieren:**
-```bash
-brew install node
-```
-
-**Installation überprüfen:**
-```bash
-node --version
-npm --version
-```
-
-Beide Befehle sollten Versionsnummern ausgeben.
-
-> **Fehlerbehebung**: Falls eine ältere Version installiert ist, aktualisiere mit:
-> ```bash
-> brew upgrade node
-> ```
-
-#### 1.4 Python installieren
-
-Python wird für die KI-Transkription mit WhisperX benötigt.
-
-**Prüfen, ob Python bereits installiert ist:**
-```bash
-python3 --version
-```
-
-Du brauchst Version 3.10, 3.11 oder 3.12. **Python 3.13 wird noch NICHT unterstützt!**
-
-**Python 3.11 installieren (empfohlen):**
-```bash
-brew install python@3.11
-```
-
-**Python als Standard setzen (optional aber empfohlen):**
-```bash
-echo 'export PATH="/opt/homebrew/opt/python@3.11/bin:$PATH"' >> ~/.zprofile
-source ~/.zprofile
-```
-
-**Installation überprüfen:**
-```bash
-python3 --version
-```
-
-Sollte "Python 3.11.x" oder ähnlich ausgeben.
-
-> **Wichtig**: macOS hat eine vorinstallierte Python-Version unter `/usr/bin/python3`. Diese ist oft veraltet. Verwende immer die Homebrew-Version!
->
-> **Fehlerbehebung bei Python-Problemen:**
-> - `python3: command not found` → Stelle sicher, dass der PATH korrekt gesetzt ist
-> - Falsche Version wird angezeigt → Prüfe mit `which python3`, ob die richtige Installation verwendet wird
-
-#### 1.5 FFmpeg installieren
-
-FFmpeg ist erforderlich für Video- und Audioverarbeitung.
-
-**Prüfen, ob FFmpeg bereits installiert ist:**
-```bash
-ffmpeg -version
-```
-
-**FFmpeg installieren:**
-```bash
-brew install ffmpeg
-```
-
-Die Installation kann einige Minuten dauern, da FFmpeg viele Abhängigkeiten hat.
-
-**Installation überprüfen:**
-```bash
-ffmpeg -version
-ffprobe -version
-```
-
-> **Fehlerbehebung:**
-> - Falls `ffmpeg: command not found` nach Installation → Terminal neu starten
-> - Falls Codec-Fehler auftreten → `brew reinstall ffmpeg`
-> - Falls alte Version → `brew upgrade ffmpeg`
-
-#### 1.6 Git installieren (falls nicht vorhanden)
-
-**Prüfen:**
-```bash
-git --version
-```
-
-**Installieren:**
-```bash
-brew install git
-```
+- **ASS Format** — Advanced SubStation Alpha with full styling support
+- **SRT Format** — Universal compatibility with all players
+- **Burned-In Subtitles** — Render subtitles directly into the video via FFmpeg
 
 ---
 
-### 2. Projekt herunterladen
+## System Requirements
 
-Navigiere zu einem Ordner, in dem du das Projekt speichern möchtest (z.B. Desktop oder Dokumente):
+### Supported Systems
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| **Operating System** | macOS 12 (Monterey) | macOS 13+ (Ventura/Sonoma/Sequoia) |
+| **Processor** | Intel Mac | Apple Silicon (M1/M2/M3/M4) |
+| **Memory** | 8 GB RAM | 16 GB RAM or more |
+| **Disk Space** | 10 GB free | 20 GB free (for AI models) |
+
+> **Note**: Intel Macs are supported, but transcription runs on CPU only and is significantly slower. Apple Silicon Macs use GPU acceleration for up to 3x faster processing.
+
+---
+
+## Installation
+
+### Standalone App (Recommended)
+
+OpenSub is distributed as a **fully standalone application** — no external dependencies required. Python, FFmpeg, PyTorch, and all AI models are bundled directly into the app.
+
+1. **Download** the latest release from [GitHub Releases](https://github.com/ibimspumo/OpenSub/releases)
+2. **Open** the `.dmg` file
+3. **Drag** OpenSub to your Applications folder
+4. **Launch** OpenSub from Applications
+
+> **First Launch Note**: On first run, macOS may show a security warning since the app is not notarized. Right-click the app and select "Open" to bypass this, or go to **System Settings → Privacy & Security** and click "Open Anyway".
+
+### What's Included
+
+The standalone build bundles everything you need:
+
+| Component | Version | Purpose |
+|-----------|---------|---------|
+| **Python** | 3.11 | Runtime for AI services |
+| **PyTorch** | 2.x | Machine learning framework |
+| **WhisperX** | Latest | Speech recognition engine |
+| **FFmpeg** | 6.x | Video/audio processing |
+| **AI Models** | Downloaded on first use | Whisper model files |
+
+### First Transcription
+
+When you run your first transcription, OpenSub will automatically download the required AI models (~1-3 GB depending on model size). This is a one-time download stored in the app's data directory.
+
+**Model sizes:**
+- `tiny` — ~75 MB (fastest, lower accuracy)
+- `base` — ~150 MB
+- `small` — ~500 MB
+- `medium` — ~1.5 GB
+- `large-v3` — ~3 GB (most accurate, recommended)
+
+---
+
+## Development Setup
+
+Want to contribute or build from source? Follow these steps to set up the development environment.
+
+### Prerequisites
+
+- **macOS** 12 (Monterey) or later
+- **Node.js** 18+ and npm
+- **Git**
+- **Xcode Command Line Tools** (`xcode-select --install`)
+
+### Clone and Install
 
 ```bash
-cd ~/Desktop
-```
-
-**Repository klonen:**
-```bash
+# Clone the repository
 git clone https://github.com/ibimspumo/OpenSub.git
 cd OpenSub
-```
 
-> **Hinweis**: Falls du das Repository als ZIP heruntergeladen hast, entpacke es und navigiere im Terminal zum entpackten Ordner:
-> ```bash
-> cd ~/Downloads/opensub-main
-> ```
-
----
-
-### 3. Node.js-Abhängigkeiten installieren
-
-Installiere alle benötigten Node.js-Pakete:
-
-```bash
+# Install Node.js dependencies
 npm install
 ```
 
-Dieser Befehl:
-- Lädt alle Abhängigkeiten aus `package.json` herunter
-- Kompiliert native Module (better-sqlite3) für Electron
-- Kann 2-5 Minuten dauern
+### Development Mode
 
-**Mögliche Fehler und Lösungen:**
-
-#### Fehler: `npm ERR! code EACCES` (Berechtigungsfehler)
-```bash
-# Lösung: npm-Ordner-Berechtigungen korrigieren
-sudo chown -R $(whoami) ~/.npm
-npm install
-```
-
-#### Fehler: `better-sqlite3` Build-Fehler
-```bash
-# Lösung: Xcode Command Line Tools installieren
-xcode-select --install
-
-# Danach erneut versuchen
-npm install
-```
-
-#### Fehler: `node-gyp` Fehler
-Dies tritt auf, wenn native Module nicht kompiliert werden können.
-
-```bash
-# Lösung 1: Xcode Tools neu installieren
-sudo rm -rf /Library/Developer/CommandLineTools
-xcode-select --install
-
-# Lösung 2: node-gyp direkt installieren
-npm install -g node-gyp
-
-# Danach erneut versuchen
-npm install
-```
-
-#### Fehler: Node-Version inkompatibel
-```bash
-# Prüfen welche Version läuft
-node --version
-
-# Falls nötig, Node.js aktualisieren
-brew upgrade node
-```
-
-**Native Module neu kompilieren (falls nötig):**
-
-Falls die App nach Installation nicht startet und Fehler wie "NODE_MODULE_VERSION mismatch" auftreten:
-
-```bash
-npm run postinstall
-# oder manuell:
-npx @electron/rebuild -f -w better-sqlite3
-```
-
----
-
-### 4. Python-Umgebung einrichten
-
-Die Python-Umgebung ist für die KI-Transkription erforderlich.
-
-#### 4.1 Zum Python-Service-Ordner navigieren
-
-```bash
-cd python-service
-```
-
-#### 4.2 Virtuelle Umgebung erstellen
-
-Eine virtuelle Umgebung isoliert die Python-Pakete vom System:
-
-```bash
-python3 -m venv venv
-```
-
-> **Fehler: `ensurepip` ist nicht verfügbar**
-> ```bash
-> # Lösung für macOS
-> python3 -m venv venv --without-pip
-> source venv/bin/activate
-> curl https://bootstrap.pypa.io/get-pip.py | python3
-> ```
-
-#### 4.3 Virtuelle Umgebung aktivieren
-
-```bash
-source venv/bin/activate
-```
-
-Nach der Aktivierung sollte `(venv)` am Anfang deiner Terminal-Zeile erscheinen.
-
-> **Wichtig**: Die virtuelle Umgebung muss bei jedem neuen Terminal-Fenster erneut aktiviert werden!
-
-#### 4.4 pip aktualisieren
-
-```bash
-pip install --upgrade pip
-```
-
-#### 4.5 Python-Abhängigkeiten installieren
-
-```bash
-pip install -r requirements.txt
-```
-
-**Dies installiert:**
-- `whisperx` – Spracherkennung mit Wort-Alignment
-- `torch` – PyTorch ML-Framework
-- `torchaudio` – Audioverarbeitung
-- `transformers` – HuggingFace-Modelle
-- `faster-whisper` – Optimierte Whisper-Inferenz
-
-Die Installation kann **10-30 Minuten** dauern, da große ML-Modelle heruntergeladen werden.
-
-**Häufige Fehler und Lösungen:**
-
-#### Fehler: `No matching distribution found for torch`
-```bash
-# Lösung: pip aktualisieren und erneut versuchen
-pip install --upgrade pip setuptools wheel
-pip install -r requirements.txt
-```
-
-#### Fehler: `externally-managed-environment`
-Dieser Fehler tritt auf, wenn du versuchst, Pakete außerhalb einer virtuellen Umgebung zu installieren.
-
-```bash
-# Lösung: Stelle sicher, dass die venv aktiviert ist
-source venv/bin/activate
-# (venv) sollte am Anfang der Zeile erscheinen
-pip install -r requirements.txt
-```
-
-#### Fehler: Installation hängt bei großen Paketen
-```bash
-# Mit Fortschrittsanzeige und Timeout
-pip install -r requirements.txt --progress-bar on --timeout 300
-```
-
-#### Fehler: Speicherplatz nicht ausreichend
-Die ML-Modelle benötigen ~5-10 GB. Stelle sicher, dass genug Speicherplatz verfügbar ist:
-```bash
-df -h ~
-```
-
-#### 4.6 GPU-Unterstützung prüfen (Apple Silicon)
-
-Prüfe, ob PyTorch die GPU nutzen kann:
-
-```bash
-python3 -c "import torch; print(f'MPS verfügbar: {torch.backends.mps.is_available()}')"
-```
-
-Sollte `MPS verfügbar: True` ausgeben auf Apple Silicon Macs.
-
-#### 4.7 Zurück zum Hauptverzeichnis
-
-```bash
-cd ..
-```
-
-Du solltest dich jetzt wieder im `opensub`-Hauptordner befinden.
-
----
-
-### 5. HuggingFace-Token einrichten (optional)
-
-Der HuggingFace-Token wird für die **Sprechererkennung** (Speaker Diarization) mit pyannote.audio benötigt. Ohne Token funktioniert die Transkription, aber es werden keine Sprecher unterschieden.
-
-#### 5.1 HuggingFace-Konto erstellen
-
-1. Gehe zu [huggingface.co](https://huggingface.co) und erstelle ein kostenloses Konto
-
-#### 5.2 Modell-Lizenzen akzeptieren
-
-Die pyannote-Modelle erfordern eine Zustimmung zu den Nutzungsbedingungen:
-
-1. Besuche [pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1)
-2. Klicke auf "Agree and access repository"
-3. Besuche [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0)
-4. Klicke auf "Agree and access repository"
-
-> **Wichtig**: Du musst bei HuggingFace eingeloggt sein und beiden Modellen explizit zustimmen!
-
-#### 5.3 Access Token erstellen
-
-1. Gehe zu [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
-2. Klicke auf "New token"
-3. Name: z.B. "OpenSub"
-4. Type: Wähle "Read" (nur Leserechte benötigt)
-5. Klicke auf "Generate token"
-6. **Kopiere den Token** (beginnt mit `hf_...`)
-
-#### 5.4 Token als Umgebungsvariable setzen
-
-**Temporär (nur für aktuelle Terminal-Sitzung):**
-```bash
-export HF_TOKEN="hf_dein_token_hier"
-```
-
-**Permanent (empfohlen):**
-```bash
-echo 'export HF_TOKEN="hf_dein_token_hier"' >> ~/.zprofile
-source ~/.zprofile
-```
-
-**Alternativ: .env-Datei erstellen:**
-
-Erstelle eine Datei namens `.env` im OpenSub-Hauptordner:
-```bash
-echo 'HF_TOKEN=hf_dein_token_hier' > .env
-```
-
-> **Sicherheitshinweis**: Teile deinen Token niemals öffentlich! Die `.env`-Datei ist in `.gitignore` und wird nicht hochgeladen.
-
-**Häufige Fehler:**
-
-#### Fehler: `401 Unauthorized` oder `Cannot access gated repo`
-- Stelle sicher, dass du den Modell-Lizenzen zugestimmt hast (Schritt 5.2)
-- Prüfe, ob der Token korrekt kopiert wurde (keine Leerzeichen)
-- Erstelle ggf. einen neuen Token
-
-#### Fehler: Token wird nicht erkannt
-```bash
-# Prüfen, ob die Variable gesetzt ist
-echo $HF_TOKEN
-
-# Falls leer, Token erneut setzen
-export HF_TOKEN="hf_..."
-```
-
----
-
-### 6. Installation überprüfen
-
-#### 6.1 Anwendung im Entwicklungsmodus starten
+For rapid development with hot-reload:
 
 ```bash
 npm run dev
 ```
 
-Die Anwendung sollte sich öffnen und die Drag-and-Drop-Oberfläche zeigen.
+This starts Electron in development mode with:
+- Hot module replacement for the renderer process
+- Automatic restart on main process changes
+- Source maps for debugging
 
-#### 6.2 Kompletten Workflow testen
+### Building for Production
 
-1. **Video importieren**: Ziehe eine Videodatei (MP4, MOV, etc.) in die App
-2. **Transkription**: Die App sollte automatisch mit der Transkription beginnen
-3. **Erste Transkription dauert länger**: Beim ersten Start werden KI-Modelle (~3 GB) heruntergeladen
+#### Quick Build (Development Testing)
 
-#### 6.3 Falls die App nicht startet
-
-**Logs prüfen:**
 ```bash
-npm run dev 2>&1 | tee opensub.log
+# Build without setting up the bundled Python environment
+npm run dist:unsigned
 ```
 
-Schau in `opensub.log` nach Fehlermeldungen.
+#### Full Standalone Build
 
-**Häufige Probleme beim Start:**
+To create a distributable `.dmg` with all dependencies bundled:
 
-| Symptom | Mögliche Ursache | Lösung |
-|---------|------------------|--------|
-| App öffnet nicht | Node-Module inkompatibel | `npm run postinstall` |
-| Weißer Bildschirm | Build-Fehler | `npm run build` prüfen |
-| Python-Fehler | venv nicht aktiviert | Python-Setup wiederholen |
-| FFmpeg-Fehler | FFmpeg nicht im PATH | Terminal neu starten |
-
----
-
-## Fehlerbehebung
-
-### Allgemeine Probleme
-
-#### "Command not found" Fehler
-
-Nach Installation von Homebrew-Paketen werden diese manchmal nicht erkannt.
-
-**Lösung:**
 ```bash
-# Terminal neu starten oder:
-source ~/.zprofile
-# oder für bash:
-source ~/.bashrc
+# Download portable Python and set up the AI environment
+npm run setup:python
+
+# Build the complete standalone app
+npm run dist
 ```
 
-#### Berechtigungsfehler (Permission denied)
+The `setup:python` script:
+1. Downloads a standalone Python 3.12 build (~50 MB)
+2. Creates a virtual environment in `build-resources/python-env`
+3. Installs WhisperX, PyTorch, MLX, and all AI dependencies (~2-3 GB)
 
-```bash
-# npm-Berechtigungen korrigieren
-sudo chown -R $(whoami) ~/.npm
-sudo chown -R $(whoami) ~/Library/Caches/Homebrew
+### Available Scripts
 
-# Falls node_modules betroffen:
-sudo chown -R $(whoami) node_modules
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start development server with hot-reload |
+| `npm run build` | Build the app without packaging |
+| `npm run build:mac` | Build and package for macOS |
+| `npm run dist` | Full standalone build (with Python) |
+| `npm run dist:unsigned` | Build without Python bundling (for testing) |
+| `npm run setup:python` | Download Python and install AI dependencies |
+| `npm run typecheck` | Run TypeScript type checking |
+| `npm run lint` | Run ESLint |
+| `npm run test` | Run Playwright tests |
+| `npm run test:ui` | Run tests with Playwright UI |
+
+### Project Structure
+
+```
+OpenSub/
+├── src/
+│   ├── main/           # Electron main process
+│   │   ├── services/   # Core services (FFmpeg, Python, etc.)
+│   │   └── ipc/        # IPC handlers for renderer communication
+│   ├── renderer/       # React frontend
+│   │   ├── components/ # UI components
+│   │   ├── store/      # Zustand state management
+│   │   └── i18n/       # Internationalization
+│   ├── preload/        # Electron preload scripts
+│   └── shared/         # Shared types and utilities
+├── python-service/     # Python AI service
+│   ├── whisper_service/# WhisperX transcription
+│   └── requirements.txt
+├── scripts/            # Build and setup scripts
+├── resources/          # App icons and assets
+└── build-resources/    # Python environment (generated)
 ```
 
-### Node.js / Electron Probleme
+### Python Environment Details
 
-#### `better-sqlite3` kompiliert nicht
+The AI transcription runs as a separate Python process managed by Electron. For development:
 
-Dies ist ein häufiges Problem mit nativen Node-Modulen.
+- **Local Python**: You can use your system Python with a virtual environment
+- **Bundled Python**: The `npm run setup:python` creates a portable Python installation
 
-```bash
-# 1. Xcode Command Line Tools installieren/aktualisieren
-xcode-select --install
-
-# 2. node-gyp global installieren
-npm install -g node-gyp
-
-# 3. node_modules löschen und neu installieren
-rm -rf node_modules package-lock.json
-npm install
-
-# 4. Native Module für Electron neu kompilieren
-npx @electron/rebuild -f -w better-sqlite3
-```
-
-#### Electron startet nicht
+To set up a local development environment with your system Python:
 
 ```bash
-# Cache löschen
-rm -rf node_modules/.cache
-rm -rf ~/.cache/electron
-
-# Neu installieren
-npm install
-```
-
-### Python / WhisperX Probleme
-
-#### "No module named 'whisperx'"
-
-```bash
-# Prüfen, ob venv aktiviert ist
-which python3
-# Sollte .../python-service/venv/bin/python3 zeigen
-
-# Falls nicht:
-cd python-service
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-#### PyTorch/MPS Fehler auf Apple Silicon
-
-```bash
-# PyTorch für Apple Silicon neu installieren
-pip uninstall torch torchaudio
-pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
-```
-
-#### Speicherfehler bei großen Videos
-
-Große Videos können viel RAM benötigen. Tipps:
-- Schließe andere Anwendungen
-- Verwende kürzere Videosegmente
-- Stelle in der App ein kleineres Whisper-Modell ein (small statt large-v3)
-
-#### WhisperX/MLX Probleme
-
-WhisperX auf Apple Silicon kann manchmal Probleme bereiten. Alternative Installation:
-
-```bash
-# Spezielle Version für Mac
-pip install git+https://github.com/justinwlin/WhisperXMac.git
-```
-
-### FFmpeg Probleme
-
-#### FFmpeg nicht gefunden
-
-```bash
-# Prüfen, wo FFmpeg installiert ist
-which ffmpeg
-
-# Falls nicht gefunden, Homebrew-Pfad hinzufügen
-echo 'export PATH="/opt/homebrew/bin:$PATH"' >> ~/.zprofile
-source ~/.zprofile
-```
-
-#### Codec-Fehler beim Export
-
-```bash
-# FFmpeg mit allen Codecs neu installieren
-brew uninstall ffmpeg
-brew install ffmpeg
-```
-
-#### Hardware-Beschleunigung funktioniert nicht
-
-```bash
-# Prüfen, ob VideoToolbox verfügbar ist
-ffmpeg -encoders | grep videotoolbox
-```
-
-### HuggingFace / Diarization Probleme
-
-#### "Cannot access gated repo"
-
-1. Stelle sicher, dass du bei HuggingFace eingeloggt bist
-2. Akzeptiere BEIDE Modell-Lizenzen:
-   - [speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1)
-   - [segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0)
-3. Erstelle einen neuen Token mit "Read"-Berechtigung
-4. Setze den Token neu:
-   ```bash
-   export HF_TOKEN="hf_neuer_token"
-   ```
-
-#### Transkription funktioniert, aber keine Sprecher werden erkannt
-
-Die Sprechererkennung ist optional. Falls sie nicht funktioniert:
-- Prüfe den HF_TOKEN
-- Prüfe die Netzwerkverbindung (Modelle werden online geladen)
-- Die Transkription funktioniert auch ohne Sprechererkennung
-
-### Kompletter Reset
-
-Falls nichts mehr hilft, kannst du alles zurücksetzen:
-
-```bash
-# Im OpenSub-Verzeichnis
-
-# 1. Node-Module löschen
-rm -rf node_modules package-lock.json
-
-# 2. Python venv löschen
-rm -rf python-service/venv
-
-# 3. Cache löschen
-rm -rf ~/.cache/huggingface
-rm -rf ~/.cache/torch
-
-# 4. Alles neu installieren
-npm install
-
-# 5. Python neu einrichten
 cd python-service
 python3 -m venv venv
 source venv/bin/activate
-pip install --upgrade pip
 pip install -r requirements.txt
-cd ..
-
-# 6. App starten
-npm run dev
 ```
+
+> **Note**: The bundled Python is required for distribution builds but not for development.
 
 ---
 
-## Verwendung
+## Architecture
 
-### Schnellstart
+OpenSub follows a multi-process architecture with clear separation of concerns:
 
-1. **App starten**: `npm run dev` im Terminal
-2. **Video importieren**: Videodatei in die App ziehen
-3. **Warten**: Die Transkription startet automatisch (erste Ausführung dauert länger)
-4. **Bearbeiten**: Texte im linken Panel korrigieren
-5. **Styling**: Rechts Schriftart, Farben und Animationen anpassen
-6. **Export**: Menü → Export → Format wählen
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Electron App                             │
+├─────────────────┬─────────────────┬─────────────────────────────┤
+│   Main Process  │  Renderer (UI)  │     Python Service          │
+│   (Node.js)     │  (React)        │     (WhisperX-MLX)          │
+├─────────────────┼─────────────────┼─────────────────────────────┤
+│ • IPC handlers  │ • React 18      │ • WhisperX transcription    │
+│ • FFmpeg        │ • Zustand state │ • MLX Metal backend         │
+│ • File I/O      │ • Tailwind CSS  │ • Word-level alignment      │
+│ • SQLite DB     │ • Video player  │ • JSON-RPC communication    │
+└─────────────────┴─────────────────┴─────────────────────────────┘
+```
 
-### Tastenkürzel
+### Process Architecture
 
-| Taste | Funktion |
-|-------|----------|
-| `Leertaste` | Play/Pause |
-| `←` / `→` | 5 Sekunden vor/zurück |
-| `Cmd + O` | Video öffnen |
-| `Cmd + S` | Projekt speichern |
-| `Enter` | Untertitel-Bearbeitung bestätigen |
-| `Escape` | Bearbeitung abbrechen |
+#### Main Process (`src/main/`)
 
-### Unterstützte Formate
+The Electron main process handles all system-level operations:
 
-**Video-Import:** MP4, MOV, AVI, MKV, WebM, M4V
+| Service | File | Purpose |
+|---------|------|---------|
+| **WhisperService** | `services/WhisperService.ts` | Spawns and manages the Python transcription process |
+| **FFmpegService** | `services/FFmpegService.ts` | Video/audio processing, export with burned-in subtitles |
+| **ProjectDatabase** | `services/ProjectDatabase.ts` | SQLite persistence for projects and settings |
+| **OpenRouterService** | `services/OpenRouterService.ts` | AI-powered subtitle correction via Gemini API |
+| **ModelManager** | `services/ModelManager.ts` | Whisper model download and selection |
+
+#### Renderer Process (`src/renderer/`)
+
+The UI is built with React 18 and uses Zustand for state management:
+
+| Store | Purpose |
+|-------|---------|
+| **projectStore** | Current project, subtitles, video metadata |
+| **styleProfileStore** | Saved style presets, import/export |
+| **uiStore** | UI state, dialogs, loading indicators |
+
+Key components:
+- **VideoPlayer** — HTML5 video with custom controls and subtitle overlay
+- **Timeline** — Waveform display with draggable subtitle segments
+- **SubtitleEditor** — Text editing with word-level timing
+- **StylePanel** — Typography, colors, animations, karaoke effects
+
+#### Python Service (`python-service/`)
+
+The AI transcription runs in a separate Python process:
+
+```
+Electron Main ←──JSON-RPC over stdio──→ Python Service
+                                              │
+                                              ├── WhisperX-MLX (transcription)
+                                              ├── PyTorch (model runtime)
+                                              └── MLX (Metal GPU acceleration)
+```
+
+- **Communication**: JSON-RPC 2.0 over stdin/stdout
+- **Model**: WhisperX with MLX backend for Apple Silicon
+- **Alignment**: Word-level timestamps via forced alignment
+
+### IPC Communication
+
+The main and renderer processes communicate via Electron IPC:
+
+```typescript
+// Renderer → Main (invoke)
+const result = await window.api.whisper.transcribe(audioPath, options)
+
+// Main → Renderer (events)
+mainWindow.webContents.send('whisper:progress', { percent: 50, stage: 'transcribing' })
+```
+
+IPC channels are defined in `src/shared/types.ts` (`IPC_CHANNELS`).
+
+### Data Flow: Transcription
+
+1. **User drops video** → Renderer sends `ffmpeg:extract-audio`
+2. **Audio extracted** → Renderer sends `whisper:transcribe`
+3. **Main process** → Spawns/reuses Python service
+4. **Python service** → Runs WhisperX with MLX backend
+5. **Progress events** → Streamed back via `whisper:progress`
+6. **Result** → Word-level timestamps stored in project state
+
+### Data Flow: Export
+
+1. **User clicks Export** → Opens export dialog
+2. **Subtitle frames rendered** → Canvas API generates PNG frames
+3. **Frames saved** → Main process writes to temp directory
+4. **FFmpeg overlay** → Frames composited onto video
+5. **Output** → MP4 with burned-in subtitles
+
+---
+
+## Tech Stack
+
+| Layer | Technology | Purpose |
+|-------|------------|---------|
+| **Frontend** | React 18, TypeScript, Zustand | UI components and state |
+| **Styling** | Tailwind CSS, Radix UI | Design system |
+| **Desktop** | Electron 28 | Native app container |
+| **Build** | electron-vite, Vite | Fast bundling |
+| **Video** | FFmpeg, fluent-ffmpeg | Media processing |
+| **AI/ML** | WhisperX, PyTorch | Speech recognition |
+| **Database** | better-sqlite3 | Project persistence |
+
+---
+
+## Keyboard Shortcuts
+
+| Key | Function |
+|-----|----------|
+| `Space` | Play/Pause |
+| `←` / `→` | Skip 5 seconds back/forward |
+| `Cmd + O` | Open video |
+| `Cmd + S` | Save project |
+| `Enter` | Confirm subtitle edit |
+| `Escape` | Cancel edit |
+
+---
+
+## Supported Formats
+
+**Video Import:** MP4, MOV, AVI, MKV, WebM, M4V
 
 **Export:**
-- **ASS** – Volle Stilunterstützung, empfohlen für Media Player
-- **SRT** – Universell kompatibel
-- **MP4** – Video mit eingebrannten Untertiteln
+- **ASS** — Full style support, recommended for media players
+- **SRT** — Universal compatibility
+- **MP4** — Video with burned-in subtitles
 
 ---
 
-## Entwicklung
+## Contributing
 
-### Verfügbare Befehle
+Contributions are welcome! Whether you're fixing bugs, adding features, improving documentation, or translating the UI — your help is appreciated.
 
-| Befehl | Beschreibung |
-|--------|--------------|
-| `npm run dev` | Entwicklungsmodus mit Hot-Reload starten |
-| `npm run build` | Produktions-Build erstellen |
-| `npm run preview` | Produktions-Build lokal testen |
-| `npm run build:mac` | macOS-Distribution (DMG) erstellen |
-| `npm run typecheck` | TypeScript-Typprüfung |
-| `npm run lint` | Code-Stil prüfen |
-| `npm run test` | E2E-Tests ausführen |
+### How to Contribute
 
-### Hot-Reload Verhalten
+1. **Fork** the repository
+2. **Create a branch** for your feature or fix: `git checkout -b feature/your-feature-name`
+3. **Make your changes** following the code style guidelines below
+4. **Test** your changes: `npm run typecheck && npm run lint`
+5. **Commit** with a clear message describing what you changed
+6. **Push** to your fork and open a **Pull Request**
 
-| Bereich | Hot-Reload |
-|---------|------------|
-| React-Komponenten | ✅ Sofort |
-| Preload-Skripte | ⚠️ App-Neustart nötig |
-| Main-Prozess | ⚠️ App-Neustart nötig |
-| Python-Service | ⚠️ Pro Transkription neu |
+### Code Style
 
-### Projektstruktur
+- **TypeScript** — Use strict typing, avoid `any` when possible
+- **React** — Functional components with hooks, no class components
+- **Naming** — camelCase for variables/functions, PascalCase for components/types
+- **Formatting** — Run `npm run lint` before committing
 
-```
-opensub/
-├── src/
-│   ├── main/              # Electron Main-Prozess
-│   │   ├── index.ts       # Einstiegspunkt, Fensterverwaltung
-│   │   ├── ipc/           # IPC-Handler
-│   │   └── services/      # WhisperService, FFmpegService
-│   ├── preload/           # Sichere IPC-Brücke
-│   │   └── index.ts       # window.api Definition
-│   ├── renderer/          # React-Anwendung
-│   │   ├── App.tsx        # Haupt-Komponente
-│   │   ├── components/    # UI-Komponenten
-│   │   ├── store/         # Zustand State-Management
-│   │   └── utils/         # Hilfsfunktionen
-│   └── shared/            # Gemeinsame TypeScript-Typen
-│       └── types.ts       # Alle Typ-Definitionen
-├── python-service/        # WhisperX KI-Service
-│   ├── whisper_service/
-│   │   ├── main.py        # JSON-RPC Server
-│   │   ├── transcriber.py # Transkriptions-Pipeline
-│   │   └── rpc_handler.py # RPC-Methodenhandler
-│   └── requirements.txt   # Python-Abhängigkeiten
-├── electron.vite.config.ts    # Build-Konfiguration
-├── electron-builder.yml       # Packaging-Konfiguration
-├── tailwind.config.js         # CSS-Framework-Konfiguration
-└── package.json               # Node.js-Abhängigkeiten
-```
+### Good First Issues
+
+New to the project? Look for issues labeled [`good first issue`](https://github.com/ibimspumo/OpenSub/labels/good%20first%20issue) — these are smaller tasks that are great for getting familiar with the codebase.
+
+### Reporting Bugs
+
+Found a bug? Please [open an issue](https://github.com/ibimspumo/OpenSub/issues/new) with:
+- A clear description of the problem
+- Steps to reproduce
+- Expected vs. actual behavior
+- Your macOS version and hardware (Intel/Apple Silicon)
+
+### Feature Requests
+
+Have an idea? Open an issue with the `enhancement` label. Describe the feature and why it would be useful.
 
 ---
 
-## Architektur
+## License
 
-### Systemübersicht
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
 
-OpenSub verwendet Electrons Multi-Prozess-Architektur:
+### What This Means
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    OpenSub Anwendung                        │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │              RENDERER-PROZESS (React)                 │  │
-│  │                                                       │  │
-│  │  ┌──────────┐ ┌─────────────┐ ┌──────────────────┐   │  │
-│  │  │DropZone  │ │ VideoPlayer │ │ SubtitleList     │   │  │
-│  │  └────┬─────┘ └──────┬──────┘ └────────┬─────────┘   │  │
-│  │       │              │                  │             │  │
-│  │  ┌────┴──────────────┴──────────────────┴─────────┐  │  │
-│  │  │         Zustand State Management               │  │  │
-│  │  │  projectStore (Daten) │ uiStore (UI-State)     │  │  │
-│  │  └────────────────────────────────────────────────┘  │  │
-│  │                                                       │  │
-│  └──────────────────────────┬────────────────────────────┘  │
-│                             │ IPC (contextBridge)           │
-│                             ▼                               │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │                   PRELOAD-SKRIPT                      │  │
-│  │              (window.api Schnittstelle)               │  │
-│  └──────────────────────────┬────────────────────────────┘  │
-│                             │ IPC-Kanäle                    │
-│                             ▼                               │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │              MAIN-PROZESS (Node.js)                   │  │
-│  │                                                       │  │
-│  │  ┌─────────────────┐    ┌─────────────────────────┐  │  │
-│  │  │ WhisperService  │    │     FFmpegService       │  │  │
-│  │  │ (Python-Prozess)│    │  (Video-Verarbeitung)   │  │  │
-│  │  └────────┬────────┘    └─────────────────────────┘  │  │
-│  │           │                                           │  │
-│  └───────────┼───────────────────────────────────────────┘  │
-│              │ JSON-RPC (stdio)                             │
-│              ▼                                              │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │              PYTHON-SERVICE (Subprozess)              │  │
-│  │                                                       │  │
-│  │  ┌─────────────────────────────────────────────────┐ │  │
-│  │  │            WhisperX Transkription               │ │  │
-│  │  │                                                 │ │  │
-│  │  │  1. Audio laden (whisperx_mlx)                  │ │  │
-│  │  │  2. Transkribieren (MLX/GPU)                    │ │  │
-│  │  │  3. Wort-Alignment (CPU)                        │ │  │
-│  │  │  4. Sprecher-Erkennung (optional)               │ │  │
-│  │  └─────────────────────────────────────────────────┘ │  │
-│  │                                                       │  │
-│  └───────────────────────────────────────────────────────┘  │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
+- ✅ **Free to use** — Use OpenSub for personal or commercial projects
+- ✅ **Free to modify** — Fork it, customize it, make it your own
+- ✅ **Free to distribute** — Share your modified versions
+- ⚠️ **No warranty** — Provided "as is" without guarantees
 
-### Datenfluss
+### Third-Party Licenses
 
-```
-Video-Datei (MP4, MOV)
-       │
-       ▼
-┌──────────────────┐
-│  FFmpegService   │  → Extrahiert Audio als WAV (16kHz, Mono)
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│  Python-Service  │  → WhisperX transkribiert Audio
-│    (WhisperX)    │  → Erstellt Wort-Zeitstempel
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│   projectStore   │  → Speichert Untertitel-Daten
-│    (Zustand)     │  → Verwaltet Stil-Einstellungen
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│     Export       │  → ASS/SRT-Datei
-│   (FFmpeg)       │  → oder eingebranntes Video
-└──────────────────┘
-```
+OpenSub uses several open-source projects:
 
-### Technologie-Stack
-
-| Schicht | Technologie | Zweck |
-|---------|-------------|-------|
-| **Frontend** | React 18, TypeScript, Zustand | UI-Komponenten, State |
-| **Styling** | Tailwind CSS, Radix UI | Design-System |
-| **Desktop** | Electron 28 | Native App-Container |
-| **Build** | electron-vite, Vite | Schnelles Bundling |
-| **Video** | FFmpeg, fluent-ffmpeg | Medienverarbeitung |
-| **KI/ML** | WhisperX, PyTorch, MLX | Spracherkennung |
-| **Datenbank** | better-sqlite3 | Projekt-Persistenz |
+| Project | License | Purpose |
+|---------|---------|---------|
+| [Electron](https://www.electronjs.org) | MIT | Desktop app framework |
+| [React](https://react.dev) | MIT | UI library |
+| [WhisperX](https://github.com/m-bain/whisperX) | BSD-2-Clause | Speech recognition |
+| [PyTorch](https://pytorch.org) | BSD-3-Clause | Machine learning |
+| [FFmpeg](https://ffmpeg.org) | LGPL/GPL | Media processing |
 
 ---
 
-## Lizenz
+## Resources
 
-MIT-Lizenz – siehe [LICENSE](LICENSE) für Details.
-
----
-
-## Weitere Ressourcen
-
-- [WhisperX GitHub](https://github.com/m-bain/whisperX) – Transkriptions-Engine
-- [Electron Dokumentation](https://www.electronjs.org/docs) – Desktop-Framework
-- [FFmpeg Dokumentation](https://ffmpeg.org/documentation.html) – Video-Verarbeitung
-- [HuggingFace](https://huggingface.co) – KI-Modelle
+- [WhisperX GitHub](https://github.com/m-bain/whisperX) — Transcription engine
+- [Electron Documentation](https://www.electronjs.org/docs) — Desktop framework
+- [FFmpeg Documentation](https://ffmpeg.org/documentation.html) — Video processing
+- [HuggingFace](https://huggingface.co) — AI models
 
 ---
 
 <p align="center">
-  Entwickelt mit Electron, React und WhisperX<br>
-  Optimiert für Apple Silicon
+  Built with Electron, React, and WhisperX<br>
+  Optimized for Apple Silicon
 </p>

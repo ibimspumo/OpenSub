@@ -15,10 +15,13 @@ mac:
   target:
     - target: dmg
       arch: arm64
-  hardenedRuntime: true
+  # Skip code signing when no certificate is provided (identity: null)
+  # When MAC_CERTIFICATE is set in CI, electron-builder will auto-detect and sign
+  identity: null
+  hardenedRuntime: false
   gatekeeperAssess: false
   icon: resources/icon.icns
-  # Code signing entitlements (required for JIT/Python/MLX)
+  # Code signing entitlements (required for JIT/Python/MLX when signed)
   entitlements: resources/entitlements.mac.plist
   entitlementsInherit: resources/entitlements.mac.plist
 

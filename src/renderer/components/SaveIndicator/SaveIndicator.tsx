@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore'
 import { Badge } from '@/components/ui/badge'
@@ -7,22 +8,23 @@ import { cn } from '@/lib/utils'
 /**
  * Format relative time since last save
  */
-function formatTimeAgo(timestamp: number | null): string {
+function formatTimeAgo(timestamp: number | null, t: (key: string, options?: Record<string, unknown>) => string): string {
   if (!timestamp) return ''
 
   const seconds = Math.floor((Date.now() - timestamp) / 1000)
 
-  if (seconds < 5) return 'gerade eben'
-  if (seconds < 60) return `vor ${seconds}s`
-  if (seconds < 3600) return `vor ${Math.floor(seconds / 60)}m`
+  if (seconds < 5) return t('timeAgo.justNow')
+  if (seconds < 60) return t('timeAgo.secondsAgo', { count: seconds })
+  if (seconds < 3600) return t('timeAgo.minutesAgo', { count: Math.floor(seconds / 60) })
 
-  return `vor ${Math.floor(seconds / 3600)}h`
+  return t('timeAgo.hoursAgo', { count: Math.floor(seconds / 3600) })
 }
 
 export default function SaveIndicator() {
+  const { t } = useTranslation()
   const { saveStatus, lastSavedAt } = useUIStore()
 
-  const timeAgo = useMemo(() => formatTimeAgo(lastSavedAt), [lastSavedAt])
+  const timeAgo = useMemo(() => formatTimeAgo(lastSavedAt, t), [lastSavedAt, t])
 
   // Don't show anything if never saved
   if (saveStatus === 'idle' && !lastSavedAt) {
@@ -36,28 +38,28 @@ export default function SaveIndicator() {
           variant: 'outline' as const,
           className: 'bg-primary/20 text-primary border-primary/30',
           icon: <Loader2 className="w-3 h-3 animate-spin" />,
-          text: 'Speichere...',
+          text: t('saveIndicator.saving'),
         }
       case 'saved':
         return {
           variant: 'outline' as const,
           className: 'bg-green-500/20 text-green-400 border-green-500/30',
           icon: <div className="w-2 h-2 rounded-full bg-green-400" />,
-          text: 'Gespeichert',
+          text: t('saveIndicator.saved'),
         }
       case 'error':
         return {
           variant: 'destructive' as const,
           className: 'bg-red-500/20 text-red-400 border-red-500/30',
           icon: <div className="w-2 h-2 rounded-full bg-red-400" />,
-          text: 'Fehler beim Speichern',
+          text: t('saveIndicator.error'),
         }
       default:
         return {
           variant: 'secondary' as const,
           className: 'bg-muted text-muted-foreground border-border',
           icon: <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50" />,
-          text: lastSavedAt ? `Gespeichert ${timeAgo}` : '',
+          text: lastSavedAt ? t('saveIndicator.savedAgo', { time: timeAgo }) : '',
         }
     }
   }

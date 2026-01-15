@@ -140,18 +140,28 @@ export const COLOR_PRESETS = {
 // POSITION & ANIMATION OPTIONS (for UI dropdowns)
 // ============================================
 
-export const POSITION_OPTIONS: { value: SubtitlePosition; label: string }[] = [
-  { value: 'top', label: 'Oben' },
-  { value: 'center', label: 'Mitte' },
-  { value: 'bottom', label: 'Unten' }
+/**
+ * Position options for subtitle positioning.
+ * The `labelKey` is an i18n translation key that should be used with t() in React components.
+ * Example usage: t(option.labelKey)
+ */
+export const POSITION_OPTIONS: { value: SubtitlePosition; labelKey: string }[] = [
+  { value: 'top', labelKey: 'styleEditor.positionTop' },
+  { value: 'center', labelKey: 'styleEditor.positionCenter' },
+  { value: 'bottom', labelKey: 'styleEditor.positionBottom' }
 ]
 
-export const ANIMATION_OPTIONS: { value: AnimationType; label: string }[] = [
-  { value: 'karaoke', label: 'Karaoke' },
-  { value: 'appear', label: 'Erscheinen' },
-  { value: 'fade', label: 'Einblenden' },
-  { value: 'scale', label: 'Skalieren' },
-  { value: 'none', label: 'Keine' }
+/**
+ * Animation type options for subtitle animations.
+ * The `labelKey` is an i18n translation key that should be used with t() in React components.
+ * Example usage: t(option.labelKey)
+ */
+export const ANIMATION_OPTIONS: { value: AnimationType; labelKey: string }[] = [
+  { value: 'karaoke', labelKey: 'styleEditor.animationKaraoke' },
+  { value: 'appear', labelKey: 'styleEditor.animationAppear' },
+  { value: 'fade', labelKey: 'styleEditor.animationFade' },
+  { value: 'scale', labelKey: 'styleEditor.animationScale' },
+  { value: 'none', labelKey: 'styleEditor.animationNone' }
 ]
 
 // ============================================

@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Loader2, CheckCircle, Music, AlignLeft, Mic } from 'lucide-react'
 import type { TranscriptionProgress as Progress } from '../../../shared/types'
 import {
@@ -17,35 +18,35 @@ interface TranscriptionProgressProps {
   progress: Progress | null
 }
 
-// Stage configuration with icons and colors
+// Stage configuration with icons and colors (labels/descriptions are i18n keys)
 const STAGE_CONFIG = {
   loading: {
-    label: 'Lade Audio...',
-    description: 'Audiodatei wird extrahiert und vorbereitet',
+    labelKey: 'transcription.loadingAudio',
+    descriptionKey: 'transcription.loadingAudioDescription',
     icon: Music,
     color: 'text-blue-400',
     bgColor: 'bg-blue-500/10',
     progressColor: 'bg-blue-500',
   },
   transcribing: {
-    label: 'Transkribiere...',
-    description: 'KI analysiert gesprochene Inhalte',
+    labelKey: 'transcription.transcribing',
+    descriptionKey: 'transcription.transcribingDescription',
     icon: Mic,
     color: 'text-violet-400',
     bgColor: 'bg-violet-500/10',
     progressColor: 'bg-violet-500',
   },
   aligning: {
-    label: 'Synchronisiere...',
-    description: 'Woerter werden zeitlich zugeordnet',
+    labelKey: 'transcription.aligning',
+    descriptionKey: 'transcription.aligningDescription',
     icon: AlignLeft,
     color: 'text-amber-400',
     bgColor: 'bg-amber-500/10',
     progressColor: 'bg-amber-500',
   },
   complete: {
-    label: 'Fertig!',
-    description: 'Transkription erfolgreich abgeschlossen',
+    labelKey: 'transcription.complete',
+    descriptionKey: 'transcription.completeDescription',
     icon: CheckCircle,
     color: 'text-emerald-400',
     bgColor: 'bg-emerald-500/10',
@@ -117,6 +118,7 @@ function AudioWaveform({ isAnimating }: { isAnimating: boolean }) {
 }
 
 export default function TranscriptionProgress({ progress }: TranscriptionProgressProps) {
+  const { t } = useTranslation()
   const stage = progress?.stage || 'loading'
   const config = STAGE_CONFIG[stage] || STAGE_CONFIG.loading
   const isAnimating = stage !== 'complete'
@@ -161,11 +163,11 @@ export default function TranscriptionProgress({ progress }: TranscriptionProgres
               stage === 'complete' && 'text-emerald-400'
             )}
           >
-            {config.label}
+            {t(config.labelKey)}
           </DialogTitle>
 
           <DialogDescription className="text-center">
-            {progress?.message || config.description}
+            {progress?.message || t(config.descriptionKey)}
           </DialogDescription>
         </DialogHeader>
 
@@ -183,7 +185,7 @@ export default function TranscriptionProgress({ progress }: TranscriptionProgres
 
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground font-medium">
-              {progressWidth > 0 ? 'Fortschritt' : 'Initialisiere...'}
+              {progressWidth > 0 ? t('common.progress') : t('common.initializing')}
             </span>
             <span
               className={cn(
@@ -209,7 +211,7 @@ export default function TranscriptionProgress({ progress }: TranscriptionProgres
             onClick={() => window.api.whisper.cancel()}
             className="w-full"
           >
-            Abbrechen
+            {t('common.cancel')}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Clock, Film, MoreVertical, Pencil, Trash2, Loader2, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { StoredProjectMeta } from '../../../shared/types'
 import { Card, CardContent } from '@/components/ui/card'
@@ -27,7 +28,7 @@ function formatDuration(seconds: number): string {
 /**
  * Format date to relative time
  */
-function formatDate(timestamp: number): string {
+function formatDate(timestamp: number, t: (key: string, options?: Record<string, unknown>) => string, language: string): string {
   const now = Date.now()
   const diff = now - timestamp
 
@@ -37,18 +38,19 @@ function formatDate(timestamp: number): string {
   const days = Math.floor(hours / 24)
 
   if (days > 7) {
-    return new Date(timestamp).toLocaleDateString('de-DE', {
+    return new Date(timestamp).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-US', {
       day: 'numeric',
       month: 'short'
     })
   }
-  if (days > 0) return `vor ${days}d`
-  if (hours > 0) return `vor ${hours}h`
-  if (minutes > 0) return `vor ${minutes}m`
-  return 'gerade eben'
+  if (days > 0) return t('timeAgo.daysAgo', { count: days })
+  if (hours > 0) return t('timeAgo.hoursAgo', { count: hours })
+  if (minutes > 0) return t('timeAgo.minutesAgo', { count: minutes })
+  return t('timeAgo.justNow')
 }
 
 export default function ProjectBrowser({ onOpenProject }: ProjectBrowserProps) {
+  const { t, i18n } = useTranslation()
   const [projects, setProjects] = useState<StoredProjectMeta[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -125,7 +127,7 @@ export default function ProjectBrowser({ onOpenProject }: ProjectBrowserProps) {
     e.stopPropagation()
     setContextMenuId(null)
 
-    const confirmed = confirm('Möchtest du dieses Projekt wirklich löschen?')
+    const confirmed = confirm(t('projectBrowser.deleteConfirm'))
     if (!confirmed) return
 
     try {
@@ -148,7 +150,7 @@ export default function ProjectBrowser({ onOpenProject }: ProjectBrowserProps) {
       <div className="mt-8 flex justify-center">
         <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="w-4 h-4 animate-spin" />
-          <span className="text-sm">Projekte laden...</span>
+          <span className="text-sm">{t('projectBrowser.loadingProjects')}</span>
         </div>
       </div>
     )
@@ -164,7 +166,7 @@ export default function ProjectBrowser({ onOpenProject }: ProjectBrowserProps) {
       <div className="flex items-center justify-between gap-4 mb-4">
         <div className="flex items-center gap-2">
           <Clock className="w-4 h-4 text-muted-foreground" />
-          <h2 className="text-sm font-medium text-muted-foreground">Letzte Projekte</h2>
+          <h2 className="text-sm font-medium text-muted-foreground">{t('projectBrowser.recentProjects')}</h2>
         </div>
 
         {/* Search input */}
@@ -172,7 +174,7 @@ export default function ProjectBrowser({ onOpenProject }: ProjectBrowserProps) {
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Suchen..."
+            placeholder={t('common.search')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="h-8 pl-8 text-sm bg-secondary/50 border-border/50 focus:border-primary/50"
@@ -183,7 +185,7 @@ export default function ProjectBrowser({ onOpenProject }: ProjectBrowserProps) {
       {/* Empty search result */}
       {filteredProjects.length === 0 && searchQuery && (
         <div className="py-8 text-center text-muted-foreground text-sm">
-          Keine Projekte für „{searchQuery}" gefunden
+          {t('projectBrowser.noProjectsFound', { query: searchQuery })}
         </div>
       )}
 
@@ -251,7 +253,7 @@ export default function ProjectBrowser({ onOpenProject }: ProjectBrowserProps) {
                   <h3 className="text-sm font-medium text-foreground truncate">{project.name}</h3>
                 )}
                 <p className="text-xs text-muted-foreground mt-1">
-                  {formatDate(project.updatedAt)}
+                  {formatDate(project.updatedAt, t, i18n.language)}
                 </p>
               </CardContent>
 
@@ -286,7 +288,7 @@ export default function ProjectBrowser({ onOpenProject }: ProjectBrowserProps) {
                     className="w-full justify-start px-3 py-1.5 h-auto text-sm font-normal"
                   >
                     <Pencil className="w-4 h-4 mr-2" />
-                    Umbenennen
+                    {t('projectBrowser.rename')}
                   </Button>
                   <Button
                     onClick={(e) => handleDelete(project.id, e)}
@@ -294,7 +296,7 @@ export default function ProjectBrowser({ onOpenProject }: ProjectBrowserProps) {
                     className="w-full justify-start px-3 py-1.5 h-auto text-sm font-normal text-destructive hover:text-destructive"
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
-                    Löschen
+                    {t('common.delete')}
                   </Button>
                 </Card>
               )}

@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Loader2, CheckCircle, Film, X } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore'
 import {
@@ -13,17 +14,17 @@ import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-// Export progress configuration
+// Export progress configuration (labels/descriptions are i18n keys)
 const EXPORT_CONFIG = {
-  label: 'Video wird exportiert...',
-  description: 'Untertitel werden in das Video eingebrannt',
+  labelKey: 'export.exporting',
+  descriptionKey: 'export.exportingDescription',
   color: 'text-blue-400',
   bgColor: 'bg-blue-500/10',
 }
 
 const COMPLETE_CONFIG = {
-  label: 'Export abgeschlossen!',
-  description: 'Video wurde erfolgreich exportiert',
+  labelKey: 'export.exportComplete',
+  descriptionKey: 'export.exportCompleteDescription',
   color: 'text-emerald-400',
   bgColor: 'bg-emerald-500/10',
 }
@@ -50,6 +51,7 @@ function FilmFrames({ isAnimating }: { isAnimating: boolean }) {
 }
 
 export default function ExportProgress() {
+  const { t } = useTranslation()
   const { exportProgress } = useUIStore()
 
   const isComplete = exportProgress >= 100
@@ -91,11 +93,11 @@ export default function ExportProgress() {
               isComplete && 'text-emerald-400'
             )}
           >
-            {config.label}
+            {t(config.labelKey)}
           </DialogTitle>
 
           <DialogDescription className="text-center">
-            {config.description}
+            {t(config.descriptionKey)}
           </DialogDescription>
         </DialogHeader>
 
@@ -108,7 +110,7 @@ export default function ExportProgress() {
 
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground font-medium">
-              {progressWidth > 0 ? 'Fortschritt' : 'Initialisiere...'}
+              {progressWidth > 0 ? t('common.progress') : t('common.initializing')}
             </span>
             <span
               className={cn(
@@ -135,7 +137,7 @@ export default function ExportProgress() {
             className="w-full"
           >
             <X className="h-4 w-4" />
-            Abbrechen
+            {t('common.cancel')}
           </Button>
         </DialogFooter>
       </DialogContent>

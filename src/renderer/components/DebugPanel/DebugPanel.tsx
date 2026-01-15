@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Bug, X, RefreshCw, Trash2, CheckCircle, XCircle, AlertTriangle, ChevronDown, ChevronUp, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -17,6 +18,7 @@ interface DebugPanelProps {
 }
 
 export default function DebugPanel({ isOpen, onClose }: DebugPanelProps) {
+  const { t } = useTranslation()
   const [logs, setLogs] = useState<DebugLogEntry[]>([])
   const [status, setStatus] = useState<(DebugAppStatus & { debugEnabled: boolean }) | null>(null)
   const [showStatus, setShowStatus] = useState(true)
@@ -117,8 +119,8 @@ export default function DebugPanel({ isOpen, onClose }: DebugPanelProps) {
               <Bug className="w-4 h-4 text-orange-400" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-white">Debug Panel</h2>
-              <p className="text-xs text-gray-400">App-weite Diagnose</p>
+              <h2 className="text-sm font-semibold text-white">{t('debugPanel.title')}</h2>
+              <p className="text-xs text-gray-400">{t('debugPanel.description')}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -155,7 +157,7 @@ export default function DebugPanel({ isOpen, onClose }: DebugPanelProps) {
             onClick={() => setShowStatus(!showStatus)}
             className="w-full px-4 py-2 flex items-center justify-between text-sm text-gray-300 hover:bg-gray-800/50"
           >
-            <span className="font-medium">App Status</span>
+            <span className="font-medium">{t('debugPanel.appStatus')}</span>
             {showStatus ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
 
@@ -164,21 +166,21 @@ export default function DebugPanel({ isOpen, onClose }: DebugPanelProps) {
               {/* Left Column - Paths */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500 w-24">Packaged:</span>
+                  <span className="text-gray-500 w-24">{t('debugPanel.packaged')}:</span>
                   <span className={status.isPackaged ? 'text-green-400' : 'text-yellow-400'}>
-                    {status.isPackaged ? 'Production' : 'Development'}
+                    {status.isPackaged ? t('debugPanel.production') : t('debugPanel.development')}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500 w-24">Platform:</span>
+                  <span className="text-gray-500 w-24">{t('debugPanel.platform')}:</span>
                   <span className="text-gray-300">{status.platform} / {status.arch}</span>
                 </div>
                 <div className="flex items-start gap-2">
-                  <span className="text-gray-500 w-24 shrink-0">Python:</span>
+                  <span className="text-gray-500 w-24 shrink-0">{t('debugPanel.python')}:</span>
                   <span className="text-gray-300 break-all font-mono text-[10px]">{status.pythonPath}</span>
                 </div>
                 <div className="flex items-start gap-2">
-                  <span className="text-gray-500 w-24 shrink-0">Service:</span>
+                  <span className="text-gray-500 w-24 shrink-0">{t('debugPanel.service')}:</span>
                   <span className="text-gray-300 break-all font-mono text-[10px]">{status.pythonServicePath}</span>
                 </div>
               </div>
@@ -186,7 +188,7 @@ export default function DebugPanel({ isOpen, onClose }: DebugPanelProps) {
               {/* Right Column - Status Indicators */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500 w-32">Python existiert:</span>
+                  <span className="text-gray-500 w-32">{t('debugPanel.pythonExists')}:</span>
                   {status.pythonExists ? (
                     <CheckCircle className="w-4 h-4 text-green-400" />
                   ) : (
@@ -194,7 +196,7 @@ export default function DebugPanel({ isOpen, onClose }: DebugPanelProps) {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500 w-32">Service existiert:</span>
+                  <span className="text-gray-500 w-32">{t('debugPanel.serviceExists')}:</span>
                   {status.serviceExists ? (
                     <CheckCircle className="w-4 h-4 text-green-400" />
                   ) : (
@@ -202,7 +204,7 @@ export default function DebugPanel({ isOpen, onClose }: DebugPanelProps) {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500 w-32">Whisper laeuft:</span>
+                  <span className="text-gray-500 w-32">{t('debugPanel.whisperRunning')}:</span>
                   {status.whisperServiceRunning ? (
                     <CheckCircle className="w-4 h-4 text-green-400" />
                   ) : (
@@ -210,7 +212,7 @@ export default function DebugPanel({ isOpen, onClose }: DebugPanelProps) {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500 w-32">Modell bereit:</span>
+                  <span className="text-gray-500 w-32">{t('debugPanel.modelReady')}:</span>
                   {status.whisperModelReady ? (
                     <CheckCircle className="w-4 h-4 text-green-400" />
                   ) : (
@@ -228,7 +230,7 @@ export default function DebugPanel({ isOpen, onClose }: DebugPanelProps) {
                   className="text-xs text-gray-400 hover:text-white gap-1"
                 >
                   <Copy className="w-3 h-3" />
-                  Status kopieren
+                  {t('debugPanel.copyStatus')}
                 </Button>
               </div>
             </div>
@@ -238,7 +240,7 @@ export default function DebugPanel({ isOpen, onClose }: DebugPanelProps) {
         {/* Logs Section */}
         <div className="flex-1 flex flex-col min-h-0">
           <div className="px-4 py-2 flex items-center justify-between text-xs text-gray-400 border-b border-gray-800">
-            <span>{logs.length} Log-Eintraege</span>
+            <span>{t('debugPanel.logEntries', { count: logs.length })}</span>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -246,7 +248,7 @@ export default function DebugPanel({ isOpen, onClose }: DebugPanelProps) {
                 onChange={(e) => setAutoScroll(e.target.checked)}
                 className="rounded border-gray-600"
               />
-              Auto-Scroll
+              {t('debugPanel.autoScroll')}
             </label>
           </div>
 
@@ -255,7 +257,7 @@ export default function DebugPanel({ isOpen, onClose }: DebugPanelProps) {
             className="flex-1 overflow-y-auto p-2 font-mono text-xs space-y-1"
           >
             {logs.length === 0 ? (
-              <p className="text-gray-500 italic p-2">Keine Logs vorhanden</p>
+              <p className="text-gray-500 italic p-2">{t('debugPanel.noLogs')}</p>
             ) : (
               logs.map((log, index) => (
                 <div
@@ -293,7 +295,7 @@ export default function DebugPanel({ isOpen, onClose }: DebugPanelProps) {
 
         {/* Footer */}
         <div className="px-4 py-2 border-t border-gray-700 text-xs text-gray-500 flex items-center justify-between">
-          <span>Shortcut: Cmd+Shift+D zum Ein/Ausblenden</span>
+          <span>{t('debugPanel.shortcutHint')}</span>
           <span>Electron {status?.electronVersion} / Node {status?.nodeVersion}</span>
         </div>
       </div>

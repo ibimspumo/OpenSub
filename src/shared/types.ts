@@ -505,6 +505,7 @@ export const IPC_CHANNELS = {
   SETTINGS_SET: 'settings:set',
   SETTINGS_HAS_ENV_API_KEY: 'settings:has-env-api-key',
   SETTINGS_GET_API_KEY: 'settings:get-api-key',
+  SETTINGS_GET_SYSTEM_LANGUAGE: 'settings:get-system-language',
 
   // Model Management (for first-run setup and model status)
   MODELS_LIST: 'models:list',
@@ -522,6 +523,37 @@ export const IPC_CHANNELS = {
 } as const
 
 // ============================================
+// Internationalization (i18n) Types
+// ============================================
+
+/**
+ * Supported application languages
+ */
+export type AppLanguage = 'de' | 'en'
+
+/**
+ * Language metadata for the language selector
+ */
+export interface LanguageInfo {
+  code: AppLanguage
+  name: string        // Native name (e.g., 'Deutsch', 'English')
+  flag: string        // Emoji flag
+}
+
+/**
+ * List of supported languages with metadata
+ */
+export const SUPPORTED_LANGUAGES: LanguageInfo[] = [
+  { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+  { code: 'en', name: 'English', flag: '🇬🇧' }
+]
+
+/**
+ * Default language when system language cannot be detected
+ */
+export const DEFAULT_LANGUAGE: AppLanguage = 'de'
+
+// ============================================
 // App Settings Types
 // ============================================
 
@@ -531,6 +563,7 @@ export const IPC_CHANNELS = {
 export interface AppSettings {
   openRouterApiKey?: string
   selectedModelId?: string  // Whisper model ID (e.g., 'mlx-community/whisper-large-v3-mlx')
+  language?: AppLanguage    // UI language preference (defaults to system language on first launch)
 }
 
 /**

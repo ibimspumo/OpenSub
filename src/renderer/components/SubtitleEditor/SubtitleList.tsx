@@ -1,4 +1,5 @@
 import { useCallback, useRef, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { MessageSquareText, ArrowDown, FileText, Clock } from 'lucide-react'
 import { useProjectStore } from '../../store/projectStore'
 import { useUIStore } from '../../store/uiStore'
@@ -10,6 +11,7 @@ import { cn } from '@/lib/utils'
 import SubtitleItem from './SubtitleItem'
 
 export default function SubtitleList() {
+  const { t } = useTranslation()
   const { project } = useProjectStore()
   const { selectedSubtitleId, setSelectedSubtitleId } = useUIStore()
   const controller = usePlaybackController()
@@ -111,7 +113,7 @@ export default function SubtitleList() {
       {project.subtitles.length > 0 && (
         <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
           <span className="text-xs text-muted-foreground font-medium">
-            {project.subtitles.length} Untertitel
+            {t('subtitleList.subtitleCount', { count: project.subtitles.length })}
           </span>
           <TooltipProvider delayDuration={300}>
             <div className="flex items-center gap-1">
@@ -127,7 +129,7 @@ export default function SubtitleList() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
-                  <p>Als Text exportieren (Markdown)</p>
+                  <p>{t('subtitleList.exportAsText')}</p>
                 </TooltipContent>
               </Tooltip>
               <Tooltip>
@@ -142,7 +144,7 @@ export default function SubtitleList() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
-                  <p>Mit Timecodes exportieren (SRT)</p>
+                  <p>{t('subtitleList.exportWithTimecodes')}</p>
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -175,17 +177,17 @@ export default function SubtitleList() {
 
               {/* Empty state text */}
               <h3 className="text-sm font-medium text-foreground mb-1.5">
-                Keine Untertitel vorhanden
+                {t('subtitleList.noSubtitles')}
               </h3>
               <p className="text-xs text-muted-foreground text-center max-w-[220px] leading-relaxed">
-                Starte eine Transkription, um automatisch Untertitel zu erstellen
+                {t('subtitleList.noSubtitlesHint')}
               </p>
 
               {/* Decorative hint arrow */}
               <div className="mt-8 flex flex-col items-center gap-1.5 text-muted-foreground/60 animate-pulse-soft">
                 <ArrowDown className="w-4 h-4" />
                 <span className="text-[10px] uppercase tracking-wider font-medium">
-                  Transkribieren
+                  {t('subtitleList.transcribe')}
                 </span>
               </div>
             </div>

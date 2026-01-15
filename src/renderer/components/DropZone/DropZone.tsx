@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useProjectStore } from '../../store/projectStore'
 import { useUIStore } from '../../store/uiStore'
 import ProjectBrowser from '../ProjectBrowser/ProjectBrowser'
@@ -18,6 +19,7 @@ import {
 type LoadingStep = 'metadata' | 'audio' | 'loading-project' | null
 
 export default function DropZone() {
+  const { t } = useTranslation()
   const [isDragging, setIsDragging] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [loadingStep, setLoadingStep] = useState<LoadingStep>(null)
@@ -27,7 +29,7 @@ export default function DropZone() {
 
   const { createProject, loadProject, setVideoMetadata, setAudioPath, setTranscriptionResult } =
     useProjectStore()
-  const { setIsTranscribing, setTranscriptionProgress } = useUIStore()
+  const { setIsTranscribing, setTranscriptionProgress, resetPlaybackState } = useUIStore()
 
   // Handle opening an existing project
   const handleOpenProject = useCallback(
@@ -36,10 +38,13 @@ export default function DropZone() {
       setLoadingStep('loading-project')
       setError(null)
 
+      // Reset playback state when loading an existing project
+      resetPlaybackState()
+
       try {
         const storedProject = await window.api.project.load(projectId)
         if (!storedProject) {
-          throw new Error('Projekt nicht gefunden')
+          throw new Error(t('dropZone.projectNotFound'))
         }
 
         // Load the project into the store
@@ -50,11 +55,11 @@ export default function DropZone() {
       } catch (err) {
         setIsLoading(false)
         setLoadingStep(null)
-        setError(err instanceof Error ? err.message : 'Fehler beim Laden des Projekts')
+        setError(err instanceof Error ? err.message : t('dropZone.errorLoadingProject'))
         console.error('Error loading project:', err)
       }
     },
-    [loadProject]
+    [loadProject, resetPlaybackState, t]
   )
 
   // Entrance animation
@@ -68,6 +73,9 @@ export default function DropZone() {
       setIsLoading(true)
       setLoadingStep('metadata')
       setError(null)
+
+      // Reset playback state when creating a new project
+      resetPlaybackState()
 
       window.api.debug.log('info', 'renderer', 'handleFile called', { filePath })
 
@@ -104,19 +112,19 @@ export default function DropZone() {
       } catch (err) {
         setIsLoading(false)
         setLoadingStep(null)
-        const errorMsg = err instanceof Error ? err.message : 'Fehler beim Laden des Videos'
+        const errorMsg = err instanceof Error ? err.message : t('dropZone.errorLoadingVideo')
         window.api.debug.log('error', 'renderer', 'handleFile error', { error: errorMsg })
         setError(errorMsg)
         console.error('Error loading video:', err)
       }
     },
-    [createProject, setVideoMetadata, setAudioPath]
+    [createProject, setVideoMetadata, setAudioPath, resetPlaybackState, t]
   )
 
   const startTranscription = async (audioPath: string) => {
     window.api.debug.log('info', 'renderer', 'startTranscription called', { audioPath })
     setIsTranscribing(true)
-    setTranscriptionProgress({ stage: 'loading', percent: 0, message: 'Starte...' })
+    setTranscriptionProgress({ stage: 'loading', percent: 0, message: t('transcription.starting') })
 
     try {
       // Set up progress listener
@@ -148,7 +156,7 @@ export default function DropZone() {
       setTranscriptionResult(result)
       window.api.debug.log('info', 'renderer', 'Transcription flow completed successfully')
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Transkription fehlgeschlagen'
+      const errorMsg = err instanceof Error ? err.message : t('dropZone.transcriptionFailed')
       window.api.debug.log('error', 'renderer', 'startTranscription error', { error: errorMsg })
       console.error('Transcription error:', err)
       setError(errorMsg)
@@ -332,17 +340,17 @@ export default function DropZone() {
 
                 {/* Loading text */}
                 <p className="text-foreground font-medium text-center mb-1">
-                  {loadingStep === 'metadata' && 'Analysiere Video...'}
-                  {loadingStep === 'audio' && 'Extrahiere Audio...'}
-                  {loadingStep === 'loading-project' && 'Lade Projekt...'}
-                  {!loadingStep && 'Video wird geladen...'}
+                  {loadingStep === 'metadata' && t('dropZone.analyzingVideo')}
+                  {loadingStep === 'audio' && t('dropZone.extractingAudio')}
+                  {loadingStep === 'loading-project' && t('dropZone.loadingProject')}
+                  {!loadingStep && t('dropZone.videoLoading')}
                 </p>
                 <p className="text-muted-foreground text-sm text-center">
                   {loadingStep === 'audio'
-                    ? 'Dies kann bei längeren Videos einen Moment dauern'
+                    ? t('dropZone.audioExtractionHint')
                     : loadingStep === 'loading-project'
-                      ? 'Deine Arbeit wird wiederhergestellt'
-                      : 'Bitte warten...'}
+                      ? t('dropZone.projectRestoring')
+                      : t('dropZone.pleaseWait')}
                 </p>
 
                 {/* Progress bar using ShadCN Progress */}
@@ -413,16 +421,12 @@ export default function DropZone() {
                     isDragging ? 'text-primary' : 'text-foreground'
                   )}
                 >
-                  {isDragging ? 'Zum Hochladen loslassen' : 'Video hierher ziehen'}
+                  {isDragging ? t('dropZone.dropToUpload') : t('dropZone.dragVideoHere')}
                 </h2>
 
                 {/* Subtitle */}
                 <p className="text-muted-foreground text-sm text-center mb-4">
-                  oder{' '}
-                  <span className="text-primary hover:text-primary/80 transition-colors cursor-pointer">
-                    klicken
-                  </span>{' '}
-                  zum Auswählen
+                  {t('dropZone.orClickToSelect')}
                 </p>
 
                 {/* Supported formats badge using ShadCN Badge */}
@@ -436,7 +440,7 @@ export default function DropZone() {
                   )}
                 >
                   <CheckCircle className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground font-normal">MP4, MOV, AVI, MKV</span>
+                  <span className="text-xs text-muted-foreground font-normal">{t('dropZone.supportedFormats')}</span>
                 </Badge>
 
                 {/* Error message with animation */}
@@ -479,7 +483,7 @@ export default function DropZone() {
             <kbd className="px-1.5 py-0.5 rounded bg-secondary/50 border border-border/30 font-mono text-xs">
               O
             </kbd>
-            <span className="ml-1">zum Öffnen</span>
+            <span className="ml-1">{t('dropZone.keyboardHint')}</span>
           </div>
         </div>
       </div>

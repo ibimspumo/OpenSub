@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useProjectStore } from './store/projectStore'
 import { useUIStore } from './store/uiStore'
 import DropZone from './components/DropZone/DropZone'
@@ -30,6 +31,7 @@ import type {
 } from '../shared/types'
 
 function App() {
+  const { t } = useTranslation()
   const { project, hasProject } = useProjectStore()
   const {
     isTranscribing,
@@ -227,7 +229,7 @@ function App() {
       )
 
       if (frameInfos.length === 0) {
-        throw new Error('Keine Untertitel zum Exportieren vorhanden')
+        throw new Error(t('export.noSubtitlesToExport'))
       }
 
       // Convert frame infos to SubtitleFrame format for IPC
@@ -273,7 +275,7 @@ function App() {
       }
 
       setIsExporting(false)
-      alert(`Video exportiert: ${outputPath}`)
+      alert(t('export.exportSuccess', { path: outputPath }))
     } catch (err) {
       // Cleanup frames on error
       if (frameDir) {
@@ -281,10 +283,10 @@ function App() {
       }
 
       setIsExporting(false)
-      setExportError(err instanceof Error ? err.message : 'Export fehlgeschlagen')
+      setExportError(err instanceof Error ? err.message : t('export.exportFailed'))
       console.error('Export error:', err)
     }
-  }, [project, setIsExporting, setExportProgress])
+  }, [project, setIsExporting, setExportProgress, t])
 
 
   return (
@@ -334,10 +336,10 @@ function App() {
                 >
                   <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between">
                     <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      Untertitel
+                      {t('app.subtitles')}
                     </h2>
                     <span className="text-xs text-muted-foreground/70 tabular-nums">
-                      {project?.subtitles.length || 0} Eintraege
+                      {t('app.entriesCount', { count: project?.subtitles.length || 0 })}
                     </span>
                   </div>
                   <div className="flex-1 overflow-y-auto scrollbar-thin">
@@ -380,7 +382,7 @@ function App() {
                 >
                   <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between">
                     <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      Stil-Editor
+                      {t('app.styleEditor')}
                     </h2>
                     <div className="w-4 h-4 rounded-full bg-secondary flex items-center justify-center">
                       <div className="w-1.5 h-1.5 rounded-full bg-primary/60" />
@@ -475,7 +477,7 @@ function App() {
               <AlertCircle className="w-4 h-4 text-destructive" />
             </div>
             <div>
-              <p className="text-sm font-medium text-foreground">Export fehlgeschlagen</p>
+              <p className="text-sm font-medium text-foreground">{t('export.exportFailed')}</p>
               <p className="text-xs text-muted-foreground">{exportError}</p>
             </div>
             <Button
@@ -502,11 +504,11 @@ function App() {
                 <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
                   <AlertCircle className="w-5 h-5 text-red-400" />
                 </div>
-                <h2 className="text-lg font-semibold text-white">Kritischer Fehler</h2>
+                <h2 className="text-lg font-semibold text-white">{t('app.fatalError')}</h2>
               </div>
               <p className="text-gray-300 mb-4">{fatalError}</p>
               <p className="text-sm text-gray-500 mb-4">
-                Das Debug-Panel wurde automatisch geoeffnet. Druecke Cmd+Shift+D um es anzuzeigen.
+                {t('app.fatalErrorDebugHint')}
               </p>
               <div className="flex gap-2">
                 <Button
@@ -514,13 +516,13 @@ function App() {
                   onClick={() => setShowDebugPanel(true)}
                   className="flex-1"
                 >
-                  Debug-Panel oeffnen
+                  {t('app.openDebugPanel')}
                 </Button>
                 <Button
                   variant="ghost"
                   onClick={() => setFatalError(null)}
                 >
-                  Schliessen
+                  {t('common.close')}
                 </Button>
               </div>
             </div>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Check, X, Undo2 } from 'lucide-react'
 import type { SubtitleChange } from '../../../shared/types'
 import { Card } from '@/components/ui/card'
@@ -14,28 +15,29 @@ interface DiffItemProps {
 
 const CHANGE_TYPE_CONFIG = {
   spelling: {
-    label: 'Rechtschreibung',
+    labelKey: 'changeTypes.spelling',
     className: 'bg-blue-500/20 text-blue-300 border-blue-500/30 hover:bg-blue-500/30',
   },
   grammar: {
-    label: 'Grammatik',
+    labelKey: 'changeTypes.grammar',
     className: 'bg-amber-500/20 text-amber-300 border-amber-500/30 hover:bg-amber-500/30',
   },
   context: {
-    label: 'Kontext',
+    labelKey: 'changeTypes.context',
     className: 'bg-violet-500/20 text-violet-300 border-violet-500/30 hover:bg-violet-500/30',
   },
   name: {
-    label: 'Name',
+    labelKey: 'changeTypes.name',
     className: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/30',
   },
   punctuation: {
-    label: 'Zeichen',
+    labelKey: 'changeTypes.punctuation',
     className: 'bg-rose-500/20 text-rose-300 border-rose-500/30 hover:bg-rose-500/30',
   },
 } as const
 
 export default function DiffItem({ change, time, onAccept, onReject }: DiffItemProps) {
+  const { t } = useTranslation()
   const typeConfig = CHANGE_TYPE_CONFIG[change.changeType] || CHANGE_TYPE_CONFIG.context
   const isAccepted = change.status === 'accepted'
   const isRejected = change.status === 'rejected'
@@ -55,7 +57,7 @@ export default function DiffItem({ change, time, onAccept, onReject }: DiffItemP
         <div className="flex items-center gap-2">
           <span className="text-xs font-mono text-muted-foreground">{time}</span>
           <Badge variant="outline" className={typeConfig.className}>
-            {typeConfig.label}
+            {t(typeConfig.labelKey)}
           </Badge>
         </div>
         {!isPending && (
@@ -63,7 +65,7 @@ export default function DiffItem({ change, time, onAccept, onReject }: DiffItemP
             'text-xs font-medium',
             isAccepted ? 'text-emerald-400' : 'text-red-400'
           )}>
-            {isAccepted ? 'Akzeptiert' : 'Abgelehnt'}
+            {isAccepted ? t('diffPreview.statusAccepted') : t('diffPreview.statusRejected')}
           </span>
         )}
       </div>
@@ -107,7 +109,7 @@ export default function DiffItem({ change, time, onAccept, onReject }: DiffItemP
             className="flex-1 bg-emerald-600/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-600/40 hover:text-emerald-200"
           >
             <Check className="w-3.5 h-3.5" />
-            Akzeptieren
+            {t('diffPreview.accept')}
           </Button>
           <Button
             onClick={onReject}
@@ -116,7 +118,7 @@ export default function DiffItem({ change, time, onAccept, onReject }: DiffItemP
             className="flex-1 bg-red-600/20 text-red-300 border-red-500/30 hover:bg-red-600/40 hover:text-red-200"
           >
             <X className="w-3.5 h-3.5" />
-            Ablehnen
+            {t('diffPreview.reject')}
           </Button>
         </div>
       )}
@@ -130,7 +132,7 @@ export default function DiffItem({ change, time, onAccept, onReject }: DiffItemP
           className="text-muted-foreground hover:text-foreground"
         >
           <Undo2 className="w-3.5 h-3.5" />
-          Rückgängig
+          {t('diffPreview.undo')}
         </Button>
       )}
     </Card>

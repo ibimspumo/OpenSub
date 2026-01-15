@@ -79,6 +79,9 @@ interface UIState {
   // Export Dialog actions
   setShowExportDialog: (show: boolean) => void
   setExportSettings: (settings: ExportSettings | null) => void
+
+  // Reset playback state (for new/load project)
+  resetPlaybackState: () => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -161,5 +164,15 @@ export const useUIStore = create<UIState>((set) => ({
 
   // Export Dialog actions
   setShowExportDialog: (showExportDialog) => set({ showExportDialog }),
-  setExportSettings: (exportSettings) => set({ exportSettings })
+  setExportSettings: (exportSettings) => set({ exportSettings }),
+
+  // Reset playback state (for new/load project)
+  resetPlaybackState: () =>
+    set({
+      isPlaying: false,
+      currentTime: 0,
+      isScrubbing: false,
+      selectedSubtitleId: null,
+      timelineScroll: 0
+    })
 }))

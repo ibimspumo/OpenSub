@@ -1,4 +1,5 @@
 import { useMemo, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Upload, Film } from 'lucide-react'
 import { useProjectStore } from '../../store/projectStore'
 import { useUIStore } from '../../store/uiStore'
@@ -38,6 +39,7 @@ interface ExportDialogProps {
 }
 
 export default function ExportDialog({ onExport }: ExportDialogProps) {
+  const { t } = useTranslation()
   const { project } = useProjectStore()
   const { showExportDialog, setShowExportDialog, exportSettings, setExportSettings } = useUIStore()
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -141,10 +143,10 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold flex items-center gap-2">
             <Film className="h-5 w-5 text-primary" />
-            Video exportieren
+            {t('export.title')}
           </DialogTitle>
           <DialogDescription>
-            Waehle Aufloesung und Qualitaet fuer den Export
+            {t('export.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -195,7 +197,7 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
             {/* Filename */}
             <div className="space-y-2">
               <Label htmlFor="filename" className="text-xs font-medium text-muted-foreground">
-                Dateiname
+                {t('export.filename')}
               </Label>
               <Input
                 id="filename"
@@ -207,7 +209,7 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
 
             {/* Resolution */}
             <div className="space-y-2">
-              <Label className="text-xs font-medium text-muted-foreground">Aufloesung</Label>
+              <Label className="text-xs font-medium text-muted-foreground">{t('export.resolution')}</Label>
               <Select value={exportSettings.resolution.id} onValueChange={handleResolutionChange}>
                 <SelectTrigger className="h-9 bg-white/5 border-white/10">
                   <SelectValue />
@@ -219,7 +221,7 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
                         <span>{preset.label}</span>
                         {preset.id === sourceResolutionId && (
                           <span className="text-[10px] text-muted-foreground bg-white/10 px-1.5 py-0.5 rounded">
-                            Original
+                            {t('export.original')}
                           </span>
                         )}
                       </div>
@@ -231,7 +233,7 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
 
             {/* Quality */}
             <div className="space-y-2">
-              <Label className="text-xs font-medium text-muted-foreground">Qualitaet</Label>
+              <Label className="text-xs font-medium text-muted-foreground">{t('export.quality')}</Label>
               <Select value={exportSettings.quality} onValueChange={handleQualityChange}>
                 <SelectTrigger className="h-9 bg-white/5 border-white/10">
                   <SelectValue />
@@ -240,9 +242,9 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
                   {QUALITY_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       <div className="flex flex-col">
-                        <span>{option.label}</span>
+                        <span>{t(option.labelKey)}</span>
                         <span className="text-[10px] text-muted-foreground">
-                          {option.description}
+                          {t(option.descriptionKey)}
                         </span>
                       </div>
                     </SelectItem>
@@ -256,24 +258,24 @@ export default function ExportDialog({ onExport }: ExportDialogProps) {
         {/* File size estimate */}
         <Separator className="bg-white/10" />
         <div className="flex items-center justify-between py-1">
-          <span className="text-sm text-muted-foreground">Geschaetzte Dateigroesse</span>
+          <span className="text-sm text-muted-foreground">{t('export.estimatedSize')}</span>
           <span className="text-lg font-semibold tabular-nums">~{formatFileSize(estimatedSize)}</span>
         </div>
 
         {/* Resolution change warning */}
         {isResolutionChanged && (
           <p className="text-xs text-amber-400/80 bg-amber-500/10 rounded-lg px-3 py-2">
-            Die Aufloesung unterscheidet sich vom Original. Das Video wird skaliert.
+            {t('export.resolutionWarning')}
           </p>
         )}
 
         <DialogFooter className="gap-3 sm:gap-3">
           <Button variant="outline" onClick={handleClose} className="flex-1 sm:flex-none">
-            Abbrechen
+            {t('common.cancel')}
           </Button>
           <Button onClick={handleExport} className="flex-1 sm:flex-none min-w-[140px]">
             <Upload className="h-4 w-4 mr-2" />
-            Exportieren
+            {t('titleBar.exportVideo')}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -21,6 +21,7 @@ import type {
   WordTimingRequest,
   WordTimingResult,
   AppSettings,
+  AppLanguage,
   ModelInfo,
   DebugLogEntry,
   DebugAppStatus
@@ -262,7 +263,10 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_HAS_ENV_API_KEY),
 
     getApiKey: (): Promise<string | undefined> =>
-      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_API_KEY)
+      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_API_KEY),
+
+    getSystemLanguage: (): Promise<AppLanguage> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_SYSTEM_LANGUAGE)
   },
 
   // ============================================
@@ -414,6 +418,7 @@ declare global {
         set: (settings: Partial<AppSettings>) => Promise<void>
         hasEnvApiKey: () => Promise<boolean>
         getApiKey: () => Promise<string | undefined>
+        getSystemLanguage: () => Promise<AppLanguage>
       }
       models: {
         list: () => Promise<ModelInfo[]>

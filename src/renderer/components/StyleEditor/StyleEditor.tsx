@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { parseColor } from 'react-aria-components'
 import { useProjectStore } from '../../store/projectStore'
 import { useUIStore } from '../../store/uiStore'
@@ -6,9 +7,6 @@ import type { AnimationType, SubtitlePosition, SubtitleStyle, FontWeight, BoxPad
 import {
   DEFAULT_SUBTITLE_STYLE,
   COLOR_PRESETS,
-  SLIDER_RANGES,
-  POSITION_OPTIONS,
-  ANIMATION_OPTIONS,
   UI_CONSTANTS
 } from '../../../shared/types'
 import StyleProfileSelector from './StyleProfileSelector'
@@ -217,6 +215,7 @@ function PremiumColorPicker({
   onChange,
   presets = ['#FFFFFF', '#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD']
 }: PremiumColorPickerProps) {
+  const { t } = useTranslation()
   // Ensure we have a valid hex color value, fallback to white if undefined/invalid
   const safeValue = useMemo(() => {
     if (!value || typeof value !== 'string') return '#FFFFFF'
@@ -303,7 +302,7 @@ function PremiumColorPicker({
               {/* Hex Input */}
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                  Hex
+                  {t('styleEditor.hex')}
                 </Label>
                 <Input
                   value={hexInput}
@@ -421,9 +420,19 @@ interface BoxPaddingInputProps {
   label: string
   value: BoxPadding
   onChange: (value: BoxPadding) => void
+  i18n: {
+    topLabel: string
+    bottomLabel: string
+    leftLabel: string
+    rightLabel: string
+    unlinkValues: string
+    linkValues: string
+    allSidesSynced: string
+    individualValues: string
+  }
 }
 
-function BoxPaddingInput({ label, value, onChange }: BoxPaddingInputProps) {
+function BoxPaddingInput({ label, value, onChange, i18n }: BoxPaddingInputProps) {
   const [isLinked, setIsLinked] = useState(
     value.top === value.right && value.right === value.bottom && value.bottom === value.left
   )
@@ -532,7 +541,7 @@ function BoxPaddingInput({ label, value, onChange }: BoxPaddingInputProps) {
                     ? 'bg-primary/20 text-primary hover:bg-primary/30'
                     : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
                 )}
-                title={isLinked ? 'Werte entkoppeln' : 'Werte koppeln'}
+                title={isLinked ? i18n.unlinkValues : i18n.linkValues}
               >
                 {isLinked ? (
                   <Link className="w-3.5 h-3.5" />
@@ -570,15 +579,15 @@ function BoxPaddingInput({ label, value, onChange }: BoxPaddingInputProps) {
         </div>
 
         {/* Labels */}
-        <div className="absolute top-1 left-2 text-[8px] text-muted-foreground/60 uppercase tracking-wider">Oben</div>
-        <div className="absolute bottom-1 left-2 text-[8px] text-muted-foreground/60 uppercase tracking-wider">Unten</div>
-        <div className="absolute top-1/2 -translate-y-1/2 left-1 text-[8px] text-muted-foreground/60 uppercase tracking-wider rotate-[-90deg] origin-center">Links</div>
-        <div className="absolute top-1/2 -translate-y-1/2 right-1 text-[8px] text-muted-foreground/60 uppercase tracking-wider rotate-90 origin-center">Rechts</div>
+        <div className="absolute top-1 left-2 text-[8px] text-muted-foreground/60 uppercase tracking-wider">{i18n.topLabel}</div>
+        <div className="absolute bottom-1 left-2 text-[8px] text-muted-foreground/60 uppercase tracking-wider">{i18n.bottomLabel}</div>
+        <div className="absolute top-1/2 -translate-y-1/2 left-1 text-[8px] text-muted-foreground/60 uppercase tracking-wider rotate-[-90deg] origin-center">{i18n.leftLabel}</div>
+        <div className="absolute top-1/2 -translate-y-1/2 right-1 text-[8px] text-muted-foreground/60 uppercase tracking-wider rotate-90 origin-center">{i18n.rightLabel}</div>
       </div>
 
       {/* Helper text */}
       <p className="text-[9px] text-muted-foreground text-center">
-        {isLinked ? 'Alle Seiten synchronisiert' : 'Individuelle Werte pro Seite'}
+        {isLinked ? i18n.allSidesSynced : i18n.individualValues}
       </p>
     </div>
   )
@@ -586,6 +595,7 @@ function BoxPaddingInput({ label, value, onChange }: BoxPaddingInputProps) {
 
 // AI Analysis Button Component
 function AIAnalysisButton() {
+  const { t } = useTranslation()
   const { project } = useProjectStore()
   const { isAnalyzing, setIsAnalyzing, setAnalysisProgress, setPendingChanges, setShowDiffPreview } = useUIStore()
 
@@ -593,7 +603,7 @@ function AIAnalysisButton() {
     if (!project || project.subtitles.length === 0) return
 
     setIsAnalyzing(true)
-    setAnalysisProgress({ stage: 'extracting', percent: 0, message: 'Starte Analyse...' })
+    setAnalysisProgress({ stage: 'extracting', percent: 0, message: t('analysis.startAnalysis') })
 
     try {
       // API key is read from .env in the main process
@@ -620,7 +630,7 @@ function AIAnalysisButton() {
       setAnalysisProgress({
         stage: 'error',
         percent: 0,
-        message: error instanceof Error ? error.message : 'Analyse fehlgeschlagen'
+        message: error instanceof Error ? error.message : t('analysis.analysisFailed')
       })
     }
   }
@@ -635,16 +645,17 @@ function AIAnalysisButton() {
         className="w-full h-auto px-4 py-3 bg-gradient-to-r from-violet-600 to-purple-500 text-white shadow-lg shadow-violet-500/25 hover:from-violet-500 hover:to-purple-400 hover:shadow-xl hover:shadow-violet-500/30 active:scale-[0.98] transition-all duration-200"
       >
         <Lightbulb className="w-5 h-5" />
-        KI-Korrektur starten
+        {t('styleEditor.aiCorrection')}
       </Button>
       <p className="text-[10px] text-muted-foreground text-center mt-2">
-        Gemini analysiert Audio und korrigiert Fehler
+        {t('styleEditor.aiCorrectionHint')}
       </p>
     </div>
   )
 }
 
 export default function StyleEditor() {
+  const { t } = useTranslation()
   const { project, updateStyle } = useProjectStore()
 
   const handleUpdateStyle = useCallback(
@@ -713,8 +724,8 @@ export default function StyleEditor() {
           <Sparkles className="w-4 h-4 text-primary" />
         </div>
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Stil bearbeiten</h2>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Anpassen der Untertitel-Darstellung</p>
+          <h2 className="text-sm font-semibold text-foreground">{t('styleEditor.title')}</h2>
+          <p className="text-[10px] text-muted-foreground mt-0.5">{t('styleEditor.description')}</p>
         </div>
       </div>
 
@@ -732,7 +743,7 @@ export default function StyleEditor() {
       {/* Collapsible sections */}
       <div className="space-y-3">
         {/* Typography Section */}
-        <CollapsibleSection title="Typografie" icon={<Type className="w-4 h-4" />} defaultOpen={true}>
+        <CollapsibleSection title={t('styleEditor.typography')} icon={<Type className="w-4 h-4" />} defaultOpen={true}>
           <FontSelector
             value={style.fontFamily}
             onChange={(value) => {
@@ -759,7 +770,7 @@ export default function StyleEditor() {
 
           <div className="grid grid-cols-2 gap-3">
             <PremiumSlider
-              label="Groesse"
+              label={t('styleEditor.fontSize')}
               value={style.fontSize}
               min={24}
               max={144}
@@ -768,7 +779,7 @@ export default function StyleEditor() {
             />
 
             <PremiumSelect
-              label="Gewicht"
+              label={t('styleEditor.fontWeight')}
               value={String(style.fontWeight)}
               options={weightOptions}
               onChange={async (value) => {
@@ -783,7 +794,7 @@ export default function StyleEditor() {
           {/* Uppercase Toggle */}
           <div className="flex items-center justify-between">
             <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-              Versalien (Grossbuchstaben)
+              {t('styleEditor.uppercase')}
             </Label>
             <Switch
               checked={style.textTransform === 'uppercase'}
@@ -793,17 +804,17 @@ export default function StyleEditor() {
         </CollapsibleSection>
 
         {/* Colors Section */}
-        <CollapsibleSection title="Farben" icon={<Palette className="w-4 h-4" />} defaultOpen={true}>
+        <CollapsibleSection title={t('styleEditor.colors')} icon={<Palette className="w-4 h-4" />} defaultOpen={true}>
           <div className="grid grid-cols-2 gap-3">
             <PremiumColorPicker
-              label="Textfarbe"
+              label={t('styleEditor.textColor')}
               value={style.color}
               onChange={(value) => handleUpdateStyle({ color: value })}
               presets={COLOR_PRESETS.text}
             />
 
             <PremiumColorPicker
-              label="Highlight"
+              label={t('styleEditor.highlightColor')}
               value={style.highlightColor}
               onChange={(value) => handleUpdateStyle({ highlightColor: value })}
               presets={COLOR_PRESETS.highlight}
@@ -813,7 +824,7 @@ export default function StyleEditor() {
           {/* Upcoming color - only shown for karaoke animation */}
           {style.animation === 'karaoke' && (
             <PremiumColorPicker
-              label="Kommende Woerter"
+              label={t('styleEditor.upcomingWords')}
               value={style.upcomingColor}
               onChange={(value) => handleUpdateStyle({ upcomingColor: value })}
               presets={COLOR_PRESETS.upcoming}
@@ -822,14 +833,14 @@ export default function StyleEditor() {
 
           <div className="grid grid-cols-2 gap-3">
             <PremiumColorPicker
-              label="Umrissfarbe"
+              label={t('styleEditor.outlineColor')}
               value={style.outlineColor}
               onChange={(value) => handleUpdateStyle({ outlineColor: value })}
               presets={COLOR_PRESETS.outline}
             />
 
             <PremiumSlider
-              label="Umriss-Breite"
+              label={t('styleEditor.outlineWidth')}
               value={style.outlineWidth}
               min={0}
               max={50}
@@ -841,18 +852,22 @@ export default function StyleEditor() {
         </CollapsibleSection>
 
         {/* Position Section */}
-        <CollapsibleSection title="Position" icon={<Move className="w-4 h-4" />} defaultOpen={false}>
+        <CollapsibleSection title={t('styleEditor.position')} icon={<Move className="w-4 h-4" />} defaultOpen={false}>
           <PremiumButtonGroup
-            label="Vertikale Position"
+            label={t('styleEditor.verticalPosition')}
             value={style.position}
-            options={POSITION_OPTIONS}
+            options={[
+              { value: 'top', label: t('styleEditor.positionTop') },
+              { value: 'center', label: t('styleEditor.positionCenter') },
+              { value: 'bottom', label: t('styleEditor.positionBottom') }
+            ]}
             onChange={(value) => handleUpdateStyle({ position: value as SubtitlePosition })}
             columns={3}
           />
 
           {/* Max Width Slider for text box */}
           <PremiumSlider
-            label="Maximale Breite"
+            label={t('styleEditor.maxWidth')}
             value={Math.round((style.maxWidth ?? 0.85) * 100)}
             min={50}
             max={100}
@@ -884,17 +899,23 @@ export default function StyleEditor() {
               </div>
             </div>
             <p className="text-[9px] text-muted-foreground text-center mt-2">
-              Vorschau der Textbox-Breite und Position
+              {t('styleEditor.positionPreview')}
             </p>
           </div>
         </CollapsibleSection>
 
         {/* Animation Section */}
-        <CollapsibleSection title="Animation" icon={<Play className="w-4 h-4" />} defaultOpen={false}>
+        <CollapsibleSection title={t('styleEditor.animation')} icon={<Play className="w-4 h-4" />} defaultOpen={false}>
           <PremiumButtonGroup
-            label="Animationstyp"
+            label={t('styleEditor.animationType')}
             value={style.animation}
-            options={ANIMATION_OPTIONS}
+            options={[
+              { value: 'karaoke', label: t('styleEditor.animationKaraoke') },
+              { value: 'appear', label: t('styleEditor.animationAppear') },
+              { value: 'fade', label: t('styleEditor.animationFade') },
+              { value: 'scale', label: t('styleEditor.animationScale') },
+              { value: 'none', label: t('styleEditor.animationNone') }
+            ]}
             onChange={(value) => handleUpdateStyle({ animation: value as AnimationType })}
             columns={2}
           />
@@ -906,11 +927,11 @@ export default function StyleEditor() {
                 <Info className="w-3 h-3 text-primary" />
               </div>
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                {style.animation === 'karaoke' && 'Woerter werden einzeln hervorgehoben, waehrend sie gesprochen werden.'}
-                {style.animation === 'appear' && 'Untertitel erscheinen sofort ohne Uebergang.'}
-                {style.animation === 'fade' && 'Sanftes Ein- und Ausblenden der Untertitel.'}
-                {style.animation === 'scale' && 'Untertitel werden beim Erscheinen leicht vergroessert.'}
-                {style.animation === 'none' && 'Keine Animation - Untertitel werden statisch angezeigt.'}
+                {style.animation === 'karaoke' && t('styleEditor.animationKaraokeDesc')}
+                {style.animation === 'appear' && t('styleEditor.animationAppearDesc')}
+                {style.animation === 'fade' && t('styleEditor.animationFadeDesc')}
+                {style.animation === 'scale' && t('styleEditor.animationScaleDesc')}
+                {style.animation === 'none' && t('styleEditor.animationNoneDesc')}
               </p>
             </div>
           </div>
@@ -921,7 +942,7 @@ export default function StyleEditor() {
               {/* Karaoke Box Toggle */}
               <div className="flex items-center justify-between">
                 <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                  Karaoke-Box
+                  {t('styleEditor.karaokeBox')}
                 </Label>
                 <Switch
                   checked={style.karaokeBoxEnabled}
@@ -933,7 +954,7 @@ export default function StyleEditor() {
               {style.karaokeBoxEnabled && (
                 <div className="space-y-3 animate-fade-in">
                   <PremiumColorPicker
-                    label="Box-Farbe"
+                    label={t('styleEditor.karaokeBoxColor')}
                     value={style.karaokeBoxColor}
                     onChange={(value) => handleUpdateStyle({ karaokeBoxColor: value })}
                     presets={COLOR_PRESETS.karaokeBox}
@@ -941,13 +962,23 @@ export default function StyleEditor() {
 
                   {/* Individual padding control */}
                   <BoxPaddingInput
-                    label="Innenabstand"
+                    label={t('styleEditor.karaokeBoxPadding')}
                     value={style.karaokeBoxPadding}
                     onChange={(value) => handleUpdateStyle({ karaokeBoxPadding: value })}
+                    i18n={{
+                      topLabel: t('styleEditor.paddingTop'),
+                      bottomLabel: t('styleEditor.paddingBottom'),
+                      leftLabel: t('styleEditor.paddingLeft'),
+                      rightLabel: t('styleEditor.paddingRight'),
+                      unlinkValues: t('styleEditor.unlinkValues'),
+                      linkValues: t('styleEditor.linkValues'),
+                      allSidesSynced: t('styleEditor.allSidesSynced'),
+                      individualValues: t('styleEditor.individualValues')
+                    }}
                   />
 
                   <PremiumSlider
-                    label="Ecken-Radius"
+                    label={t('styleEditor.karaokeBoxRadius')}
                     value={style.karaokeBoxBorderRadius}
                     min={0}
                     max={300}
@@ -959,7 +990,7 @@ export default function StyleEditor() {
                   {/* Karaoke Box Preview */}
                   <div className="p-3 rounded-lg bg-muted/40 border border-border">
                     <div className="flex items-center justify-center py-3">
-                      <span className="text-sm text-muted-foreground mr-1">Beispiel</span>
+                      <span className="text-sm text-muted-foreground mr-1">{t('styleEditor.exampleText')}</span>
                       <span
                         className="text-sm font-bold px-1"
                         style={{
@@ -972,12 +1003,12 @@ export default function StyleEditor() {
                           borderRadius: `${style.karaokeBoxBorderRadius}px`
                         }}
                       >
-                        Wort
+                        {t('styleEditor.exampleWord')}
                       </span>
                       <span className="text-sm text-muted-foreground ml-1">Text</span>
                     </div>
                     <p className="text-[9px] text-muted-foreground text-center">
-                      Vorschau der Karaoke-Box
+                      {t('styleEditor.karaokeBoxPreview')}
                     </p>
                   </div>
                 </div>
@@ -986,7 +1017,7 @@ export default function StyleEditor() {
               {/* Karaoke Glow Toggle */}
               <div className="flex items-center justify-between pt-3 border-t border-border">
                 <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                  Karaoke-Glow
+                  {t('styleEditor.karaokeGlow')}
                 </Label>
                 <Switch
                   checked={style.karaokeGlowEnabled}
@@ -998,14 +1029,14 @@ export default function StyleEditor() {
               {style.karaokeGlowEnabled && (
                 <div className="space-y-3 animate-fade-in">
                   <PremiumColorPicker
-                    label="Glow-Farbe"
+                    label={t('styleEditor.karaokeGlowColor')}
                     value={style.karaokeGlowColor}
                     onChange={(value) => handleUpdateStyle({ karaokeGlowColor: value })}
                     presets={COLOR_PRESETS.highlight}
                   />
 
                   <PremiumSlider
-                    label="Glow-Transparenz"
+                    label={t('styleEditor.karaokeGlowOpacity')}
                     value={style.karaokeGlowOpacity}
                     min={0}
                     max={100}
@@ -1015,7 +1046,7 @@ export default function StyleEditor() {
                   />
 
                   <PremiumSlider
-                    label="Glow-Unschaerfe"
+                    label={t('styleEditor.karaokeGlowBlur')}
                     value={style.karaokeGlowBlur}
                     min={0}
                     max={50}
@@ -1027,7 +1058,7 @@ export default function StyleEditor() {
                   {/* Karaoke Glow Preview */}
                   <div className="p-3 rounded-lg bg-muted/40 border border-border">
                     <div className="flex items-center justify-center py-3">
-                      <span className="text-sm text-muted-foreground mr-1">Beispiel</span>
+                      <span className="text-sm text-muted-foreground mr-1">{t('styleEditor.exampleText')}</span>
                       <span
                         className="text-sm font-bold px-2"
                         style={{
@@ -1035,12 +1066,12 @@ export default function StyleEditor() {
                           textShadow: `0 0 ${style.karaokeGlowBlur}px ${style.karaokeGlowColor}${Math.round((style.karaokeGlowOpacity / 100) * 255).toString(16).padStart(2, '0')}`
                         }}
                       >
-                        Wort
+                        {t('styleEditor.exampleWord')}
                       </span>
                       <span className="text-sm text-muted-foreground ml-1">Text</span>
                     </div>
                     <p className="text-[9px] text-muted-foreground text-center">
-                      Vorschau des Karaoke-Glows
+                      {t('styleEditor.karaokeGlowPreview')}
                     </p>
                   </div>
                 </div>
@@ -1050,16 +1081,16 @@ export default function StyleEditor() {
         </CollapsibleSection>
 
         {/* Effects Section */}
-        <CollapsibleSection title="Effekte" icon={<Sparkles className="w-4 h-4" />} defaultOpen={false}>
+        <CollapsibleSection title={t('styleEditor.effects')} icon={<Sparkles className="w-4 h-4" />} defaultOpen={false}>
           <PremiumColorPicker
-            label="Schattenfarbe"
+            label={t('styleEditor.shadowColor')}
             value={style.shadowColor}
             onChange={(value) => handleUpdateStyle({ shadowColor: value })}
             presets={COLOR_PRESETS.shadow}
           />
 
           <PremiumSlider
-            label="Schatten-Transparenz"
+            label={t('styleEditor.shadowOpacity')}
             value={style.shadowOpacity}
             min={0}
             max={100}
@@ -1069,7 +1100,7 @@ export default function StyleEditor() {
           />
 
           <PremiumSlider
-            label="Schatten-Unschaerfe"
+            label={t('styleEditor.shadowBlur')}
             value={style.shadowBlur}
             min={0}
             max={100}
@@ -1080,7 +1111,7 @@ export default function StyleEditor() {
 
           <div className="grid grid-cols-2 gap-3">
             <PremiumSlider
-              label="Versatz X"
+              label={t('styleEditor.shadowOffsetX')}
               value={style.shadowOffsetX ?? 0}
               min={-50}
               max={50}
@@ -1090,7 +1121,7 @@ export default function StyleEditor() {
             />
 
             <PremiumSlider
-              label="Versatz Y"
+              label={t('styleEditor.shadowOffsetY')}
               value={style.shadowOffsetY ?? 0}
               min={-50}
               max={50}
@@ -1111,11 +1142,11 @@ export default function StyleEditor() {
                   WebkitTextStroke: `${Math.min(style.outlineWidth, 2)}px ${style.outlineColor}`
                 }}
               >
-                Beispieltext
+                {t('styleEditor.exampleText')}
               </span>
             </div>
             <p className="text-[9px] text-muted-foreground text-center">
-              Live-Vorschau des Schattens
+              {t('styleEditor.shadowPreview')}
             </p>
           </div>
         </CollapsibleSection>
@@ -1164,7 +1195,7 @@ export default function StyleEditor() {
           className="w-full bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <RotateCcw className="w-3.5 h-3.5" />
-          Auf Standard zuruecksetzen
+          {t('styleEditor.resetToDefault')}
         </Button>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import Store from 'electron-store'
 import { DEFAULT_MODEL_ID } from '../../shared/types'
-import type { AppSettings } from '../../shared/types'
+import type { AppSettings, AppLanguage } from '../../shared/types'
 
 // Schema for type-safe electron-store
 const schema = {
@@ -9,6 +9,10 @@ const schema = {
   },
   selectedModelId: {
     type: 'string' as const
+  },
+  language: {
+    type: 'string' as const,
+    enum: ['de', 'en']
   }
 }
 
@@ -33,7 +37,8 @@ class SettingsService {
   getSettings(): AppSettings {
     return {
       openRouterApiKey: this.store.get('openRouterApiKey'),
-      selectedModelId: this.store.get('selectedModelId')
+      selectedModelId: this.store.get('selectedModelId'),
+      language: this.store.get('language')
     }
   }
 
@@ -57,6 +62,10 @@ class SettingsService {
         this.store.set('selectedModelId', settings.selectedModelId)
       }
     }
+
+    if (settings.language !== undefined) {
+      this.store.set('language', settings.language)
+    }
   }
 
   /**
@@ -72,6 +81,29 @@ class SettingsService {
    */
   setSelectedModelId(modelId: string): void {
     this.store.set('selectedModelId', modelId)
+  }
+
+  /**
+   * Get the user's language preference.
+   * Returns undefined if no language preference is set (first launch).
+   */
+  getLanguage(): AppLanguage | undefined {
+    return this.store.get('language')
+  }
+
+  /**
+   * Set the user's language preference.
+   */
+  setLanguage(language: AppLanguage): void {
+    this.store.set('language', language)
+  }
+
+  /**
+   * Check if a language preference has been set.
+   * Used to determine if this is the first launch and system language detection is needed.
+   */
+  hasLanguagePreference(): boolean {
+    return this.store.has('language')
   }
 
   /**

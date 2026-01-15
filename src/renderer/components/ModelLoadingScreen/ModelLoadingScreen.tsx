@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Brain, Download, Terminal, ChevronDown, ChevronUp } from 'lucide-react'
 import type { TranscriptionProgress } from '../../../shared/types'
 import {
@@ -18,6 +19,7 @@ interface ModelLoadingScreenProps {
 }
 
 export default function ModelLoadingScreen({ progress, isFirstRun = false }: ModelLoadingScreenProps) {
+  const { t } = useTranslation()
   const percent = progress?.percent ?? 0
   const [showDebug, setShowDebug] = useState(false)
   const [debugLogs, setDebugLogs] = useState<string[]>([])
@@ -55,9 +57,9 @@ export default function ModelLoadingScreen({ progress, isFirstRun = false }: Mod
   // Customize message based on first-run status
   const message = useMemo(() => {
     if (progress?.message) return progress.message
-    if (isFirstRun) return 'KI-Modell wird heruntergeladen...'
-    return 'KI-Modell wird geladen...'
-  }, [progress?.message, isFirstRun])
+    if (isFirstRun) return t('modelLoading.downloading')
+    return t('modelLoading.loading')
+  }, [progress?.message, isFirstRun, t])
 
   // Memoize the progress bar width to prevent unnecessary re-renders
   const progressWidth = useMemo(() => {
@@ -132,7 +134,7 @@ export default function ModelLoadingScreen({ progress, isFirstRun = false }: Mod
 
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">
-              {progressWidth > 0 ? 'Fortschritt' : 'Initialisiere...'}
+              {progressWidth > 0 ? t('common.progress') : t('common.initializing')}
             </span>
             <div className="flex items-center gap-3">
               <span className="font-mono text-muted-foreground/70">
@@ -150,15 +152,15 @@ export default function ModelLoadingScreen({ progress, isFirstRun = false }: Mod
           <div className="space-y-2 mt-2">
             <div className="flex items-center justify-center gap-2 text-xs text-violet-400">
               <Download className="h-3 w-3" />
-              <span>Erster Start - Modell wird heruntergeladen (~2.9 GB)</span>
+              <span>{t('modelLoading.firstRun')}</span>
             </div>
             <p className="text-center text-xs text-muted-foreground/60">
-              Dies ist nur beim ersten Start noetig und kann einige Minuten dauern.
+              {t('modelLoading.firstRunHint')}
             </p>
           </div>
         ) : (
           <p className="text-center text-xs text-muted-foreground/60 mt-2">
-            Dieser Vorgang kann beim ersten Start einige Minuten dauern.
+            {t('modelLoading.startupHint')}
           </p>
         )}
 
@@ -171,7 +173,7 @@ export default function ModelLoadingScreen({ progress, isFirstRun = false }: Mod
             className="text-xs text-muted-foreground/60 hover:text-muted-foreground gap-1"
           >
             <Terminal className="h-3 w-3" />
-            Debug-Ausgabe
+            {t('modelLoading.debugOutput')}
             {showDebug ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </Button>
         </div>
@@ -180,9 +182,9 @@ export default function ModelLoadingScreen({ progress, isFirstRun = false }: Mod
         {showDebug && (
           <div className="mt-2 border border-border/50 rounded-lg overflow-hidden">
             <div className="bg-black/30 px-3 py-1.5 border-b border-border/50 flex items-center justify-between">
-              <span className="text-xs text-muted-foreground font-mono">Python Service Logs</span>
+              <span className="text-xs text-muted-foreground font-mono">{t('modelLoading.pythonLogs')}</span>
               <span className="text-xs text-muted-foreground/50 font-mono">
-                {debugLogs.length} Zeilen
+                {debugLogs.length} {t('modelLoading.lines')}
               </span>
             </div>
             <div
@@ -191,7 +193,7 @@ export default function ModelLoadingScreen({ progress, isFirstRun = false }: Mod
             >
               {debugLogs.length === 0 ? (
                 <p className="text-muted-foreground/40 italic">
-                  Warte auf Logs vom Python-Service...
+                  {t('modelLoading.waitingForLogs')}
                 </p>
               ) : (
                 debugLogs.map((log, index) => (
