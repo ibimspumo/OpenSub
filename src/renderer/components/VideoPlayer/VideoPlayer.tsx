@@ -35,9 +35,12 @@ export default function VideoPlayer() {
   }, [project?.resolution])
 
   // Register video element with controller
+  // IMPORTANT: Empty dependency array to prevent video element from being
+  // unmounted/remounted on every context update. registerVideo is stable.
   const videoCallbackRef = useCallback((video: HTMLVideoElement | null) => {
     controller.registerVideo(video)
-  }, [controller])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Handle play/pause with animation
   const handleTogglePlay = useCallback(() => {

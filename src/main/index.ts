@@ -1,6 +1,7 @@
-import { app, shell, BrowserWindow, ipcMain, dialog, protocol, net } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, protocol } from 'electron'
 import { join } from 'path'
-import { pathToFileURL } from 'url'
+import { createReadStream, statSync } from 'fs'
+import { lookup } from 'mime-types'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { config } from 'dotenv'
 import { registerWhisperHandlers, cleanupWhisperService, initializeWhisperServiceAtStartup } from './ipc/whisper-handlers'
@@ -74,10 +75,92 @@ app.whenReady().then(() => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.opensub.editor')
 
-  // Register protocol handler for local media files
-  protocol.handle('media', (request) => {
+  // Register protocol handler for local media files with Range request support
+  // This is CRITICAL for video seeking to work properly
+  protocol.handle('media', async (request) => {
     const filePath = decodeURIComponent(request.url.replace('media://', ''))
-    return net.fetch(pathToFileURL(filePath).toString())
+
+    try {
+      const stat = statSync(filePath)
+      const fileSize = stat.size
+      const mimeType = lookup(filePath) || 'application/octet-stream'
+
+      // Check for Range header (required for video seeking)
+      const rangeHeader = request.headers.get('range')
+
+      if (rangeHeader) {
+        // Parse Range header: "bytes=start-end" or "bytes=start-"
+        const match = rangeHeader.match(/bytes=(\d+)-(\d*)/)
+        if (match) {
+          const start = parseInt(match[1], 10)
+          const end = match[2] ? parseInt(match[2], 10) : fileSize - 1
+          const chunkSize = end - start + 1
+
+          // Create a stream for the requested range
+          const stream = createReadStream(filePath, { start, end })
+
+          // Convert Node.js stream to Web ReadableStream
+          const webStream = new ReadableStream({
+            start(controller) {
+              stream.on('data', (chunk: Buffer) => {
+                controller.enqueue(new Uint8Array(chunk))
+              })
+              stream.on('end', () => {
+                controller.close()
+              })
+              stream.on('error', (err) => {
+                controller.error(err)
+              })
+            },
+            cancel() {
+              stream.destroy()
+            }
+          })
+
+          // Return 206 Partial Content response
+          return new Response(webStream, {
+            status: 206,
+            headers: {
+              'Content-Type': mimeType,
+              'Content-Length': String(chunkSize),
+              'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+              'Accept-Ranges': 'bytes'
+            }
+          })
+        }
+      }
+
+      // No Range header - return full file
+      const stream = createReadStream(filePath)
+      const webStream = new ReadableStream({
+        start(controller) {
+          stream.on('data', (chunk: Buffer) => {
+            controller.enqueue(new Uint8Array(chunk))
+          })
+          stream.on('end', () => {
+            controller.close()
+          })
+          stream.on('error', (err) => {
+            controller.error(err)
+          })
+        },
+        cancel() {
+          stream.destroy()
+        }
+      })
+
+      return new Response(webStream, {
+        status: 200,
+        headers: {
+          'Content-Type': mimeType,
+          'Content-Length': String(fileSize),
+          'Accept-Ranges': 'bytes'
+        }
+      })
+    } catch (error) {
+      console.error('Media protocol error:', error)
+      return new Response('File not found', { status: 404 })
+    }
   })
 
   // Default open or close DevTools by F12 in development
