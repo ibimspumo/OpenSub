@@ -1,5 +1,8 @@
 import { useMemo } from 'react'
+import { Loader2 } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore'
+import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 
 /**
  * Format relative time since last save
@@ -26,40 +29,53 @@ export default function SaveIndicator() {
     return null
   }
 
-  return (
-    <div className="flex items-center gap-1.5 text-xs">
-      {/* Status indicator dot */}
-      <div className="relative">
-        {saveStatus === 'saving' ? (
-          // Animated saving indicator
-          <div className="w-2 h-2 rounded-full bg-primary-400 animate-pulse" />
-        ) : saveStatus === 'saved' ? (
-          // Success indicator
-          <div className="w-2 h-2 rounded-full bg-green-400" />
-        ) : saveStatus === 'error' ? (
-          // Error indicator
-          <div className="w-2 h-2 rounded-full bg-red-400" />
-        ) : (
-          // Idle indicator (small dot)
-          <div className="w-1.5 h-1.5 rounded-full bg-dark-500" />
-        )}
-      </div>
+  const getStatusConfig = () => {
+    switch (saveStatus) {
+      case 'saving':
+        return {
+          variant: 'outline' as const,
+          className: 'bg-primary/20 text-primary border-primary/30',
+          icon: <Loader2 className="w-3 h-3 animate-spin" />,
+          text: 'Speichere...',
+        }
+      case 'saved':
+        return {
+          variant: 'outline' as const,
+          className: 'bg-green-500/20 text-green-400 border-green-500/30',
+          icon: <div className="w-2 h-2 rounded-full bg-green-400" />,
+          text: 'Gespeichert',
+        }
+      case 'error':
+        return {
+          variant: 'destructive' as const,
+          className: 'bg-red-500/20 text-red-400 border-red-500/30',
+          icon: <div className="w-2 h-2 rounded-full bg-red-400" />,
+          text: 'Fehler beim Speichern',
+        }
+      default:
+        return {
+          variant: 'secondary' as const,
+          className: 'bg-muted text-muted-foreground border-border',
+          icon: <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50" />,
+          text: lastSavedAt ? `Gespeichert ${timeAgo}` : '',
+        }
+    }
+  }
 
-      {/* Status text */}
-      <span
-        className={`
-          transition-colors duration-200
-          ${saveStatus === 'saving' ? 'text-primary-400' : ''}
-          ${saveStatus === 'saved' ? 'text-green-400' : ''}
-          ${saveStatus === 'error' ? 'text-red-400' : ''}
-          ${saveStatus === 'idle' ? 'text-dark-500' : ''}
-        `}
-      >
-        {saveStatus === 'saving' && 'Speichere...'}
-        {saveStatus === 'saved' && 'Gespeichert'}
-        {saveStatus === 'error' && 'Fehler beim Speichern'}
-        {saveStatus === 'idle' && lastSavedAt && `Gespeichert ${timeAgo}`}
-      </span>
-    </div>
+  const config = getStatusConfig()
+
+  if (!config.text) return null
+
+  return (
+    <Badge
+      variant={config.variant}
+      className={cn(
+        'gap-1.5 font-normal transition-colors duration-200',
+        config.className
+      )}
+    >
+      {config.icon}
+      {config.text}
+    </Badge>
   )
 }

@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import { parseColor } from 'react-aria-components'
 import { useProjectStore } from '../../store/projectStore'
 import { useUIStore } from '../../store/uiStore'
 import type { AnimationType, SubtitlePosition, SubtitleStyle, FontWeight } from '../../../shared/types'
@@ -6,6 +7,45 @@ import { DEFAULT_SUBTITLE_STYLE } from '../../../shared/types'
 import StyleProfileSelector from './StyleProfileSelector'
 import FontSelector from './FontSelector'
 import { getWeightOptions, getAvailableWeights } from '../../utils/fontLoader'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Slider } from '@/components/ui/slider'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from '@/components/ui/popover'
+import {
+  ColorPicker,
+  ColorArea,
+  ColorSlider,
+  ColorThumb,
+  SliderTrack,
+  ColorSwatch,
+  ColorSwatchPicker,
+  ColorSwatchPickerItem
+} from '@/components/ui/color'
+import { Input } from '@/components/ui/input'
+import {
+  ChevronDown,
+  Type,
+  Palette,
+  Move,
+  Play,
+  Sparkles,
+  RotateCcw,
+  Lightbulb,
+  Info
+} from 'lucide-react'
 
 // Collapsible section component with smooth animations
 interface CollapsibleSectionProps {
@@ -26,73 +66,55 @@ function CollapsibleSection({
   return (
     <div className={isOpen ? 'overflow-visible' : 'overflow-hidden'}>
       {/* Section header */}
-      <button
+      <Button
+        variant="ghost"
         onClick={() => setIsOpen(!isOpen)}
-        className={`
-          w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg
-          transition-all duration-200 ease-smooth group
-          ${isOpen
-            ? 'bg-white/[0.04] border border-white/[0.06]'
+        className={cn(
+          'w-full flex items-center gap-2.5 px-3 py-2.5 h-auto rounded-lg transition-all duration-200 group justify-start',
+          isOpen
+            ? 'bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.06]'
             : 'bg-transparent border border-transparent hover:bg-white/[0.03] hover:border-white/[0.04]'
-          }
-        `}
+        )}
       >
         {/* Icon container */}
         <div
-          className={`
-            flex items-center justify-center w-7 h-7 rounded-lg
-            transition-all duration-200
-            ${isOpen
-              ? 'bg-primary-500/15 text-primary-400'
-              : 'bg-white/[0.06] text-dark-400 group-hover:bg-white/[0.08] group-hover:text-dark-300'
-            }
-          `}
+          className={cn(
+            'flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200',
+            isOpen
+              ? 'bg-primary/15 text-primary'
+              : 'bg-white/[0.06] text-muted-foreground group-hover:bg-white/[0.08] group-hover:text-foreground/70'
+          )}
         >
           {icon}
         </div>
 
         {/* Title */}
         <span
-          className={`
-            text-xs font-semibold tracking-wide uppercase flex-1 text-left
-            transition-colors duration-200
-            ${isOpen ? 'text-dark-200' : 'text-dark-400 group-hover:text-dark-300'}
-          `}
+          className={cn(
+            'text-xs font-semibold tracking-wide uppercase flex-1 text-left transition-colors duration-200',
+            isOpen ? 'text-foreground/80' : 'text-muted-foreground group-hover:text-foreground/70'
+          )}
         >
           {title}
         </span>
 
         {/* Chevron indicator */}
-        <div
-          className={`
-            w-5 h-5 flex items-center justify-center
-            transition-transform duration-300 ease-spring
-            ${isOpen ? 'rotate-180' : 'rotate-0'}
-          `}
-        >
-          <svg
-            className={`
-              w-4 h-4 transition-colors duration-200
-              ${isOpen ? 'text-primary-400' : 'text-dark-500 group-hover:text-dark-400'}
-            `}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </button>
+        <ChevronDown
+          className={cn(
+            'h-4 w-4 transition-all duration-300',
+            isOpen ? 'rotate-180 text-primary' : 'rotate-0 text-muted-foreground group-hover:text-foreground/70'
+          )}
+        />
+      </Button>
 
       {/* Content with smooth height animation */}
       <div
-        className={`
-          transition-all duration-300 ease-smooth
-          ${isOpen
+        className={cn(
+          'transition-all duration-300 ease-out',
+          isOpen
             ? 'opacity-100 max-h-[1000px] mt-3'
             : 'opacity-0 max-h-0 mt-0 overflow-hidden'
-          }
-        `}
+        )}
       >
         <div className="space-y-3 px-1">
           {children}
@@ -102,7 +124,7 @@ function CollapsibleSection({
   )
 }
 
-// Premium slider component - commits value only on release to avoid excessive auto-saves
+// Premium slider component using ShadCN Slider - commits value only on release
 interface PremiumSliderProps {
   label: string
   value: number
@@ -133,79 +155,46 @@ function PremiumSlider({
     }
   }, [value])
 
-  const percentage = ((localValue - min) / (max - min)) * 100
+  const handleValueChange = (values: number[]) => {
+    setLocalValue(values[0])
+  }
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = parseFloat(e.target.value)
-    setLocalValue(newValue)
+  const handleValueCommit = (values: number[]) => {
+    isDragging.current = false
+    if (values[0] !== value) {
+      onChange(values[0])
+    }
   }
 
   const handlePointerDown = () => {
     isDragging.current = true
   }
 
-  const handlePointerUp = () => {
-    isDragging.current = false
-    // Commit the value to the store only when releasing
-    if (localValue !== value) {
-      onChange(localValue)
-    }
-  }
-
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label className="text-[11px] font-medium text-dark-400 uppercase tracking-wider">
+        <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
           {label}
-        </label>
-        <span className="text-xs font-mono text-dark-300 bg-dark-800/60 px-2 py-0.5 rounded-md">
+        </Label>
+        <span className="text-xs font-mono text-foreground/70 bg-muted/60 px-2 py-0.5 rounded-md">
           {localValue}{unit}
         </span>
       </div>
-      <div className="relative group">
-        {/* Track background */}
-        <div className="h-1.5 rounded-full bg-dark-800 overflow-hidden">
-          {/* Active track with gradient */}
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-primary-600 to-primary-400 transition-all duration-100"
-            style={{ width: `${percentage}%` }}
-          />
-        </div>
-        {/* Invisible range input for interaction */}
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={localValue}
-          onChange={handleChange}
-          onPointerDown={handlePointerDown}
-          onPointerUp={handlePointerUp}
-          onPointerLeave={handlePointerUp}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-        />
-        {/* Thumb indicator */}
-        <div
-          className={`
-            absolute top-1/2 -translate-y-1/2 -translate-x-1/2
-            w-3.5 h-3.5 rounded-full
-            bg-white shadow-md shadow-black/30
-            border-2 border-primary-500
-            transition-all duration-100
-            group-hover:scale-110 group-active:scale-95
-            pointer-events-none
-          `}
-          style={{ left: `${percentage}%` }}
-        >
-          {/* Inner dot */}
-          <div className="absolute inset-1 rounded-full bg-primary-400" />
-        </div>
-      </div>
+      <Slider
+        value={[localValue]}
+        min={min}
+        max={max}
+        step={step}
+        onValueChange={handleValueChange}
+        onValueCommit={handleValueCommit}
+        onPointerDown={handlePointerDown}
+        className="w-full"
+      />
     </div>
   )
 }
 
-// Premium color picker component
+// Premium color picker component with JollyUI ColorPicker
 interface PremiumColorPickerProps {
   label: string
   value: string
@@ -219,85 +208,124 @@ function PremiumColorPicker({
   onChange,
   presets = ['#FFFFFF', '#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD']
 }: PremiumColorPickerProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
+  // Ensure we have a valid hex color value, fallback to white if undefined/invalid
+  const safeValue = useMemo(() => {
+    if (!value || typeof value !== 'string') return '#FFFFFF'
+    // Check if it's a valid hex color
+    if (/^#[0-9A-Fa-f]{6}$/.test(value)) return value.toUpperCase()
+    // Try to extract hex from rgba
+    if (value.startsWith('rgba') || value.startsWith('rgb')) {
+      const match = value.match(/\d+/g)
+      if (match && match.length >= 3) {
+        return '#' + match.slice(0, 3).map(n => parseInt(n).toString(16).padStart(2, '0')).join('').toUpperCase()
+      }
+    }
+    return '#FFFFFF'
+  }, [value])
+
+  const [isOpen, setIsOpen] = useState(false)
+  const [hexInput, setHexInput] = useState(safeValue)
+
+  // Sync hex input when value changes externally
+  useEffect(() => {
+    setHexInput(safeValue)
+  }, [safeValue])
+
+  // Handle hex input change
+  const handleHexChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value
+    setHexInput(newValue)
+    // Only update if it's a valid hex color
+    if (/^#[0-9A-Fa-f]{6}$/.test(newValue)) {
+      onChange(newValue.toUpperCase())
+    }
+  }
+
+  // Handle hex input blur - validate and fix
+  const handleHexBlur = () => {
+    if (!/^#[0-9A-Fa-f]{6}$/.test(hexInput)) {
+      setHexInput(safeValue) // Reset to current valid value
+    }
+  }
 
   return (
     <div className="space-y-2">
-      <label className="text-[11px] font-medium text-dark-400 uppercase tracking-wider block">
+      <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider block">
         {label}
-      </label>
-      <div className="space-y-2">
-        {/* Main color display and picker */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
+      </Label>
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className="w-full h-9 px-2 justify-start gap-2 border-input hover:border-ring bg-muted/60"
+          >
             <div
-              className={`
-                relative h-9 rounded-lg overflow-hidden cursor-pointer
-                border border-white/[0.08] hover:border-white/[0.12]
-                transition-all duration-200
-                ${isExpanded ? 'ring-2 ring-primary-500/30' : ''}
-              `}
-              onClick={() => setIsExpanded(!isExpanded)}
-            >
-              {/* Color preview with checkerboard for transparency */}
-              <div
-                className="absolute inset-0"
-                style={{
-                  backgroundImage:
-                    'linear-gradient(45deg, #374151 25%, transparent 25%), linear-gradient(-45deg, #374151 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #374151 75%), linear-gradient(-45deg, transparent 75%, #374151 75%)',
-                  backgroundSize: '8px 8px',
-                  backgroundPosition: '0 0, 0 4px, 4px -4px, -4px 0px'
-                }}
-              />
-              <div
-                className="absolute inset-0 transition-colors duration-200"
-                style={{ backgroundColor: value }}
-              />
-              {/* Subtle inner shadow for depth */}
-              <div className="absolute inset-0 shadow-inner-soft" />
-            </div>
-            {/* Hidden native color input */}
-            <input
-              type="color"
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              className="w-6 h-6 rounded-md border border-white/20 shadow-sm"
+              style={{ backgroundColor: safeValue }}
             />
-          </div>
-          {/* Hex value display */}
-          <div className="text-[10px] font-mono text-dark-400 bg-dark-800/60 px-2 py-1.5 rounded-md uppercase">
-            {value}
-          </div>
-        </div>
+            <span className="text-xs font-mono text-muted-foreground uppercase flex-1 text-left">
+              {safeValue}
+            </span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start" sideOffset={8}>
+          <ColorPicker
+            value={parseColor(safeValue)}
+            onChange={(color) => onChange(color.toString('hex').toUpperCase())}
+          >
+            <div className="flex flex-col gap-3 p-3">
+              {/* Color Area with Hue Slider */}
+              <div>
+                <ColorArea
+                  colorSpace="hsb"
+                  xChannel="saturation"
+                  yChannel="brightness"
+                  className="h-[140px] w-[200px] rounded-t-md rounded-b-none border-b-0"
+                >
+                  <ColorThumb className="z-50" />
+                </ColorArea>
+                <ColorSlider colorSpace="hsb" channel="hue">
+                  <SliderTrack className="rounded-t-none rounded-b-md border-t-0 w-[200px] h-6">
+                    <ColorThumb className="top-1/2" />
+                  </SliderTrack>
+                </ColorSlider>
+              </div>
 
-        {/* Preset colors */}
-        {isExpanded && (
-          <div className="flex flex-wrap gap-1.5 p-2 rounded-lg bg-dark-800/40 border border-white/[0.04] animate-fade-in-scale">
-            {presets.map((preset) => (
-              <button
-                key={preset}
-                onClick={() => {
-                  onChange(preset)
-                  setIsExpanded(false)
-                }}
-                className={`
-                  w-6 h-6 rounded-md transition-all duration-150
-                  hover:scale-110 active:scale-95
-                  border-2
-                  ${value === preset ? 'border-white shadow-glow-blue' : 'border-transparent hover:border-white/30'}
-                `}
-                style={{ backgroundColor: preset }}
-                title={preset}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+              {/* Hex Input */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                  Hex
+                </Label>
+                <Input
+                  value={hexInput}
+                  onChange={handleHexChange}
+                  onBlur={handleHexBlur}
+                  className="h-8 font-mono text-xs uppercase bg-muted/60"
+                  maxLength={7}
+                />
+              </div>
+
+              {/* Preset Swatches */}
+              <ColorSwatchPicker className="w-[200px] justify-between">
+                {presets.map((preset) => (
+                  <ColorSwatchPickerItem
+                    key={preset}
+                    color={preset}
+                    className="size-6 rounded-md"
+                  >
+                    <ColorSwatch className="size-full rounded-md" />
+                  </ColorSwatchPickerItem>
+                ))}
+              </ColorSwatchPicker>
+            </div>
+          </ColorPicker>
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }
 
-// Premium select component
+// Premium select component using ShadCN Select
 interface PremiumSelectProps {
   label: string
   value: string
@@ -308,40 +336,26 @@ interface PremiumSelectProps {
 function PremiumSelect({ label, value, options, onChange }: PremiumSelectProps) {
   return (
     <div className="space-y-2">
-      <label className="text-[11px] font-medium text-dark-400 uppercase tracking-wider block">
+      <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider block">
         {label}
-      </label>
-      <div className="relative">
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={`
-            w-full h-9 px-3 pr-8 rounded-lg text-sm
-            bg-dark-800/60 text-dark-200
-            border border-white/[0.08] hover:border-white/[0.12]
-            focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500/40
-            transition-all duration-200 cursor-pointer
-            appearance-none
-          `}
-        >
+      </Label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="w-full h-9 bg-muted/60 border-input hover:border-ring">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
           {options.map((option) => (
-            <option key={option.value} value={option.value} className="bg-dark-800">
+            <SelectItem key={option.value} value={option.value}>
               {option.label}
-            </option>
+            </SelectItem>
           ))}
-        </select>
-        {/* Custom dropdown arrow */}
-        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
-          <svg className="w-4 h-4 text-dark-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </div>
+        </SelectContent>
+      </Select>
     </div>
   )
 }
 
-// Premium button group component
+// Premium button group component using ShadCN Button
 interface PremiumButtonGroupProps {
   label: string
   value: string
@@ -359,9 +373,9 @@ function PremiumButtonGroup({
 }: PremiumButtonGroupProps) {
   return (
     <div className="space-y-2">
-      <label className="text-[11px] font-medium text-dark-400 uppercase tracking-wider block">
+      <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider block">
         {label}
-      </label>
+      </Label>
       <div
         className="grid gap-1.5"
         style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}
@@ -369,67 +383,29 @@ function PremiumButtonGroup({
         {options.map((option) => {
           const isActive = value === option.value
           return (
-            <button
+            <Button
               key={option.value}
+              variant={isActive ? 'default' : 'outline'}
+              size="sm"
               onClick={() => onChange(option.value)}
-              className={`
-                relative px-2.5 py-2 rounded-lg text-xs font-medium
-                transition-all duration-200 ease-spring
-                ${
-                  isActive
-                    ? 'bg-primary-600 text-white shadow-md shadow-primary-500/25'
-                    : 'bg-dark-800/60 text-dark-400 hover:bg-dark-700/60 hover:text-dark-200 border border-white/[0.04] hover:border-white/[0.08]'
-                }
-                active:scale-95
-              `}
-            >
-              {/* Active indicator glow */}
-              {isActive && (
-                <div className="absolute inset-0 rounded-lg bg-primary-500/20 animate-pulse-soft" />
+              className={cn(
+                'h-auto px-2.5 py-2 text-xs font-medium transition-all duration-200',
+                isActive
+                  ? 'shadow-md shadow-primary/25'
+                  : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
-              <span className="relative flex items-center justify-center gap-1.5">
+            >
+              <span className="flex items-center justify-center gap-1.5">
                 {option.icon}
                 {option.label}
               </span>
-            </button>
+            </Button>
           )
         })}
       </div>
     </div>
   )
 }
-
-// Icons for sections
-const FontIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-  </svg>
-)
-
-const ColorIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-  </svg>
-)
-
-const PositionIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
-  </svg>
-)
-
-const AnimationIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-)
-
-const EffectsIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-  </svg>
-)
 
 // AI Analysis Button Component
 function AIAnalysisButton() {
@@ -475,28 +451,16 @@ function AIAnalysisButton() {
   if (!project || project.subtitles.length === 0) return null
 
   return (
-    <div className="pb-3 border-b border-white/[0.06]">
-      <button
+    <div className="pb-3 border-b border-border">
+      <Button
         onClick={handleStartAnalysis}
         disabled={isAnalyzing}
-        className={`
-          w-full px-4 py-3 rounded-xl text-sm font-medium
-          bg-gradient-to-r from-violet-600 to-purple-500
-          text-white shadow-lg shadow-violet-500/25
-          hover:from-violet-500 hover:to-purple-400
-          hover:shadow-xl hover:shadow-violet-500/30
-          active:scale-[0.98]
-          transition-all duration-200
-          flex items-center justify-center gap-2
-          disabled:opacity-50 disabled:cursor-not-allowed
-        `}
+        className="w-full h-auto px-4 py-3 bg-gradient-to-r from-violet-600 to-purple-500 text-white shadow-lg shadow-violet-500/25 hover:from-violet-500 hover:to-purple-400 hover:shadow-xl hover:shadow-violet-500/30 active:scale-[0.98] transition-all duration-200"
       >
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-        </svg>
+        <Lightbulb className="w-5 h-5" />
         KI-Korrektur starten
-      </button>
-      <p className="text-[10px] text-dark-500 text-center mt-2">
+      </Button>
+      <p className="text-[10px] text-muted-foreground text-center mt-2">
         Gemini analysiert Audio und korrigiert Fehler
       </p>
     </div>
@@ -523,11 +487,14 @@ export default function StyleEditor() {
         textTransform: profileStyle.textTransform,
         color: profileStyle.color,
         highlightColor: profileStyle.highlightColor,
+        upcomingColor: profileStyle.upcomingColor,
         backgroundColor: profileStyle.backgroundColor,
         outlineColor: profileStyle.outlineColor,
         outlineWidth: profileStyle.outlineWidth,
         shadowColor: profileStyle.shadowColor,
         shadowBlur: profileStyle.shadowBlur,
+        shadowOffsetX: profileStyle.shadowOffsetX,
+        shadowOffsetY: profileStyle.shadowOffsetY,
         position: profileStyle.position,
         positionX: profileStyle.positionX,
         positionY: profileStyle.positionY,
@@ -573,20 +540,18 @@ export default function StyleEditor() {
   return (
     <div className="p-4 space-y-4 animate-fade-in">
       {/* Header with elegant styling */}
-      <div className="flex items-center gap-3 pb-3 border-b border-white/[0.06]">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500/20 to-primary-600/10 flex items-center justify-center">
-          <svg className="w-4 h-4 text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-          </svg>
+      <div className="flex items-center gap-3 pb-3 border-b border-border">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+          <Sparkles className="w-4 h-4 text-primary" />
         </div>
         <div>
-          <h2 className="text-sm font-semibold text-dark-100">Stil bearbeiten</h2>
-          <p className="text-[10px] text-dark-500 mt-0.5">Anpassen der Untertitel-Darstellung</p>
+          <h2 className="text-sm font-semibold text-foreground">Stil bearbeiten</h2>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Anpassen der Untertitel-Darstellung</p>
         </div>
       </div>
 
       {/* Style Profile Selector */}
-      <div className="pb-3 border-b border-white/[0.06]">
+      <div className="pb-3 border-b border-border">
         <StyleProfileSelector
           currentStyle={style}
           onApplyProfile={handleApplyProfile}
@@ -599,7 +564,7 @@ export default function StyleEditor() {
       {/* Collapsible sections */}
       <div className="space-y-3">
         {/* Typography Section */}
-        <CollapsibleSection title="Typografie" icon={<FontIcon />} defaultOpen={true}>
+        <CollapsibleSection title="Typografie" icon={<Type className="w-4 h-4" />} defaultOpen={true}>
           <FontSelector
             value={style.fontFamily}
             onChange={(value) => {
@@ -626,7 +591,7 @@ export default function StyleEditor() {
 
           <div className="grid grid-cols-2 gap-3">
             <PremiumSlider
-              label="Größe"
+              label="Groesse"
               value={style.fontSize}
               min={24}
               max={144}
@@ -646,32 +611,18 @@ export default function StyleEditor() {
 
           {/* Uppercase Toggle */}
           <div className="flex items-center justify-between">
-            <label className="text-[11px] font-medium text-dark-400 uppercase tracking-wider">
-              Versalien (Großbuchstaben)
-            </label>
-            <button
-              onClick={() => handleUpdateStyle({ textTransform: style.textTransform === 'uppercase' ? 'none' : 'uppercase' })}
-              className={`
-                relative w-10 h-5 rounded-full transition-all duration-200
-                ${style.textTransform === 'uppercase'
-                  ? 'bg-primary-600'
-                  : 'bg-dark-700 border border-white/[0.08]'
-                }
-              `}
-            >
-              <div
-                className={`
-                  absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-md
-                  transition-all duration-200 ease-spring
-                  ${style.textTransform === 'uppercase' ? 'left-5' : 'left-0.5'}
-                `}
-              />
-            </button>
+            <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+              Versalien (Grossbuchstaben)
+            </Label>
+            <Switch
+              checked={style.textTransform === 'uppercase'}
+              onCheckedChange={(checked) => handleUpdateStyle({ textTransform: checked ? 'uppercase' : 'none' })}
+            />
           </div>
         </CollapsibleSection>
 
         {/* Colors Section */}
-        <CollapsibleSection title="Farben" icon={<ColorIcon />} defaultOpen={true}>
+        <CollapsibleSection title="Farben" icon={<Palette className="w-4 h-4" />} defaultOpen={true}>
           <div className="grid grid-cols-2 gap-3">
             <PremiumColorPicker
               label="Textfarbe"
@@ -687,6 +638,16 @@ export default function StyleEditor() {
               presets={['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#FF8C00']}
             />
           </div>
+
+          {/* Upcoming color - only shown for karaoke animation */}
+          {style.animation === 'karaoke' && (
+            <PremiumColorPicker
+              label="Kommende Woerter"
+              value={style.upcomingColor}
+              onChange={(value) => handleUpdateStyle({ upcomingColor: value })}
+              presets={['#808080', '#A0A0A0', '#606060', '#505050', '#707070', '#909090', '#B0B0B0', '#404040']}
+            />
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <PremiumColorPicker
@@ -709,7 +670,7 @@ export default function StyleEditor() {
         </CollapsibleSection>
 
         {/* Position Section */}
-        <CollapsibleSection title="Position" icon={<PositionIcon />} defaultOpen={false}>
+        <CollapsibleSection title="Position" icon={<Move className="w-4 h-4" />} defaultOpen={false}>
           <PremiumButtonGroup
             label="Vertikale Position"
             value={style.position}
@@ -730,40 +691,35 @@ export default function StyleEditor() {
           />
 
           {/* Visual position preview */}
-          <div className="mt-2 p-3 rounded-lg bg-dark-900/40 border border-white/[0.04]">
-            <div className="relative aspect-[9/16] max-h-32 mx-auto bg-dark-800/50 rounded-md overflow-hidden">
+          <div className="mt-2 p-3 rounded-lg bg-muted/40 border border-border">
+            <div className="relative aspect-[9/16] max-h-32 mx-auto bg-muted/50 rounded-md overflow-hidden">
               {/* Video placeholder lines */}
               <div className="absolute inset-0 flex flex-col justify-center gap-1.5 p-2 opacity-20">
                 {[...Array(6)].map((_, i) => (
-                  <div key={i} className="h-1 bg-dark-600 rounded-full" style={{ width: `${60 + Math.random() * 30}%` }} />
+                  <div key={i} className="h-1 bg-muted-foreground rounded-full" style={{ width: `${60 + Math.random() * 30}%` }} />
                 ))}
               </div>
 
               {/* Position indicator */}
               <div
-                className={`
-                  absolute left-1/2 -translate-x-1/2
-                  h-3 bg-primary-500/60 rounded-sm
-                  transition-all duration-300 ease-spring
-                  shadow-glow-blue
-                `}
+                className="absolute left-1/2 -translate-x-1/2 h-3 bg-primary/60 rounded-sm transition-all duration-300 shadow-lg shadow-primary/20"
                 style={{
                   width: `${(style.maxWidth ?? 0.85) * 100}%`,
                   top: style.position === 'top' ? '12%' : style.position === 'center' ? '50%' : '85%',
                   transform: `translate(-50%, ${style.position === 'center' ? '-50%' : '0'})`
                 }}
               >
-                <div className="absolute inset-0 bg-white/30 rounded-sm animate-pulse-soft" />
+                <div className="absolute inset-0 bg-white/30 rounded-sm animate-pulse" />
               </div>
             </div>
-            <p className="text-[9px] text-dark-500 text-center mt-2">
+            <p className="text-[9px] text-muted-foreground text-center mt-2">
               Vorschau der Textbox-Breite und Position
             </p>
           </div>
         </CollapsibleSection>
 
         {/* Animation Section */}
-        <CollapsibleSection title="Animation" icon={<AnimationIcon />} defaultOpen={false}>
+        <CollapsibleSection title="Animation" icon={<Play className="w-4 h-4" />} defaultOpen={false}>
           <PremiumButtonGroup
             label="Animationstyp"
             value={style.animation}
@@ -773,49 +729,33 @@ export default function StyleEditor() {
           />
 
           {/* Animation preview description */}
-          <div className="p-2.5 rounded-lg bg-dark-900/40 border border-white/[0.04]">
+          <div className="p-2.5 rounded-lg bg-muted/40 border border-border">
             <div className="flex items-start gap-2.5">
-              <div className="w-5 h-5 rounded-md bg-primary-500/15 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <svg className="w-3 h-3 text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+              <div className="w-5 h-5 rounded-md bg-primary/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Info className="w-3 h-3 text-primary" />
               </div>
-              <p className="text-[10px] text-dark-400 leading-relaxed">
-                {style.animation === 'karaoke' && 'Wörter werden einzeln hervorgehoben, während sie gesprochen werden.'}
-                {style.animation === 'appear' && 'Untertitel erscheinen sofort ohne Übergang.'}
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                {style.animation === 'karaoke' && 'Woerter werden einzeln hervorgehoben, waehrend sie gesprochen werden.'}
+                {style.animation === 'appear' && 'Untertitel erscheinen sofort ohne Uebergang.'}
                 {style.animation === 'fade' && 'Sanftes Ein- und Ausblenden der Untertitel.'}
-                {style.animation === 'scale' && 'Untertitel werden beim Erscheinen leicht vergrößert.'}
-                {style.animation === 'none' && 'Keine Animation – Untertitel werden statisch angezeigt.'}
+                {style.animation === 'scale' && 'Untertitel werden beim Erscheinen leicht vergroessert.'}
+                {style.animation === 'none' && 'Keine Animation - Untertitel werden statisch angezeigt.'}
               </p>
             </div>
           </div>
 
           {/* Karaoke Box Settings - only shown when animation is karaoke */}
           {style.animation === 'karaoke' && (
-            <div className="space-y-3 pt-2 border-t border-white/[0.06]">
+            <div className="space-y-3 pt-2 border-t border-border">
               {/* Karaoke Box Toggle */}
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-medium text-dark-400 uppercase tracking-wider">
+                <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                   Karaoke-Box
-                </label>
-                <button
-                  onClick={() => handleUpdateStyle({ karaokeBoxEnabled: !style.karaokeBoxEnabled })}
-                  className={`
-                    relative w-10 h-5 rounded-full transition-all duration-200
-                    ${style.karaokeBoxEnabled
-                      ? 'bg-primary-600'
-                      : 'bg-dark-700 border border-white/[0.08]'
-                    }
-                  `}
-                >
-                  <div
-                    className={`
-                      absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-md
-                      transition-all duration-200 ease-spring
-                      ${style.karaokeBoxEnabled ? 'left-5' : 'left-0.5'}
-                    `}
-                  />
-                </button>
+                </Label>
+                <Switch
+                  checked={style.karaokeBoxEnabled}
+                  onCheckedChange={(checked) => handleUpdateStyle({ karaokeBoxEnabled: checked })}
+                />
               </div>
 
               {/* Karaoke Box Settings - only shown when enabled */}
@@ -851,9 +791,9 @@ export default function StyleEditor() {
                   </div>
 
                   {/* Karaoke Box Preview */}
-                  <div className="p-3 rounded-lg bg-dark-900/40 border border-white/[0.04]">
+                  <div className="p-3 rounded-lg bg-muted/40 border border-border">
                     <div className="flex items-center justify-center py-3">
-                      <span className="text-sm text-dark-400 mr-1">Beispiel</span>
+                      <span className="text-sm text-muted-foreground mr-1">Beispiel</span>
                       <span
                         className="text-sm font-bold px-1"
                         style={{
@@ -865,9 +805,9 @@ export default function StyleEditor() {
                       >
                         Wort
                       </span>
-                      <span className="text-sm text-dark-400 ml-1">Text</span>
+                      <span className="text-sm text-muted-foreground ml-1">Text</span>
                     </div>
-                    <p className="text-[9px] text-dark-500 text-center">
+                    <p className="text-[9px] text-muted-foreground text-center">
                       Vorschau der Karaoke-Box
                     </p>
                   </div>
@@ -878,9 +818,16 @@ export default function StyleEditor() {
         </CollapsibleSection>
 
         {/* Effects Section */}
-        <CollapsibleSection title="Effekte" icon={<EffectsIcon />} defaultOpen={false}>
+        <CollapsibleSection title="Effekte" icon={<Sparkles className="w-4 h-4" />} defaultOpen={false}>
+          <PremiumColorPicker
+            label="Schattenfarbe"
+            value={style.shadowColor}
+            onChange={(value) => handleUpdateStyle({ shadowColor: value })}
+            presets={['#000000', '#1A1A1A', '#333333', '#0A0A0A', '#2D2D2D', '#1F1F1F', '#4A4A4A', '#666666']}
+          />
+
           <PremiumSlider
-            label="Schatten-Stärke"
+            label="Schatten-Unschaerfe"
             value={style.shadowBlur}
             min={0}
             max={100}
@@ -889,21 +836,43 @@ export default function StyleEditor() {
             onChange={(value) => handleUpdateStyle({ shadowBlur: value })}
           />
 
+          <div className="grid grid-cols-2 gap-3">
+            <PremiumSlider
+              label="Versatz X"
+              value={style.shadowOffsetX ?? 0}
+              min={-50}
+              max={50}
+              step={1}
+              unit="px"
+              onChange={(value) => handleUpdateStyle({ shadowOffsetX: value })}
+            />
+
+            <PremiumSlider
+              label="Versatz Y"
+              value={style.shadowOffsetY ?? 0}
+              min={-50}
+              max={50}
+              step={1}
+              unit="px"
+              onChange={(value) => handleUpdateStyle({ shadowOffsetY: value })}
+            />
+          </div>
+
           {/* Shadow preview */}
-          <div className="p-3 rounded-lg bg-dark-900/40 border border-white/[0.04]">
+          <div className="p-3 rounded-lg bg-muted/40 border border-border">
             <div className="flex items-center justify-center py-4">
               <span
                 className="text-lg font-bold transition-all duration-200"
                 style={{
                   color: style.color,
-                  textShadow: `0 0 ${style.shadowBlur}px ${style.shadowColor || 'rgba(0,0,0,0.8)'}`,
-                  WebkitTextStroke: `${style.outlineWidth}px ${style.outlineColor}`
+                  textShadow: `${style.shadowOffsetX ?? 0}px ${style.shadowOffsetY ?? 0}px ${style.shadowBlur}px ${style.shadowColor || 'rgba(0,0,0,0.8)'}`,
+                  WebkitTextStroke: `${Math.min(style.outlineWidth, 2)}px ${style.outlineColor}`
                 }}
               >
                 Beispieltext
               </span>
             </div>
-            <p className="text-[9px] text-dark-500 text-center">
+            <p className="text-[9px] text-muted-foreground text-center">
               Live-Vorschau des Schattens
             </p>
           </div>
@@ -911,8 +880,9 @@ export default function StyleEditor() {
       </div>
 
       {/* Reset button at bottom */}
-      <div className="pt-3 border-t border-white/[0.06]">
-        <button
+      <div className="pt-3 border-t border-border">
+        <Button
+          variant="outline"
           onClick={() => {
             // Reset to defaults using the centralized DEFAULT_SUBTITLE_STYLE
             handleUpdateStyle({
@@ -922,11 +892,14 @@ export default function StyleEditor() {
               textTransform: DEFAULT_SUBTITLE_STYLE.textTransform,
               color: DEFAULT_SUBTITLE_STYLE.color,
               highlightColor: DEFAULT_SUBTITLE_STYLE.highlightColor,
+              upcomingColor: DEFAULT_SUBTITLE_STYLE.upcomingColor,
               backgroundColor: DEFAULT_SUBTITLE_STYLE.backgroundColor,
               outlineColor: DEFAULT_SUBTITLE_STYLE.outlineColor,
               outlineWidth: DEFAULT_SUBTITLE_STYLE.outlineWidth,
               shadowColor: DEFAULT_SUBTITLE_STYLE.shadowColor,
               shadowBlur: DEFAULT_SUBTITLE_STYLE.shadowBlur,
+              shadowOffsetX: DEFAULT_SUBTITLE_STYLE.shadowOffsetX,
+              shadowOffsetY: DEFAULT_SUBTITLE_STYLE.shadowOffsetY,
               position: DEFAULT_SUBTITLE_STYLE.position,
               positionX: DEFAULT_SUBTITLE_STYLE.positionX,
               positionY: DEFAULT_SUBTITLE_STYLE.positionY,
@@ -940,21 +913,11 @@ export default function StyleEditor() {
               karaokeBoxBorderRadius: DEFAULT_SUBTITLE_STYLE.karaokeBoxBorderRadius
             })
           }}
-          className={`
-            w-full px-3 py-2 rounded-lg text-xs font-medium
-            bg-dark-800/40 text-dark-400
-            border border-white/[0.04]
-            hover:bg-dark-700/40 hover:text-dark-300 hover:border-white/[0.08]
-            active:scale-[0.98]
-            transition-all duration-200
-            flex items-center justify-center gap-2
-          `}
+          className="w-full bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
         >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          Auf Standard zurücksetzen
-        </button>
+          <RotateCcw className="w-3.5 h-3.5" />
+          Auf Standard zuruecksetzen
+        </Button>
       </div>
     </div>
   )

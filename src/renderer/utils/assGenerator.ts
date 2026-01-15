@@ -214,7 +214,12 @@ export function generateASS(project: Project): string {
     ? style.fontWeight >= 600
     : style.fontWeight === 'bold'
   const fontWeight = isBold ? -1 : 0
-  const primaryColor = toASSColor(style.color)
+  // In ASS karaoke: PrimaryColor is for words not yet highlighted (upcoming)
+  // SecondaryColor is for words during/after highlight
+  // For non-karaoke modes, primaryColor is the normal text color
+  const primaryColor = style.animation === 'karaoke' && style.upcomingColor
+    ? toASSColor(style.upcomingColor)
+    : toASSColor(style.color)
   const secondaryColor = toASSColor(style.highlightColor)
   const outlineColor = toASSColor(style.outlineColor)
   const shadowColor = toASSColorWithAlpha(style.shadowColor, 0.5)
@@ -239,13 +244,22 @@ export function generateASS(project: Project): string {
   // Get the proper font name for ASS (libass needs actual font names, not CSS aliases)
   const fontName = getFontNameForASS(style.fontFamily)
 
+  // Calculate shadow depth for ASS style (uses the larger of X/Y offset, or blur if no offset)
+  const shadowOffsetX = style.shadowOffsetX ?? 0
+  const shadowOffsetY = style.shadowOffsetY ?? 0
+  const hasShadow = style.shadowBlur > 0 || shadowOffsetX !== 0 || shadowOffsetY !== 0
+  // ASS shadow depth is a single value - use the diagonal of the offset vector, minimum 1 if shadow is enabled
+  const shadowDepth = hasShadow
+    ? Math.max(1, Math.round(Math.sqrt(shadowOffsetX * shadowOffsetX + shadowOffsetY * shadowOffsetY) / 2))
+    : 0
+
   lines.push(
-    `Style: Default,${fontName},${style.fontSize},${primaryColor},${secondaryColor},${outlineColor},${shadowColor},${fontWeight},0,0,0,100,100,0,0,1,${style.outlineWidth},${style.shadowBlur > 0 ? 1 : 0},${alignment},${marginLR},${marginLR},${marginV},1`
+    `Style: Default,${fontName},${style.fontSize},${primaryColor},${secondaryColor},${outlineColor},${shadowColor},${fontWeight},0,0,0,100,100,0,0,1,${style.outlineWidth},${shadowDepth},${alignment},${marginLR},${marginLR},${marginV},1`
   )
 
   // Highlight style for karaoke
   lines.push(
-    `Style: Highlight,${fontName},${style.fontSize},${secondaryColor},${primaryColor},${outlineColor},${shadowColor},${fontWeight},0,0,0,100,100,0,0,1,${style.outlineWidth},${style.shadowBlur > 0 ? 1 : 0},${alignment},${marginLR},${marginLR},${marginV},1`
+    `Style: Highlight,${fontName},${style.fontSize},${secondaryColor},${primaryColor},${outlineColor},${shadowColor},${fontWeight},0,0,0,100,100,0,0,1,${style.outlineWidth},${shadowDepth},${alignment},${marginLR},${marginLR},${marginV},1`
   )
   lines.push('')
 
@@ -264,7 +278,11 @@ export function generateASS(project: Project): string {
 
     // \q2 override tag ensures no automatic word wrapping for this dialogue
     // Combined with WrapStyle: 2 in Script Info, this gives us full control over line breaks
-    const wrapTag = '{\\q2}'
+    // \xshad and \yshad set the shadow X/Y offsets
+    const shadowTags = (shadowOffsetX !== 0 || shadowOffsetY !== 0)
+      ? `\\xshad${shadowOffsetX}\\yshad${shadowOffsetY}`
+      : ''
+    const wrapTag = `{\\q2${shadowTags}}`
 
     if (style.animation === 'karaoke' && subtitle.words.length > 0) {
       // Karaoke mode: use \k tags for word-by-word highlighting
@@ -294,7 +312,7 @@ export function generateASS(project: Project): string {
 
       // Reset tags to restore normal styling after highlighted word
       const boxEndTag = karaokeBoxEnabled
-        ? `\\3c${outlineColor}\\4c${shadowColor}\\bord${style.outlineWidth}\\shad${style.shadowBlur > 0 ? 1 : 0}`
+        ? `\\3c${outlineColor}\\4c${shadowColor}\\bord${style.outlineWidth}\\shad${shadowDepth}${shadowTags}`
         : ''
 
       for (let i = 0; i < subtitle.words.length; i++) {

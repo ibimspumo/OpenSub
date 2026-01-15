@@ -1,9 +1,16 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { v4 as uuidv4 } from 'uuid'
-import type { StyleProfile, SubtitleStyle, StyleProfileExport } from '../../shared/types'
+import type { StyleProfile, SubtitleStyle, StyleProfileExport, StyleValidationResult } from '../../shared/types'
+import { validateAndNormalizeStyle } from '../../shared/types'
 
 const STORAGE_KEY = 'opensub-style-profiles'
+
+// Result of importing a profile
+export interface ProfileImportResult {
+  profile: StyleProfile | null
+  validation: StyleValidationResult | null
+}
 
 interface StyleProfileState {
   profiles: StyleProfile[]
@@ -15,7 +22,7 @@ interface StyleProfileState {
   getProfile: (id: string) => StyleProfile | undefined
 
   // Import/Export
-  importProfile: (data: StyleProfileExport) => StyleProfile | null
+  importProfile: (data: StyleProfileExport) => ProfileImportResult
   exportProfile: (id: string) => StyleProfileExport | null
 
   // Helpers
@@ -69,11 +76,11 @@ export const useStyleProfileStore = create<StyleProfileState>()(
         return get().profiles.find((profile) => profile.id === id)
       },
 
-      importProfile: (data: StyleProfileExport) => {
+      importProfile: (data: StyleProfileExport): ProfileImportResult => {
         // Validate the import data structure
         if (!data || data.version !== 1 || !data.profile) {
           console.error('Invalid profile import data')
-          return null
+          return { profile: null, validation: null }
         }
 
         const { profile } = data
@@ -81,15 +88,25 @@ export const useStyleProfileStore = create<StyleProfileState>()(
         // Validate required fields
         if (!profile.name || !profile.style) {
           console.error('Invalid profile: missing name or style')
-          return null
+          return { profile: null, validation: null }
         }
 
-        // Create a new profile with a fresh ID to avoid duplicates
+        // Validate and normalize the style (fills missing properties, removes unknown ones)
+        const validation = validateAndNormalizeStyle(profile.style as Record<string, unknown>)
+
+        if (validation.hasIssues) {
+          console.warn('Profile style had issues:', {
+            missing: validation.missingProperties,
+            unknown: validation.unknownProperties
+          })
+        }
+
+        // Create a new profile with a fresh ID and normalized style
         const now = Date.now()
         const newProfile: StyleProfile = {
           id: uuidv4(),
           name: profile.name,
-          style: { ...profile.style },
+          style: validation.style,  // Use the validated and normalized style
           createdAt: now,
           updatedAt: now
         }
@@ -98,7 +115,7 @@ export const useStyleProfileStore = create<StyleProfileState>()(
           profiles: [...state.profiles, newProfile]
         }))
 
-        return newProfile
+        return { profile: newProfile, validation }
       },
 
       exportProfile: (id: string) => {
@@ -122,7 +139,35 @@ export const useStyleProfileStore = create<StyleProfileState>()(
     {
       name: STORAGE_KEY,
       // Only persist the profiles array
-      partialize: (state) => ({ profiles: state.profiles })
+      partialize: (state) => ({ profiles: state.profiles }),
+      // Migrate and validate profiles when loading from localStorage
+      // This ensures old profiles with missing properties get normalized
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as { profiles?: StyleProfile[] }
+        if (!persisted?.profiles || !Array.isArray(persisted.profiles)) {
+          return currentState
+        }
+
+        // Validate and normalize each profile's style
+        const normalizedProfiles = persisted.profiles.map((profile) => {
+          if (!profile.style) {
+            return profile
+          }
+          const validation = validateAndNormalizeStyle(profile.style as Record<string, unknown>)
+          if (validation.hasIssues) {
+            console.log(`Migrated profile "${profile.name}": filled ${validation.missingProperties.length} missing properties`)
+          }
+          return {
+            ...profile,
+            style: validation.style
+          }
+        })
+
+        return {
+          ...currentState,
+          profiles: normalizedProfiles
+        }
+      }
     }
   )
 )

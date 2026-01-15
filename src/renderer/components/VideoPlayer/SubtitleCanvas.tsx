@@ -440,19 +440,30 @@ export default function SubtitleCanvas({
         if (isCurrent) {
           ctx.shadowColor = style.highlightColor
           ctx.shadowBlur = 10
+          ctx.shadowOffsetX = 0
+          ctx.shadowOffsetY = 0
         } else {
           ctx.shadowColor = style.shadowColor
           ctx.shadowBlur = style.shadowBlur
+          ctx.shadowOffsetX = style.shadowOffsetX ?? 0
+          ctx.shadowOffsetY = style.shadowOffsetY ?? 0
         }
 
         ctx.strokeText(wordText, wordX, lineY)
 
-        ctx.fillStyle = isCurrent ? style.highlightColor : style.color
-        ctx.globalAlpha = isPast || isCurrent ? 1 : 0.6
+        // Use different colors for past, current, and upcoming words
+        if (isCurrent) {
+          ctx.fillStyle = style.highlightColor
+        } else if (isPast) {
+          ctx.fillStyle = style.color
+        } else {
+          ctx.fillStyle = style.upcomingColor
+        }
         ctx.fillText(wordText, wordX, lineY)
-        ctx.globalAlpha = 1
 
         ctx.shadowBlur = 0
+        ctx.shadowOffsetX = 0
+        ctx.shadowOffsetY = 0
         currentX += wordWidth + spaceWidth
         globalWordIdx++
       })
@@ -481,6 +492,8 @@ export default function SubtitleCanvas({
 
     ctx.shadowColor = style.shadowColor
     ctx.shadowBlur = style.shadowBlur
+    ctx.shadowOffsetX = style.shadowOffsetX ?? 0
+    ctx.shadowOffsetY = style.shadowOffsetY ?? 0
     ctx.strokeStyle = style.outlineColor
     ctx.lineWidth = style.outlineWidth * 2
     ctx.lineJoin = 'round'
@@ -493,6 +506,8 @@ export default function SubtitleCanvas({
     })
 
     ctx.shadowBlur = 0
+    ctx.shadowOffsetX = 0
+    ctx.shadowOffsetY = 0
   }, [style, getWrappedLinesOffscreen])
 
   const renderFadeOffscreen = useCallback((
@@ -524,6 +539,8 @@ export default function SubtitleCanvas({
     ctx.globalAlpha = alpha
     ctx.shadowColor = style.shadowColor
     ctx.shadowBlur = style.shadowBlur
+    ctx.shadowOffsetX = style.shadowOffsetX ?? 0
+    ctx.shadowOffsetY = style.shadowOffsetY ?? 0
     ctx.strokeStyle = style.outlineColor
     ctx.lineWidth = style.outlineWidth * 2
     ctx.lineJoin = 'round'
@@ -537,6 +554,8 @@ export default function SubtitleCanvas({
 
     ctx.globalAlpha = 1
     ctx.shadowBlur = 0
+    ctx.shadowOffsetX = 0
+    ctx.shadowOffsetY = 0
   }, [style, currentTime, getWrappedLinesOffscreen])
 
   const renderScaleOffscreen = useCallback((
@@ -583,6 +602,8 @@ export default function SubtitleCanvas({
 
         ctx.shadowColor = style.shadowColor
         ctx.shadowBlur = style.shadowBlur
+        ctx.shadowOffsetX = style.shadowOffsetX ?? 0
+        ctx.shadowOffsetY = style.shadowOffsetY ?? 0
         ctx.strokeStyle = style.outlineColor
         ctx.lineWidth = style.outlineWidth * 2
         ctx.lineJoin = 'round'
@@ -613,6 +634,8 @@ export default function SubtitleCanvas({
 
     ctx.shadowColor = style.shadowColor
     ctx.shadowBlur = style.shadowBlur
+    ctx.shadowOffsetX = style.shadowOffsetX ?? 0
+    ctx.shadowOffsetY = style.shadowOffsetY ?? 0
     ctx.strokeStyle = style.outlineColor
     ctx.lineWidth = style.outlineWidth * 2
     ctx.lineJoin = 'round'
@@ -625,6 +648,8 @@ export default function SubtitleCanvas({
     })
 
     ctx.shadowBlur = 0
+    ctx.shadowOffsetX = 0
+    ctx.shadowOffsetY = 0
   }, [style, getWrappedLinesOffscreen])
 
   // Create/update offscreen canvas only when video dimensions change
@@ -849,19 +874,30 @@ export default function SubtitleCanvas({
         if (isCurrent) {
           ctx.shadowColor = style.highlightColor
           ctx.shadowBlur = 10
+          ctx.shadowOffsetX = 0
+          ctx.shadowOffsetY = 0
         } else {
           ctx.shadowColor = style.shadowColor
           ctx.shadowBlur = style.shadowBlur
+          ctx.shadowOffsetX = style.shadowOffsetX ?? 0
+          ctx.shadowOffsetY = style.shadowOffsetY ?? 0
         }
 
         ctx.strokeText(wordText, wordX, lineY)
 
-        ctx.fillStyle = isCurrent ? style.highlightColor : isPast ? style.color : style.color
-        ctx.globalAlpha = isPast || isCurrent ? 1 : 0.6
+        // Use different colors for past, current, and upcoming words
+        if (isCurrent) {
+          ctx.fillStyle = style.highlightColor
+        } else if (isPast) {
+          ctx.fillStyle = style.color
+        } else {
+          ctx.fillStyle = style.upcomingColor
+        }
         ctx.fillText(wordText, wordX, lineY)
-        ctx.globalAlpha = 1
 
         ctx.shadowBlur = 0
+        ctx.shadowOffsetX = 0
+        ctx.shadowOffsetY = 0
         currentX += wordWidth + spaceWidth
       })
     })
@@ -896,6 +932,8 @@ export default function SubtitleCanvas({
 
     ctx.shadowColor = style.shadowColor
     ctx.shadowBlur = style.shadowBlur
+    ctx.shadowOffsetX = style.shadowOffsetX ?? 0
+    ctx.shadowOffsetY = style.shadowOffsetY ?? 0
     ctx.strokeStyle = style.outlineColor
     ctx.lineWidth = style.outlineWidth * 2
     ctx.lineJoin = 'round'
@@ -908,6 +946,8 @@ export default function SubtitleCanvas({
     })
 
     ctx.shadowBlur = 0
+    ctx.shadowOffsetX = 0
+    ctx.shadowOffsetY = 0
   }
 
   // Fade animation with multi-line support
@@ -940,6 +980,8 @@ export default function SubtitleCanvas({
     ctx.globalAlpha = alpha
     ctx.shadowColor = style.shadowColor
     ctx.shadowBlur = style.shadowBlur
+    ctx.shadowOffsetX = style.shadowOffsetX ?? 0
+    ctx.shadowOffsetY = style.shadowOffsetY ?? 0
     ctx.strokeStyle = style.outlineColor
     ctx.lineWidth = style.outlineWidth * 2
     ctx.lineJoin = 'round'
@@ -953,6 +995,8 @@ export default function SubtitleCanvas({
 
     ctx.globalAlpha = 1
     ctx.shadowBlur = 0
+    ctx.shadowOffsetX = 0
+    ctx.shadowOffsetY = 0
   }
 
   // Scale animation with multi-line support
@@ -1017,6 +1061,8 @@ export default function SubtitleCanvas({
 
         ctx.shadowColor = style.shadowColor
         ctx.shadowBlur = style.shadowBlur
+        ctx.shadowOffsetX = style.shadowOffsetX ?? 0
+        ctx.shadowOffsetY = style.shadowOffsetY ?? 0
         ctx.strokeStyle = style.outlineColor
         ctx.lineWidth = style.outlineWidth * 2
         ctx.lineJoin = 'round'
@@ -1049,6 +1095,8 @@ export default function SubtitleCanvas({
 
     ctx.shadowColor = style.shadowColor
     ctx.shadowBlur = style.shadowBlur
+    ctx.shadowOffsetX = style.shadowOffsetX ?? 0
+    ctx.shadowOffsetY = style.shadowOffsetY ?? 0
     ctx.strokeStyle = style.outlineColor
     ctx.lineWidth = style.outlineWidth * 2
     ctx.lineJoin = 'round'
@@ -1061,6 +1109,8 @@ export default function SubtitleCanvas({
     })
 
     ctx.shadowBlur = 0
+    ctx.shadowOffsetX = 0
+    ctx.shadowOffsetY = 0
   }
 
   // Keep renderRef in sync with the latest render function

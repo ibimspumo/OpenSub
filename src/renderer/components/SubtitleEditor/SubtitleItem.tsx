@@ -1,5 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { Pencil, Trash2, Check, ArrowRight } from 'lucide-react'
 import { useProjectStore } from '../../store/projectStore'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import type { Subtitle } from '../../../shared/types'
 
 interface SubtitleItemProps {
@@ -74,7 +79,7 @@ export default function SubtitleItem({
   }
 
   const handleDelete = useCallback(() => {
-    if (confirm('Untertitel wirklich löschen?')) {
+    if (confirm('Untertitel wirklich loeschen?')) {
       deleteSubtitle(subtitle.id)
     }
   }, [subtitle.id, deleteSubtitle])
@@ -90,156 +95,137 @@ export default function SubtitleItem({
   const overallConfidence = getOverallConfidence()
   const confidenceColor =
     overallConfidence >= 0.8
-      ? 'text-emerald-400'
+      ? 'bg-emerald-500'
       : overallConfidence >= 0.6
-        ? 'text-yellow-400'
-        : 'text-red-400'
+        ? 'bg-yellow-500'
+        : 'bg-red-500'
 
   return (
-    <div
-      className={`
-        group relative rounded-xl overflow-hidden cursor-pointer
-        transition-all duration-200 ease-smooth
-        ${
-          isSelected
-            ? 'bg-gradient-to-br from-primary-500/15 via-primary-500/10 to-primary-600/5 shadow-glow-blue ring-1 ring-primary-500/40'
-            : 'bg-gradient-to-br from-dark-800/90 to-dark-800/70 hover:from-dark-700/90 hover:to-dark-800/80'
-        }
-        ${!isSelected && 'hover:shadow-dark-md hover:ring-1 hover:ring-white/[0.08]'}
-        border border-white/[0.06]
-        ${isSelected && 'border-primary-500/30'}
-      `}
+    <Card
+      className={cn(
+        'group relative cursor-pointer overflow-hidden',
+        'transition-all duration-200 ease-smooth',
+        isSelected
+          ? 'bg-gradient-to-br from-primary/15 via-primary/10 to-primary/5 shadow-glow-blue ring-1 ring-primary/40 border-primary/30'
+          : 'bg-gradient-to-br from-card to-card/70 hover:from-muted hover:to-card/80',
+        !isSelected && 'hover:shadow-md hover:ring-1 hover:ring-border'
+      )}
       onClick={onSelect}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Subtle gradient overlay for premium feel */}
       <div
-        className={`
-          absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.02] to-transparent
-          opacity-0 group-hover:opacity-100 transition-opacity duration-300
-          pointer-events-none
-        `}
+        className={cn(
+          'absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.02] to-transparent',
+          'opacity-0 group-hover:opacity-100 transition-opacity duration-300',
+          'pointer-events-none'
+        )}
       />
 
       {/* Selection indicator line */}
       <div
-        className={`
-          absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl
-          transition-all duration-200 ease-smooth
-          ${isSelected ? 'bg-primary-500 shadow-glow-blue' : 'bg-transparent'}
-        `}
+        className={cn(
+          'absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl',
+          'transition-all duration-200 ease-smooth',
+          isSelected ? 'bg-primary shadow-glow-blue' : 'bg-transparent'
+        )}
       />
 
       {/* Header */}
-      <div
-        className={`
-          flex items-center gap-2 px-3 py-2
-          border-b transition-colors duration-200
-          ${isSelected ? 'border-primary-500/20' : 'border-white/[0.04]'}
-        `}
+      <CardHeader
+        className={cn(
+          'flex flex-row items-center gap-2 px-3 py-2 space-y-0',
+          'border-b transition-colors duration-200',
+          isSelected ? 'border-primary/20' : 'border-border/50'
+        )}
       >
         {/* Time with premium styling */}
         <div className="flex items-center gap-1.5">
           <span
-            className={`
-              text-[11px] font-mono tracking-tight
-              transition-colors duration-200
-              ${isSelected ? 'text-primary-300' : 'text-dark-400 group-hover:text-dark-300'}
-            `}
+            className={cn(
+              'text-[11px] font-mono tracking-tight',
+              'transition-colors duration-200',
+              isSelected ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground/70'
+            )}
           >
             {formatTime(subtitle.startTime)}
           </span>
-          <span className="text-dark-600">→</span>
+          <ArrowRight className="w-3 h-3 text-muted-foreground/50" />
           <span
-            className={`
-              text-[11px] font-mono tracking-tight
-              transition-colors duration-200
-              ${isSelected ? 'text-primary-300' : 'text-dark-400 group-hover:text-dark-300'}
-            `}
+            className={cn(
+              'text-[11px] font-mono tracking-tight',
+              'transition-colors duration-200',
+              isSelected ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground/70'
+            )}
           >
             {formatTime(subtitle.endTime)}
           </span>
         </div>
 
         {/* Duration badge */}
-        <span
-          className={`
-            text-[9px] font-medium px-1.5 py-0.5 rounded-md
-            transition-all duration-200
-            ${isSelected ? 'bg-primary-500/20 text-primary-300' : 'bg-dark-700/50 text-dark-500 group-hover:bg-dark-700 group-hover:text-dark-400'}
-          `}
+        <Badge
+          variant="secondary"
+          className={cn(
+            'text-[9px] font-medium px-1.5 py-0.5 h-auto',
+            'transition-all duration-200',
+            isSelected && 'bg-primary/20 text-primary border-primary/30'
+          )}
         >
           {duration.toFixed(1)}s
-        </span>
+        </Badge>
 
         {/* Confidence indicator dot */}
         {subtitle.words.length > 0 && (
           <div
-            className={`
-              w-1.5 h-1.5 rounded-full transition-all duration-200
-              ${confidenceColor.replace('text-', 'bg-')}
-              ${isSelected ? 'scale-125 animate-pulse-soft' : 'opacity-60 group-hover:opacity-100'}
-            `}
+            className={cn(
+              'w-1.5 h-1.5 rounded-full transition-all duration-200',
+              confidenceColor,
+              isSelected ? 'scale-125 animate-pulse-soft' : 'opacity-60 group-hover:opacity-100'
+            )}
             title={`${Math.round(overallConfidence * 100)}% Konfidenz`}
           />
         )}
 
         {/* Actions with smooth fade */}
         <div
-          className={`
-            ml-auto flex items-center gap-0.5
-            transition-all duration-200 ease-smooth
-            ${showActions && !isEditing ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2 pointer-events-none'}
-          `}
+          className={cn(
+            'ml-auto flex items-center gap-0.5',
+            'transition-all duration-200 ease-smooth',
+            showActions && !isEditing
+              ? 'opacity-100 translate-x-0'
+              : 'opacity-0 translate-x-2 pointer-events-none'
+          )}
         >
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground"
             onClick={(e) => {
               e.stopPropagation()
               setIsEditing(true)
             }}
-            className={`
-              p-1.5 rounded-lg transition-all duration-150 ease-smooth
-              text-dark-400 hover:text-white
-              hover:bg-white/[0.08] active:scale-95
-            `}
             title="Bearbeiten"
           >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-              />
-            </svg>
-          </button>
-          <button
+            <Pencil className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
             onClick={(e) => {
               e.stopPropagation()
               handleDelete()
             }}
-            className={`
-              p-1.5 rounded-lg transition-all duration-150 ease-smooth
-              text-dark-400 hover:text-red-400
-              hover:bg-red-500/10 active:scale-95
-            `}
-            title="Löschen"
+            title="Loeschen"
           >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-              />
-            </svg>
-          </button>
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
         </div>
-      </div>
+      </CardHeader>
 
       {/* Content */}
-      <div className="px-3 py-2.5">
+      <CardContent className="px-3 py-2.5">
         {isEditing ? (
           <div
             className="space-y-2.5 animate-fade-in-scale"
@@ -250,76 +236,63 @@ export default function SubtitleItem({
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
               onKeyDown={handleKeyDown}
-              className={`
-                w-full rounded-lg px-3 py-2 text-sm resize-none
-                bg-dark-900/60 border border-white/[0.08]
-                placeholder-dark-500 text-dark-100
-                focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500/30
-                transition-all duration-200
-              `}
+              className={cn(
+                'w-full rounded-lg px-3 py-2 text-sm resize-none',
+                'bg-background/60 border border-border',
+                'placeholder:text-muted-foreground text-foreground',
+                'focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/30',
+                'transition-all duration-200'
+              )}
               rows={2}
               placeholder="Untertiteltext eingeben..."
             />
             <div className="flex gap-2">
-              <button
+              <Button
+                size="sm"
+                className="flex-1"
                 onClick={(e) => {
                   e.stopPropagation()
                   handleSave()
                 }}
-                className={`
-                  flex-1 px-3 py-1.5 rounded-lg text-xs font-medium
-                  bg-primary-600 text-white
-                  hover:bg-primary-500 active:scale-[0.98]
-                  transition-all duration-150 ease-spring
-                  shadow-sm hover:shadow-glow-blue
-                `}
               >
-                <span className="flex items-center justify-center gap-1.5">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Speichern
-                </span>
-              </button>
-              <button
+                <Check className="w-3.5 h-3.5" />
+                Speichern
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={(e) => {
                   e.stopPropagation()
                   setEditText(subtitle.text)
                   setIsEditing(false)
                 }}
-                className={`
-                  px-3 py-1.5 rounded-lg text-xs font-medium
-                  bg-dark-700/50 text-dark-300 border border-white/[0.06]
-                  hover:bg-dark-700 hover:text-white active:scale-[0.98]
-                  transition-all duration-150 ease-smooth
-                `}
               >
                 Abbrechen
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
           <p
-            className={`
-              text-sm leading-relaxed transition-colors duration-200
-              ${isSelected ? 'text-dark-100' : 'text-dark-300 group-hover:text-dark-200'}
-            `}
+            className={cn(
+              'text-sm leading-relaxed transition-colors duration-200',
+              isSelected ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground/80'
+            )}
           >
             {subtitle.text}
           </p>
         )}
-      </div>
+      </CardContent>
 
       {/* Word Confidence Indicator - Enhanced visualization */}
       {!isEditing && subtitle.words.length > 0 && (
         <div className="px-3 pb-2.5">
           <div
-            className={`
-              flex gap-[2px] h-1 rounded-full overflow-hidden
-              bg-dark-900/40
-              transition-opacity duration-200
-              ${isHovered || isSelected ? 'opacity-100' : 'opacity-50'}
-            `}
+            className={cn(
+              'flex gap-[2px] h-1 rounded-full overflow-hidden',
+              'bg-muted/40',
+              'transition-opacity duration-200',
+              isHovered || isSelected ? 'opacity-100' : 'opacity-50'
+            )}
           >
             {subtitle.words.map((word, index) => {
               const confidence = word.confidence
@@ -333,12 +306,13 @@ export default function SubtitleItem({
               return (
                 <div
                   key={index}
-                  className={`
-                    flex-1 rounded-full ${bgColor}
-                    transition-all duration-200
-                    ${isHovered || isSelected ? 'opacity-70' : 'opacity-40'}
-                    hover:opacity-100 hover:scale-y-150
-                  `}
+                  className={cn(
+                    'flex-1 rounded-full',
+                    bgColor,
+                    'transition-all duration-200',
+                    isHovered || isSelected ? 'opacity-70' : 'opacity-40',
+                    'hover:opacity-100 hover:scale-y-150'
+                  )}
                   style={{
                     transitionDelay: `${index * 10}ms`
                   }}
@@ -352,16 +326,16 @@ export default function SubtitleItem({
 
       {/* Hover glow effect - subtle radial gradient */}
       <div
-        className={`
-          absolute inset-0 rounded-xl pointer-events-none
-          transition-opacity duration-300
-          ${isHovered && !isSelected ? 'opacity-100' : 'opacity-0'}
-        `}
+        className={cn(
+          'absolute inset-0 rounded-xl pointer-events-none',
+          'transition-opacity duration-300',
+          isHovered && !isSelected ? 'opacity-100' : 'opacity-0'
+        )}
         style={{
           background:
             'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.02) 0%, transparent 70%)'
         }}
       />
-    </div>
+    </Card>
   )
 }

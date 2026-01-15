@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Clock, Film, MoreVertical, Pencil, Trash2, Loader2 } from 'lucide-react'
 import type { StoredProjectMeta } from '../../../shared/types'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 interface ProjectBrowserProps {
   onOpenProject: (projectId: string) => void
@@ -119,8 +123,8 @@ export default function ProjectBrowser({ onOpenProject }: ProjectBrowserProps) {
   if (isLoading) {
     return (
       <div className="mt-8 flex justify-center">
-        <div className="flex items-center gap-2 text-dark-400">
-          <div className="w-4 h-4 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin" />
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" />
           <span className="text-sm">Projekte laden...</span>
         </div>
       </div>
@@ -135,10 +139,8 @@ export default function ProjectBrowser({ onOpenProject }: ProjectBrowserProps) {
     <div className="mt-8 w-full max-w-4xl mx-auto px-4">
       {/* Section header */}
       <div className="flex items-center gap-2 mb-4">
-        <svg className="w-4 h-4 text-dark-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <h2 className="text-sm font-medium text-dark-300">Letzte Projekte</h2>
+        <Clock className="w-4 h-4 text-muted-foreground" />
+        <h2 className="text-sm font-medium text-muted-foreground">Letzte Projekte</h2>
       </div>
 
       {/* Project grid */}
@@ -150,17 +152,16 @@ export default function ProjectBrowser({ onOpenProject }: ProjectBrowserProps) {
             onClick={() => onOpenProject(project.id)}
           >
             {/* Project card */}
-            <div
-              className={`
-                relative cursor-pointer rounded-xl overflow-hidden
-                bg-dark-800 border border-dark-700/50
-                transition-all duration-200 ease-spring
-                hover:border-dark-600 hover:shadow-lg hover:scale-[1.02]
-                active:scale-[0.98]
-              `}
+            <Card
+              className={cn(
+                'cursor-pointer overflow-hidden',
+                'transition-all duration-200 ease-out',
+                'hover:border-muted-foreground/30 hover:shadow-lg hover:scale-[1.02]',
+                'active:scale-[0.98]'
+              )}
             >
               {/* Thumbnail */}
-              <div className="aspect-video bg-dark-900 relative">
+              <div className="aspect-video bg-muted relative">
                 {project.thumbnailPath ? (
                   <img
                     src={`media://${project.thumbnailPath}`}
@@ -173,9 +174,7 @@ export default function ProjectBrowser({ onOpenProject }: ProjectBrowserProps) {
                   />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <svg className="w-10 h-10 text-dark-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
-                    </svg>
+                    <Film className="w-10 h-10 text-muted-foreground/30" />
                   </div>
                 )}
 
@@ -185,11 +184,11 @@ export default function ProjectBrowser({ onOpenProject }: ProjectBrowserProps) {
                 </div>
 
                 {/* Hover overlay */}
-                <div className="absolute inset-0 bg-primary-500/0 group-hover:bg-primary-500/10 transition-colors duration-200" />
+                <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors duration-200" />
               </div>
 
               {/* Project info */}
-              <div className="p-3">
+              <CardContent className="p-3">
                 {editingId === project.id ? (
                   <input
                     type="text"
@@ -201,63 +200,61 @@ export default function ProjectBrowser({ onOpenProject }: ProjectBrowserProps) {
                     }}
                     onBlur={handleSaveRename}
                     onClick={(e) => e.stopPropagation()}
-                    className="w-full px-2 py-1 text-sm bg-dark-700 border border-primary-500 rounded focus:outline-none text-white"
+                    className="w-full px-2 py-1 text-sm bg-muted border border-primary rounded focus:outline-none text-foreground"
                     autoFocus
                   />
                 ) : (
-                  <h3 className="text-sm font-medium text-white truncate">{project.name}</h3>
+                  <h3 className="text-sm font-medium text-foreground truncate">{project.name}</h3>
                 )}
-                <p className="text-xs text-dark-400 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   {formatDate(project.updatedAt)}
                 </p>
-              </div>
+              </CardContent>
 
               {/* Context menu button */}
-              <button
+              <Button
                 onClick={(e) => {
                   e.stopPropagation()
                   setContextMenuId(contextMenuId === project.id ? null : project.id)
                 }}
-                className={`
-                  absolute top-2 right-2 p-1.5 rounded-md
-                  bg-black/50 backdrop-blur-sm
-                  text-white/70 hover:text-white
-                  opacity-0 group-hover:opacity-100
-                  transition-all duration-200
-                `}
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  'absolute top-2 right-2 h-8 w-8',
+                  'bg-black/50 backdrop-blur-sm',
+                  'text-white/70 hover:text-white hover:bg-black/70',
+                  'opacity-0 group-hover:opacity-100',
+                  'transition-all duration-200'
+                )}
               >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                </svg>
-              </button>
+                <MoreVertical className="w-4 h-4" />
+              </Button>
 
               {/* Context menu */}
               {contextMenuId === project.id && (
-                <div
+                <Card
                   onClick={(e) => e.stopPropagation()}
-                  className="absolute top-10 right-2 z-10 py-1 rounded-lg bg-dark-700 border border-dark-600 shadow-lg min-w-[120px]"
+                  className="absolute top-10 right-2 z-10 py-1 min-w-[120px] shadow-lg"
                 >
-                  <button
+                  <Button
                     onClick={(e) => handleStartRename(project, e)}
-                    className="w-full px-3 py-1.5 text-left text-sm text-dark-200 hover:bg-dark-600 flex items-center gap-2"
+                    variant="ghost"
+                    className="w-full justify-start px-3 py-1.5 h-auto text-sm font-normal"
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
+                    <Pencil className="w-4 h-4 mr-2" />
                     Umbenennen
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={(e) => handleDelete(project.id, e)}
-                    className="w-full px-3 py-1.5 text-left text-sm text-red-400 hover:bg-dark-600 flex items-center gap-2"
+                    variant="ghost"
+                    className="w-full justify-start px-3 py-1.5 h-auto text-sm font-normal text-destructive hover:text-destructive"
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                    <Trash2 className="w-4 h-4 mr-2" />
                     Löschen
-                  </button>
-                </div>
+                  </Button>
+                </Card>
               )}
-            </div>
+            </Card>
           </div>
         ))}
       </div>

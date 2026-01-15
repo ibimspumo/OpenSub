@@ -1,49 +1,26 @@
 import { useState, useCallback } from 'react'
 import { useStyleProfileStore } from '../../store/styleProfileStore'
 import type { SubtitleStyle } from '../../../shared/types'
-
-// Icons
-const SaveIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-  </svg>
-)
-
-const TrashIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-  </svg>
-)
-
-const ImportIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-  </svg>
-)
-
-const ExportIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-  </svg>
-)
-
-const ProfileIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-  </svg>
-)
-
-const CheckIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-  </svg>
-)
-
-const CloseIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-  </svg>
-)
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
+import { cn } from '@/lib/utils'
+import {
+  Save,
+  Trash2,
+  Upload,
+  Download,
+  FolderOpen,
+  Check,
+  X,
+  AlertCircle
+} from 'lucide-react'
 
 interface StyleProfileSelectorProps {
   currentStyle: SubtitleStyle
@@ -105,17 +82,17 @@ export default function StyleProfileSelector({
     const profile = profiles.find((p) => p.id === selectedProfileId)
     if (!profile) return
 
-    if (confirm(`Möchtest du das Profil "${profile.name}" wirklich löschen?`)) {
+    if (confirm(`Moechtest du das Profil "${profile.name}" wirklich loeschen?`)) {
       deleteProfile(selectedProfileId)
       setSelectedProfileId('')
-      showFeedback('success', `Profil "${profile.name}" gelöscht`)
+      showFeedback('success', `Profil "${profile.name}" geloescht`)
     }
   }, [selectedProfileId, profiles, deleteProfile, showFeedback])
 
   // Handle export profile
   const handleExportProfile = useCallback(async () => {
     if (!selectedProfileId) {
-      showFeedback('error', 'Bitte wähle zuerst ein Profil aus')
+      showFeedback('error', 'Bitte waehle zuerst ein Profil aus')
       return
     }
 
@@ -156,12 +133,25 @@ export default function StyleProfileSelector({
       if (result.canceled) {
         // User canceled, no feedback needed
       } else if (result.success && result.profileExport) {
-        const imported = importProfile(result.profileExport)
+        const { profile: imported, validation } = importProfile(result.profileExport)
         if (imported) {
           setSelectedProfileId(imported.id)
-          showFeedback('success', `Profil "${imported.name}" importiert`)
+
+          // Show appropriate feedback based on validation results
+          if (validation?.hasIssues) {
+            const issues: string[] = []
+            if (validation.unknownProperties.length > 0) {
+              issues.push(`${validation.unknownProperties.length} nicht unterstuetzte Eigenschaften entfernt`)
+            }
+            if (validation.missingProperties.length > 0) {
+              issues.push(`${validation.missingProperties.length} fehlende Eigenschaften mit Standardwerten ergaenzt`)
+            }
+            showFeedback('success', `Profil "${imported.name}" importiert (${issues.join(', ')})`)
+          } else {
+            showFeedback('success', `Profil "${imported.name}" importiert`)
+          }
         } else {
-          showFeedback('error', 'Ungültiges Profil-Format')
+          showFeedback('error', 'Ungueltiges Profil-Format')
         }
       } else {
         showFeedback('error', result.error || 'Import fehlgeschlagen')
@@ -184,10 +174,10 @@ export default function StyleProfileSelector({
     <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center gap-2.5">
-        <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-white/[0.06] text-dark-400">
-          <ProfileIcon />
+        <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-muted text-muted-foreground">
+          <FolderOpen className="w-4 h-4" />
         </div>
-        <span className="text-xs font-semibold tracking-wide uppercase text-dark-400">
+        <span className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
           Stil-Profile
         </span>
       </div>
@@ -195,62 +185,50 @@ export default function StyleProfileSelector({
       {/* Feedback message */}
       {feedback && (
         <div
-          className={`
-            flex items-center gap-2 px-3 py-2 rounded-lg text-xs animate-fade-in
-            ${feedback.type === 'success'
-              ? 'bg-green-500/10 border border-green-500/20 text-green-400'
-              : 'bg-red-500/10 border border-red-500/20 text-red-400'
-            }
-          `}
+          className={cn(
+            'flex items-center gap-2 px-3 py-2 rounded-lg text-xs animate-fade-in',
+            feedback.type === 'success'
+              ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+              : 'bg-destructive/10 border border-destructive/20 text-destructive'
+          )}
         >
           {feedback.type === 'success' ? (
-            <CheckIcon />
+            <Check className="w-4 h-4" />
           ) : (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+            <AlertCircle className="w-4 h-4" />
           )}
           <span>{feedback.message}</span>
         </div>
       )}
 
-      {/* Profile dropdown */}
-      <div className="relative">
-        <select
-          value={selectedProfileId}
-          onChange={(e) => handleProfileChange(e.target.value)}
-          disabled={isLoading}
-          className={`
-            w-full h-9 px-3 pr-8 rounded-lg text-sm
-            bg-dark-800/60 text-dark-200
-            border border-white/[0.08] hover:border-white/[0.12]
-            focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500/40
-            transition-all duration-200 cursor-pointer
-            appearance-none
-            disabled:opacity-50 disabled:cursor-not-allowed
-          `}
-        >
-          <option value="" className="bg-dark-800">
-            — Profil auswählen —
-          </option>
-          {profiles.map((profile) => (
-            <option key={profile.id} value={profile.id} className="bg-dark-800">
-              {profile.name}
-            </option>
-          ))}
-        </select>
-        {/* Custom dropdown arrow */}
-        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
-          <svg className="w-4 h-4 text-dark-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </div>
+      {/* Profile dropdown using ShadCN Select */}
+      <Select
+        value={selectedProfileId}
+        onValueChange={handleProfileChange}
+        disabled={isLoading}
+      >
+        <SelectTrigger className="w-full h-9 bg-muted/60 border-input hover:border-ring">
+          <SelectValue placeholder="— Profil auswaehlen —" />
+        </SelectTrigger>
+        <SelectContent>
+          {profiles.length === 0 ? (
+            <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+              Keine Profile vorhanden
+            </div>
+          ) : (
+            profiles.map((profile) => (
+              <SelectItem key={profile.id} value={profile.id}>
+                {profile.name}
+              </SelectItem>
+            ))
+          )}
+        </SelectContent>
+      </Select>
 
       {/* Save new profile section */}
       {isCreating ? (
         <div className="space-y-2 animate-fade-in">
-          <input
+          <Input
             type="text"
             value={newProfileName}
             onChange={(e) => setNewProfileName(e.target.value)}
@@ -260,128 +238,85 @@ export default function StyleProfileSelector({
               if (e.key === 'Enter') handleSaveProfile()
               if (e.key === 'Escape') handleCancelCreate()
             }}
-            className={`
-              w-full h-9 px-3 rounded-lg text-sm
-              bg-dark-800/60 text-dark-200 placeholder-dark-500
-              border border-white/[0.08] hover:border-white/[0.12]
-              focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500/40
-              transition-all duration-200
-            `}
+            className="h-9 bg-muted/60"
           />
           <div className="flex gap-2">
-            <button
+            <Button
               onClick={handleSaveProfile}
-              className={`
-                flex-1 flex items-center justify-center gap-1.5
-                h-8 px-3 rounded-lg text-xs font-medium
-                bg-primary-600 text-white
-                hover:bg-primary-500
-                active:scale-[0.98]
-                transition-all duration-200
-              `}
+              size="sm"
+              className="flex-1 h-8"
             >
-              <CheckIcon />
+              <Check className="w-4 h-4" />
               Speichern
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
               onClick={handleCancelCreate}
-              className={`
-                flex items-center justify-center
-                h-8 w-8 rounded-lg text-xs font-medium
-                bg-dark-800/60 text-dark-400
-                border border-white/[0.04]
-                hover:bg-dark-700/60 hover:text-dark-300
-                active:scale-[0.98]
-                transition-all duration-200
-              `}
+              className="h-8 w-8 bg-muted/60"
             >
-              <CloseIcon />
-            </button>
+              <X className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       ) : (
         /* Action buttons */
         <div className="grid grid-cols-2 gap-2">
           {/* Save as Profile */}
-          <button
+          <Button
             onClick={() => setIsCreating(true)}
             disabled={isLoading}
-            className={`
-              flex items-center justify-center gap-1.5
-              h-8 px-2 rounded-lg text-xs font-medium
-              bg-primary-600/80 text-white
-              hover:bg-primary-500
-              active:scale-[0.98]
-              transition-all duration-200
-              disabled:opacity-50 disabled:cursor-not-allowed
-            `}
+            size="sm"
+            className="h-8"
           >
-            <SaveIcon />
+            <Save className="w-4 h-4" />
             <span>Speichern</span>
-          </button>
+          </Button>
 
           {/* Delete Profile */}
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleDeleteProfile}
             disabled={!selectedProfileId || isLoading}
-            className={`
-              flex items-center justify-center gap-1.5
-              h-8 px-2 rounded-lg text-xs font-medium
-              bg-dark-800/60 text-dark-400
-              border border-white/[0.04]
-              hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20
-              active:scale-[0.98]
-              transition-all duration-200
-              disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-dark-800/60 disabled:hover:text-dark-400 disabled:hover:border-white/[0.04]
-            `}
+            className={cn(
+              'h-8 bg-muted/60',
+              selectedProfileId && 'hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20'
+            )}
           >
-            <TrashIcon />
-            <span>Löschen</span>
-          </button>
+            <Trash2 className="w-4 h-4" />
+            <span>Loeschen</span>
+          </Button>
 
           {/* Import Profile */}
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleImportProfile}
             disabled={isLoading}
-            className={`
-              flex items-center justify-center gap-1.5
-              h-8 px-2 rounded-lg text-xs font-medium
-              bg-dark-800/60 text-dark-400
-              border border-white/[0.04]
-              hover:bg-dark-700/60 hover:text-dark-300 hover:border-white/[0.08]
-              active:scale-[0.98]
-              transition-all duration-200
-              disabled:opacity-50 disabled:cursor-not-allowed
-            `}
+            className="h-8 bg-muted/60"
           >
-            <ImportIcon />
+            <Upload className="w-4 h-4" />
             <span>Import</span>
-          </button>
+          </Button>
 
           {/* Export Profile */}
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleExportProfile}
             disabled={!selectedProfileId || isLoading}
-            className={`
-              flex items-center justify-center gap-1.5
-              h-8 px-2 rounded-lg text-xs font-medium
-              bg-dark-800/60 text-dark-400
-              border border-white/[0.04]
-              hover:bg-dark-700/60 hover:text-dark-300 hover:border-white/[0.08]
-              active:scale-[0.98]
-              transition-all duration-200
-              disabled:opacity-50 disabled:cursor-not-allowed
-            `}
+            className="h-8 bg-muted/60"
           >
-            <ExportIcon />
+            <Download className="w-4 h-4" />
             <span>Export</span>
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Profile count indicator */}
       {profiles.length > 0 && (
-        <p className="text-[10px] text-dark-500 text-center">
+        <p className="text-[10px] text-muted-foreground text-center">
           {profiles.length} {profiles.length === 1 ? 'Profil' : 'Profile'} gespeichert
         </p>
       )}

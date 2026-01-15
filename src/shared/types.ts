@@ -53,11 +53,14 @@ export interface SubtitleStyle {
   textTransform: 'none' | 'uppercase'  // Text transformation (uppercase = Versalien)
   color: string
   highlightColor: string
+  upcomingColor: string  // Color for words not yet spoken (karaoke mode)
   backgroundColor: string
   outlineColor: string
   outlineWidth: number
   shadowColor: string
   shadowBlur: number
+  shadowOffsetX: number   // Horizontal shadow offset in pixels
+  shadowOffsetY: number   // Vertical shadow offset in pixels
   position: SubtitlePosition
   // Custom position (0-1, where 0.5 is center)
   positionX: number
@@ -121,11 +124,14 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   textTransform: 'uppercase',    // Versalien als Standard
   color: '#FFFFFF',
   highlightColor: '#FFD700',
+  upcomingColor: '#808080',  // Gray for upcoming words (not yet spoken)
   backgroundColor: 'rgba(0, 0, 0, 0.5)',
   outlineColor: '#000000',
   outlineWidth: 10,              // Erhöhter Standard für bessere Lesbarkeit
   shadowColor: 'rgba(0, 0, 0, 0.8)',
   shadowBlur: 25,                // Erhöhter Standard für mehr Tiefe
+  shadowOffsetX: 4,              // Leichter horizontaler Versatz
+  shadowOffsetY: 4,              // Leichter vertikaler Versatz
   position: 'custom',
   positionX: 0.5,  // Centered horizontally
   positionY: 0.65, // TikTok safe zone (~65% from top, above UI elements)
@@ -138,6 +144,65 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   karaokeBoxColor: '#32CD32',    // Lime green (as shown in reference image)
   karaokeBoxPadding: 24,         // 24px padding around the word
   karaokeBoxBorderRadius: 32    // 32px border radius for rounded corners
+}
+
+// List of all valid SubtitleStyle property names
+export const SUBTITLE_STYLE_KEYS: (keyof SubtitleStyle)[] = [
+  'fontFamily', 'fontSize', 'fontWeight', 'textTransform',
+  'color', 'highlightColor', 'upcomingColor', 'backgroundColor',
+  'outlineColor', 'outlineWidth', 'shadowColor', 'shadowBlur',
+  'shadowOffsetX', 'shadowOffsetY', 'position', 'positionX', 'positionY',
+  'animation', 'maxWidth', 'maxLines',
+  'karaokeBoxEnabled', 'karaokeBoxColor', 'karaokeBoxPadding', 'karaokeBoxBorderRadius'
+]
+
+// Result of style validation
+export interface StyleValidationResult {
+  style: SubtitleStyle           // Normalized style (merged with defaults)
+  missingProperties: string[]    // Properties that were missing and filled with defaults
+  unknownProperties: string[]    // Properties that were removed (not in SubtitleStyle)
+  hasIssues: boolean             // True if there were missing or unknown properties
+}
+
+/**
+ * Validates and normalizes an imported style object.
+ * - Fills missing properties with defaults from DEFAULT_SUBTITLE_STYLE
+ * - Removes unknown properties that aren't part of SubtitleStyle
+ * - Returns information about what was fixed
+ *
+ * @param importedStyle - The style object from an imported profile (may be incomplete)
+ * @returns Validation result with normalized style and diagnostics
+ */
+export function validateAndNormalizeStyle(importedStyle: Record<string, unknown>): StyleValidationResult {
+  const missingProperties: string[] = []
+  const unknownProperties: string[] = []
+
+  // Find unknown properties in imported style
+  for (const key of Object.keys(importedStyle)) {
+    if (!SUBTITLE_STYLE_KEYS.includes(key as keyof SubtitleStyle)) {
+      unknownProperties.push(key)
+    }
+  }
+
+  // Build normalized style by merging with defaults
+  const normalizedStyle: SubtitleStyle = { ...DEFAULT_SUBTITLE_STYLE }
+
+  for (const key of SUBTITLE_STYLE_KEYS) {
+    if (key in importedStyle && importedStyle[key] !== undefined) {
+      // Use the imported value (with type assertion since we validated the key)
+      ;(normalizedStyle as Record<string, unknown>)[key] = importedStyle[key]
+    } else {
+      // Track missing properties
+      missingProperties.push(key)
+    }
+  }
+
+  return {
+    style: normalizedStyle,
+    missingProperties,
+    unknownProperties,
+    hasIssues: missingProperties.length > 0 || unknownProperties.length > 0
+  }
 }
 
 // ============================================

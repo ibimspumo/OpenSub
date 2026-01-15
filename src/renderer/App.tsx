@@ -12,10 +12,14 @@ import AnalysisProgress from './components/AnalysisProgress/AnalysisProgress'
 import DiffPreview from './components/DiffPreview/DiffPreview'
 import TitleBar from './components/TitleBar/TitleBar'
 import ModelLoadingScreen from './components/ModelLoadingScreen/ModelLoadingScreen'
+import { TooltipProvider } from './components/ui/tooltip'
+import { Button } from './components/ui/button'
 import { generateExportFrames } from './utils/subtitleFrameRenderer'
 import { useAutoSave } from './hooks/useAutoSave'
 import { loadGoogleFont } from './utils/fontLoader'
 import { PlaybackControllerProvider } from './hooks/usePlaybackController'
+import { cn } from './lib/utils'
+import { X, AlertCircle } from 'lucide-react'
 import type { SubtitleFrame, TranscriptionProgress as TranscriptionProgressType } from '../shared/types'
 
 function App() {
@@ -207,203 +211,194 @@ function App() {
     }
   }, [project, setIsExporting, setExportProgress])
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      // Stop whisper service when app closes
-      if (window.api?.whisper) {
-        window.api.whisper.stop().catch(console.error)
-      }
-    }
-  }, [])
 
   return (
-    <div
-      className={`
-        h-screen flex flex-col bg-dark-950
-        transition-opacity duration-500 ease-smooth
-        ${isAppMounted ? 'opacity-100' : 'opacity-0'}
-      `}
-    >
-      {/* Premium Title Bar with Glassmorphism */}
-      <TitleBar isAppMounted={isAppMounted} onExport={handleExport} />
-
-      {/* Main Content Area with smooth transitions */}
-      <main className="flex-1 flex overflow-hidden relative">
-        {!hasProject() ? (
-          // Drop Zone - Full screen centered
-          <div className="flex-1 animate-fade-in">
-            <DropZone />
-          </div>
-        ) : (
-          // Editor Layout - 3-column + bottom timeline
-          // Wrapped with PlaybackControllerProvider for synchronized video/timeline control
-          <PlaybackControllerProvider>
-          <div
-            className={`
-              flex-1 flex flex-col overflow-hidden
-              transition-all duration-500 ease-smooth
-              ${showEditor ? 'opacity-100' : 'opacity-0'}
-            `}
-          >
-            {/* Top Area - 3 Column Layout */}
-            <div className="flex-1 flex min-h-0 overflow-hidden">
-              {/* Left Column - Subtitle List */}
-              <div
-                className={`
-                  w-80 min-w-[280px] flex flex-col
-                  border-r border-white/[0.06]
-                  bg-gradient-to-l from-dark-900/30 to-transparent
-                  ${showEditor ? 'animate-slide-in-left' : ''}
-                `}
-                style={{ animationDelay: '100ms', animationFillMode: 'both' }}
-              >
-                <div className="px-4 py-3 border-b border-white/[0.04] flex items-center justify-between">
-                  <h2 className="text-xs font-semibold text-dark-400 uppercase tracking-wider">
-                    Untertitel
-                  </h2>
-                  <span className="text-xs text-dark-500 tabular-nums">
-                    {project?.subtitles.length || 0} Einträge
-                  </span>
-                </div>
-                <div className="flex-1 overflow-y-auto scrollbar-thin">
-                  <SubtitleList />
-                </div>
-              </div>
-
-              {/* Center Column - Video Player */}
-              <div
-                className={`
-                  flex-1 flex flex-col min-w-0
-                  transition-all duration-300 ease-smooth
-                `}
-              >
-                <div
-                  className={`
-                    flex-1 min-h-0 p-4
-                    ${showEditor ? 'animate-fade-in-up' : ''}
-                  `}
-                  style={{ animationDelay: '150ms', animationFillMode: 'both' }}
-                >
-                  <div className={`
-                    h-full w-full flex items-center justify-center
-                    ${isPortraitVideo ? 'portrait-video-container' : ''}
-                  `}>
-                    <VideoPlayer />
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Column - Style Editor */}
-              <div
-                className={`
-                  w-80 min-w-[280px] flex flex-col
-                  border-l border-white/[0.06]
-                  bg-gradient-to-r from-dark-900/30 to-transparent
-                  ${showEditor ? 'animate-slide-in-right' : ''}
-                `}
-                style={{ animationDelay: '100ms', animationFillMode: 'both' }}
-              >
-                <div className="px-4 py-3 border-b border-white/[0.04] flex items-center justify-between">
-                  <h2 className="text-xs font-semibold text-dark-400 uppercase tracking-wider">
-                    Stil-Editor
-                  </h2>
-                  <div className="w-4 h-4 rounded-full bg-dark-800 flex items-center justify-center">
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary-500/60" />
-                  </div>
-                </div>
-                <div className="flex-1 overflow-y-auto scrollbar-thin">
-                  <StyleEditor />
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom - Full-width Timeline */}
-            <div
-              className={`
-                h-32 border-t border-white/[0.06]
-                bg-gradient-to-b from-dark-900/50 to-transparent
-                ${showEditor ? 'animate-slide-in-up' : ''}
-              `}
-              style={{ animationDelay: '200ms', animationFillMode: 'both' }}
-            >
-              <Timeline />
-            </div>
-          </div>
-          </PlaybackControllerProvider>
+    <TooltipProvider>
+      <div
+        className={cn(
+          'h-screen flex flex-col bg-background',
+          'transition-opacity duration-500 ease-smooth',
+          isAppMounted ? 'opacity-100' : 'opacity-0'
         )}
-      </main>
+      >
+        {/* Premium Title Bar */}
+        <TitleBar isAppMounted={isAppMounted} onExport={handleExport} />
 
-      {/* Model Loading Screen - shown at app startup */}
-      {isModelLoading && (
-        <ModelLoadingScreen progress={modelLoadingProgress} />
-      )}
+        {/* Main Content Area with smooth transitions */}
+        <main className="flex-1 flex overflow-hidden relative">
+          {!hasProject() ? (
+            // Drop Zone - Full screen centered
+            <div className="flex-1 animate-fade-in">
+              <DropZone />
+            </div>
+          ) : (
+            // Editor Layout - 3-column + bottom timeline
+            // Wrapped with PlaybackControllerProvider for synchronized video/timeline control
+            <PlaybackControllerProvider>
+            <div
+              className={cn(
+                'flex-1 flex flex-col overflow-hidden',
+                'transition-all duration-500 ease-smooth',
+                showEditor ? 'opacity-100' : 'opacity-0'
+              )}
+            >
+              {/* Top Area - 3 Column Layout */}
+              <div className="flex-1 flex min-h-0 overflow-hidden">
+                {/* Left Column - Subtitle List */}
+                <div
+                  className={cn(
+                    'w-80 min-w-[280px] flex flex-col',
+                    'border-r border-border',
+                    'bg-gradient-to-l from-card/30 to-transparent',
+                    showEditor && 'animate-slide-in-left'
+                  )}
+                  style={{ animationDelay: '100ms', animationFillMode: 'both' }}
+                >
+                  <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between">
+                    <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Untertitel
+                    </h2>
+                    <span className="text-xs text-muted-foreground/70 tabular-nums">
+                      {project?.subtitles.length || 0} Eintraege
+                    </span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto scrollbar-thin">
+                    <SubtitleList />
+                  </div>
+                </div>
 
-      {/* Modal Overlays with backdrop blur */}
-      {isTranscribing && (
-        <TranscriptionProgress progress={transcriptionProgress} />
-      )}
+                {/* Center Column - Video Player */}
+                <div
+                  className={cn(
+                    'flex-1 flex flex-col min-w-0',
+                    'transition-all duration-300 ease-smooth'
+                  )}
+                >
+                  <div
+                    className={cn(
+                      'flex-1 min-h-0 p-4',
+                      showEditor && 'animate-fade-in-up'
+                    )}
+                    style={{ animationDelay: '150ms', animationFillMode: 'both' }}
+                  >
+                    <div className={cn(
+                      'h-full w-full flex items-center justify-center',
+                      isPortraitVideo && 'portrait-video-container'
+                    )}>
+                      <VideoPlayer />
+                    </div>
+                  </div>
+                </div>
 
-      {isExporting && (
-        <ExportProgress />
-      )}
+                {/* Right Column - Style Editor */}
+                <div
+                  className={cn(
+                    'w-80 min-w-[280px] flex flex-col',
+                    'border-l border-border',
+                    'bg-gradient-to-r from-card/30 to-transparent',
+                    showEditor && 'animate-slide-in-right'
+                  )}
+                  style={{ animationDelay: '100ms', animationFillMode: 'both' }}
+                >
+                  <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between">
+                    <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Stil-Editor
+                    </h2>
+                    <div className="w-4 h-4 rounded-full bg-secondary flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary/60" />
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto scrollbar-thin">
+                    <StyleEditor />
+                  </div>
+                </div>
+              </div>
 
-      {/* AI Analysis Modal */}
-      {isAnalyzing && (
-        <AnalysisProgress
-          progress={analysisProgress}
-          onCancel={() => {
-            window.api.analysis.cancel()
-            setIsAnalyzing(false)
-            setAnalysisProgress(null)
-          }}
-        />
-      )}
+              {/* Bottom - Full-width Timeline */}
+              <div
+                className={cn(
+                  'h-32 border-t border-border',
+                  'bg-gradient-to-b from-card/50 to-transparent',
+                  showEditor && 'animate-slide-in-up'
+                )}
+                style={{ animationDelay: '200ms', animationFillMode: 'both' }}
+              >
+                <Timeline />
+              </div>
+            </div>
+            </PlaybackControllerProvider>
+          )}
+        </main>
 
-      {/* Diff Preview Modal */}
-      {showDiffPreview && (
-        <DiffPreview
-          onClose={() => {
-            setShowDiffPreview(false)
-            setPendingChanges([])
-          }}
-          onApply={() => {
-            setShowDiffPreview(false)
-            setPendingChanges([])
-          }}
-        />
-      )}
+        {/* Model Loading Screen - shown at app startup */}
+        {isModelLoading && (
+          <ModelLoadingScreen progress={modelLoadingProgress} />
+        )}
 
-      {/* Export Error Toast (if needed) */}
-      {exportError && (
-        <div
-          className="
-            fixed bottom-4 right-4
-            glass-dark-heavy rounded-xl px-4 py-3
-            animate-slide-in-up shadow-elevated
-            flex items-center gap-3
-          "
-        >
-          <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center">
-            <svg className="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-white">Export fehlgeschlagen</p>
-            <p className="text-xs text-dark-400">{exportError}</p>
-          </div>
-          <button
-            onClick={() => setExportError(null)}
-            className="ml-2 p-1 hover:bg-white/10 rounded transition-colors"
+        {/* Modal Overlays with backdrop blur */}
+        {isTranscribing && (
+          <TranscriptionProgress progress={transcriptionProgress} />
+        )}
+
+        {isExporting && (
+          <ExportProgress />
+        )}
+
+        {/* AI Analysis Modal */}
+        {isAnalyzing && (
+          <AnalysisProgress
+            progress={analysisProgress}
+            onCancel={() => {
+              window.api.analysis.cancel()
+              setIsAnalyzing(false)
+              setAnalysisProgress(null)
+            }}
+          />
+        )}
+
+        {/* Diff Preview Modal */}
+        {showDiffPreview && (
+          <DiffPreview
+            onClose={() => {
+              setShowDiffPreview(false)
+              setPendingChanges([])
+            }}
+            onApply={() => {
+              setShowDiffPreview(false)
+              setPendingChanges([])
+            }}
+          />
+        )}
+
+        {/* Export Error Toast */}
+        {exportError && (
+          <div
+            className={cn(
+              'fixed bottom-4 right-4 z-50',
+              'bg-card border border-border rounded-xl px-4 py-3',
+              'animate-slide-in-up shadow-lg',
+              'flex items-center gap-3'
+            )}
           >
-            <svg className="w-4 h-4 text-dark-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      )}
-    </div>
+            <div className="w-8 h-8 rounded-full bg-destructive/20 flex items-center justify-center">
+              <AlertCircle className="w-4 h-4 text-destructive" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground">Export fehlgeschlagen</p>
+              <p className="text-xs text-muted-foreground">{exportError}</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-2"
+              onClick={() => setExportError(null)}
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
+      </div>
+    </TooltipProvider>
   )
 }
 
