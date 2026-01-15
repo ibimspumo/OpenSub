@@ -1,15 +1,13 @@
 import Store from 'electron-store'
-
-/**
- * App-wide settings that persist between sessions
- */
-export interface AppSettings {
-  openRouterApiKey?: string
-}
+import { DEFAULT_MODEL_ID } from '../../shared/types'
+import type { AppSettings } from '../../shared/types'
 
 // Schema for type-safe electron-store
 const schema = {
   openRouterApiKey: {
+    type: 'string' as const
+  },
+  selectedModelId: {
     type: 'string' as const
   }
 }
@@ -34,7 +32,8 @@ class SettingsService {
    */
   getSettings(): AppSettings {
     return {
-      openRouterApiKey: this.store.get('openRouterApiKey')
+      openRouterApiKey: this.store.get('openRouterApiKey'),
+      selectedModelId: this.store.get('selectedModelId')
     }
   }
 
@@ -50,6 +49,29 @@ class SettingsService {
         this.store.set('openRouterApiKey', settings.openRouterApiKey)
       }
     }
+
+    if (settings.selectedModelId !== undefined) {
+      if (settings.selectedModelId === '') {
+        this.store.delete('selectedModelId')
+      } else {
+        this.store.set('selectedModelId', settings.selectedModelId)
+      }
+    }
+  }
+
+  /**
+   * Get the selected Whisper model ID.
+   * Returns the default model if none is selected.
+   */
+  getSelectedModelId(): string {
+    return this.store.get('selectedModelId') || DEFAULT_MODEL_ID
+  }
+
+  /**
+   * Set the selected Whisper model ID.
+   */
+  setSelectedModelId(modelId: string): void {
+    this.store.set('selectedModelId', modelId)
   }
 
   /**

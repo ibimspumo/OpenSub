@@ -13,6 +13,7 @@ import AnalysisProgress from './components/AnalysisProgress/AnalysisProgress'
 import DiffPreview from './components/DiffPreview/DiffPreview'
 import TitleBar from './components/TitleBar/TitleBar'
 import ModelLoadingScreen from './components/ModelLoadingScreen/ModelLoadingScreen'
+import SetupWizard from './components/Setup/SetupWizard'
 import { TooltipProvider } from './components/ui/tooltip'
 import { Button } from './components/ui/button'
 import { generateExportFrames } from './utils/subtitleFrameRenderer'
@@ -50,6 +51,8 @@ function App() {
   const [showEditor, setShowEditor] = useState(false)
   const [isModelLoading, setIsModelLoading] = useState(true)
   const [modelLoadingProgress, setModelLoadingProgress] = useState<TranscriptionProgressType | null>(null)
+  const [isFirstRun, setIsFirstRun] = useState(false)
+  const [showSetupWizard, setShowSetupWizard] = useState(false)
 
   // Auto-save hook
   useAutoSave()
@@ -69,10 +72,20 @@ function App() {
 
   // Listen for AI model loading progress at app startup
   useEffect(() => {
+    // Check if this is a first-run (no models downloaded yet)
+    window.api.models.isFirstRunSetupNeeded().then((needed) => {
+      setIsFirstRun(needed)
+      if (needed) {
+        // Show setup wizard for first-run
+        setShowSetupWizard(true)
+      }
+    }).catch(console.error)
+
     // Check if model is already ready (in case we missed the event)
     window.api.whisper.isModelReady().then(({ ready }) => {
       if (ready) {
         setIsModelLoading(false)
+        setShowSetupWizard(false)
       }
     }).catch(console.error)
 
@@ -90,6 +103,8 @@ function App() {
         setTimeout(() => {
           setIsModelLoading(false)
           setModelLoadingProgress(null)
+          setIsFirstRun(false)
+          setShowSetupWizard(false)
         }, 500)
       }
     })
@@ -352,9 +367,17 @@ function App() {
           )}
         </main>
 
-        {/* Model Loading Screen - shown at app startup */}
-        {isModelLoading && (
-          <ModelLoadingScreen progress={modelLoadingProgress} />
+        {/* Setup Wizard - shown on first run */}
+        {showSetupWizard && (
+          <SetupWizard
+            onComplete={() => setShowSetupWizard(false)}
+            progress={modelLoadingProgress}
+          />
+        )}
+
+        {/* Model Loading Screen - shown at app startup (when not first run) */}
+        {isModelLoading && !showSetupWizard && (
+          <ModelLoadingScreen progress={modelLoadingProgress} isFirstRun={isFirstRun} />
         )}
 
         {/* Modal Overlays with backdrop blur */}

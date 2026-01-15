@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Loader2, Brain } from 'lucide-react'
+import { Brain, Download } from 'lucide-react'
 import type { TranscriptionProgress } from '../../../shared/types'
 import {
   Dialog,
@@ -13,11 +13,18 @@ import { cn } from '@/lib/utils'
 
 interface ModelLoadingScreenProps {
   progress: TranscriptionProgress | null
+  isFirstRun?: boolean
 }
 
-export default function ModelLoadingScreen({ progress }: ModelLoadingScreenProps) {
+export default function ModelLoadingScreen({ progress, isFirstRun = false }: ModelLoadingScreenProps) {
   const percent = progress?.percent ?? 0
-  const message = progress?.message || 'KI-Modell wird geladen...'
+
+  // Customize message based on first-run status
+  const message = useMemo(() => {
+    if (progress?.message) return progress.message
+    if (isFirstRun) return 'KI-Modell wird heruntergeladen...'
+    return 'KI-Modell wird geladen...'
+  }, [progress?.message, isFirstRun])
 
   // Memoize the progress bar width to prevent unnecessary re-renders
   const progressWidth = useMemo(() => {
@@ -90,10 +97,22 @@ export default function ModelLoadingScreen({ progress }: ModelLoadingScreenProps
           </div>
         </div>
 
-        {/* Subtle hint text */}
-        <p className="text-center text-xs text-muted-foreground/60 mt-2">
-          Dieser Vorgang kann beim ersten Start einige Minuten dauern.
-        </p>
+        {/* Subtle hint text - different for first run */}
+        {isFirstRun ? (
+          <div className="space-y-2 mt-2">
+            <div className="flex items-center justify-center gap-2 text-xs text-violet-400">
+              <Download className="h-3 w-3" />
+              <span>Erster Start - Modell wird heruntergeladen (~2.9 GB)</span>
+            </div>
+            <p className="text-center text-xs text-muted-foreground/60">
+              Dies ist nur beim ersten Start noetig und kann einige Minuten dauern.
+            </p>
+          </div>
+        ) : (
+          <p className="text-center text-xs text-muted-foreground/60 mt-2">
+            Dieser Vorgang kann beim ersten Start einige Minuten dauern.
+          </p>
+        )}
       </DialogContent>
     </Dialog>
   )

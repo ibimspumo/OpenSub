@@ -3,9 +3,12 @@ import { WhisperService } from '../services/WhisperService'
 import { IPC_CHANNELS } from '../../shared/types'
 import type { WhisperConfig, TranscriptionOptions, TranscriptionProgress, AlignmentRequest } from '../../shared/types'
 import { getMainWindow } from '../index'
+import { settingsService } from '../services/SettingsService'
+import { getWhisperModelName } from '../services/ModelManager'
 
 let whisperService: WhisperService | null = null
 let isModelReady = false
+let currentModelId: string | null = null  // Track which model is currently loaded
 
 // Get the shared whisper service instance
 export function getWhisperService(): WhisperService | null {
@@ -19,13 +22,20 @@ export function isWhisperModelReady(): boolean {
 
 // Initialize WhisperService at app startup
 export async function initializeWhisperServiceAtStartup(): Promise<void> {
-  const defaultConfig: WhisperConfig = {
-    model: 'large-v3',
+  // Get the selected model from settings (defaults to large-v3)
+  const selectedModelId = settingsService.getSelectedModelId()
+  const whisperModelName = getWhisperModelName(selectedModelId)
+
+  console.log(`Using Whisper model: ${whisperModelName} (from: ${selectedModelId})`)
+
+  const config: WhisperConfig = {
+    model: whisperModelName,
     language: 'de',
     device: 'mps'
   }
 
-  whisperService = new WhisperService(defaultConfig)
+  whisperService = new WhisperService(config)
+  currentModelId = selectedModelId
 
   // Forward progress events to renderer (for loading screen)
   whisperService.on('progress', (progress: TranscriptionProgress) => {
@@ -167,5 +177,28 @@ export async function cleanupWhisperService(): Promise<void> {
     await whisperService.stop()
     whisperService = null
     isModelReady = false
+    currentModelId = null
   }
+}
+
+/**
+ * Get the currently loaded model ID
+ */
+export function getCurrentModelId(): string | null {
+  return currentModelId
+}
+
+/**
+ * Reinitialize WhisperService with a new model.
+ * Used when the user changes the model in settings.
+ */
+export async function reinitializeWithModel(modelId: string): Promise<void> {
+  // Stop existing service if running
+  await cleanupWhisperService()
+
+  // Save the new model selection
+  settingsService.setSelectedModelId(modelId)
+
+  // Reinitialize with the new model
+  await initializeWhisperServiceAtStartup()
 }

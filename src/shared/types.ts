@@ -504,7 +504,15 @@ export const IPC_CHANNELS = {
   SETTINGS_GET: 'settings:get',
   SETTINGS_SET: 'settings:set',
   SETTINGS_HAS_ENV_API_KEY: 'settings:has-env-api-key',
-  SETTINGS_GET_API_KEY: 'settings:get-api-key'
+  SETTINGS_GET_API_KEY: 'settings:get-api-key',
+
+  // Model Management (for first-run setup and model status)
+  MODELS_LIST: 'models:list',
+  MODELS_CHECK: 'models:check',
+  MODELS_IS_FIRST_RUN: 'models:is-first-run',
+  MODELS_DOWNLOAD_PROGRESS: 'models:download-progress',
+  MODELS_SELECT: 'models:select',
+  MODELS_GET_SELECTED: 'models:get-selected'
 } as const
 
 // ============================================
@@ -516,6 +524,40 @@ export const IPC_CHANNELS = {
  */
 export interface AppSettings {
   openRouterApiKey?: string
+  selectedModelId?: string  // Whisper model ID (e.g., 'mlx-community/whisper-large-v3-mlx')
+}
+
+/**
+ * Default model ID used when no model is selected
+ */
+export const DEFAULT_MODEL_ID = 'mlx-community/whisper-large-v3-mlx'
+
+// ============================================
+// Model Management Types
+// ============================================
+
+/**
+ * Information about an available AI model
+ */
+export interface ModelInfo {
+  id: string
+  name: string
+  size: string
+  sizeBytes: number
+  quality: 'high' | 'medium' | 'low'
+  downloaded: boolean
+}
+
+/**
+ * Model download progress information
+ */
+export interface ModelDownloadProgress {
+  modelId: string
+  percent: number
+  downloadedBytes: number
+  totalBytes: number
+  status: 'downloading' | 'complete' | 'error'
+  error?: string
 }
 
 // ============================================

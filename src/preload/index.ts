@@ -20,7 +20,8 @@ import type {
   AnalysisProgress,
   WordTimingRequest,
   WordTimingResult,
-  AppSettings
+  AppSettings,
+  ModelInfo
 } from '../shared/types'
 
 // Expose protected methods that allow the renderer process to use
@@ -252,6 +253,26 @@ contextBridge.exposeInMainWorld('api', {
 
     getApiKey: (): Promise<string | undefined> =>
       ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_API_KEY)
+  },
+
+  // ============================================
+  // Model Management
+  // ============================================
+  models: {
+    list: (): Promise<ModelInfo[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MODELS_LIST),
+
+    hasAnyDownloaded: (): Promise<boolean> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MODELS_CHECK),
+
+    isFirstRunSetupNeeded: (): Promise<boolean> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MODELS_IS_FIRST_RUN),
+
+    getSelected: (): Promise<string> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MODELS_GET_SELECTED),
+
+    select: (modelId: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MODELS_SELECT, modelId)
   }
 })
 
@@ -352,6 +373,13 @@ declare global {
         set: (settings: Partial<AppSettings>) => Promise<void>
         hasEnvApiKey: () => Promise<boolean>
         getApiKey: () => Promise<string | undefined>
+      }
+      models: {
+        list: () => Promise<ModelInfo[]>
+        hasAnyDownloaded: () => Promise<boolean>
+        isFirstRunSetupNeeded: () => Promise<boolean>
+        getSelected: () => Promise<string>
+        select: (modelId: string) => Promise<{ success: boolean; error?: string }>
       }
     }
   }
