@@ -56,7 +56,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npm run build && electron-builder --mac --publish always
+        run: npm run build && npx electron-builder --mac --publish always
 
       - name: List build output
         run: |
