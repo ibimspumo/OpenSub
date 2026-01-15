@@ -35,6 +35,12 @@ echo "Upgrading pip..."
 echo "Installing dependencies from $REQUIREMENTS..."
 "$VENV_DIR/bin/pip" install -r "$REQUIREMENTS"
 
+# Show installed packages (before cleanup removes pip)
+echo ""
+echo "Installed packages:"
+"$VENV_DIR/bin/pip" list
+
+echo ""
 echo "Cleaning up cache and unnecessary files..."
 # Remove __pycache__ directories
 find "$VENV_DIR" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
@@ -48,8 +54,3 @@ rm -rf "$VENV_DIR/lib/python3.12/site-packages/setuptools" 2>/dev/null || true
 echo ""
 echo "Python environment created successfully at $VENV_DIR"
 "$VENV_DIR/bin/python3" --version
-
-# Show installed packages
-echo ""
-echo "Installed packages:"
-"$VENV_DIR/bin/pip" list

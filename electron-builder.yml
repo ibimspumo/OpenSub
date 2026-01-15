@@ -18,6 +18,12 @@ mac:
   hardenedRuntime: true
   gatekeeperAssess: false
   icon: resources/icon.icns
+  # Code signing entitlements (required for JIT/Python/MLX)
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+
+# Notarization script (runs after signing, skipped if credentials not set)
+afterSign: scripts/notarize.cjs
 
 dmg:
   contents:

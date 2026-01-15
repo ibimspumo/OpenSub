@@ -20,7 +20,8 @@
     "postinstall": "npx @electron/rebuild -f -w better-sqlite3",
     "setup:python": "bash scripts/download-python.sh && bash scripts/setup-python-env.sh",
     "dist": "npm run setup:python && npm run build && electron-builder --mac",
-    "dist:unsigned": "npm run build && electron-builder --mac"
+    "dist:unsigned": "npm run build && electron-builder --mac",
+    "dist:signed": "npm run dist"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.0",
@@ -56,6 +57,7 @@
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-ts": "^2.0.0",
+    "@electron/notarize": "^3.1.1",
     "@electron/rebuild": "^4.0.2",
     "@playwright/test": "^1.57.0",
     "@types/better-sqlite3": "^7.6.13",

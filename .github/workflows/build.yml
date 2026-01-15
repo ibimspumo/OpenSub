@@ -1,0 +1,74 @@
+name: Build macOS App
+
+# Trigger: Only on version tags (e.g., v1.0.0, v1.2.3)
+on:
+  push:
+    tags:
+      - 'v*'
+
+  # Allow manual trigger from GitHub UI
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build macOS ARM64
+    runs-on: macos-14  # Apple Silicon runner
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Node.js dependencies
+        run: npm ci
+
+      - name: Download Python standalone
+        run: bash scripts/download-python.sh
+
+      - name: Setup Python environment
+        run: bash scripts/setup-python-env.sh
+
+      # Build the app
+      # - If MAC_CERTIFICATE is set: app will be signed
+      # - If APPLE_* credentials are set: app will be notarized
+      # - If neither: unsigned build (still works, but Gatekeeper warning)
+      - name: Build macOS app
+        env:
+          # Code signing (optional - set in GitHub Secrets)
+          CSC_LINK: ${{ secrets.MAC_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          # Notarization (optional - set in GitHub Secrets)
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npm run dist
+
+      - name: List build output
+        run: |
+          echo "=== Build output ==="
+          ls -lah dist-electron/
+          echo ""
+          echo "=== DMG files ==="
+          ls -lah dist-electron/*.dmg 2>/dev/null || echo "No DMG files found"
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenSub-macOS-arm64
+          path: dist-electron/*.dmg
+          if-no-files-found: error
+
+      - name: Upload build logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            dist-electron/*.log
+            npm-debug.log*
+          if-no-files-found: ignore
