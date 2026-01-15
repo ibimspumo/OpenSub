@@ -250,8 +250,8 @@ cd ~/Desktop
 
 **Repository klonen:**
 ```bash
-git clone https://github.com/your-username/opensub.git
-cd opensub
+git clone https://github.com/ibimspumo/OpenSub.git
+cd OpenSub
 ```
 
 > **Hinweis**: Falls du das Repository als ZIP heruntergeladen hast, entpacke es und navigiere im Terminal zum entpackten Ordner:

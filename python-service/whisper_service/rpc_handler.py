@@ -10,6 +10,7 @@ class RPCHandler:
         self.methods: Dict[str, Callable] = {
             "initialize": self._initialize,
             "transcribe": self._transcribe,
+            "align": self._align,
             "cancel": self._cancel,
             "get_status": self._get_status,
             "shutdown": self._shutdown,
@@ -79,6 +80,22 @@ class RPCHandler:
             })
 
         result = self.transcriber.transcribe(audio_path, options, on_progress)
+        return result
+
+    def _align(self, params: dict) -> dict:
+        """Forced alignment: align text with audio for word-level timestamps"""
+        audio_path = params["audio_path"]
+        segments = params["segments"]  # List of {text, start, end}
+
+        # Progress callback sends notifications
+        def on_progress(stage: str, percent: float, message: str = ""):
+            self._send_notification("progress", {
+                "stage": stage,
+                "percent": percent,
+                "message": message
+            })
+
+        result = self.transcriber.align_text(audio_path, segments, on_progress)
         return result
 
     def _cancel(self, params: dict) -> dict:

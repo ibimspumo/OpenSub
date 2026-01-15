@@ -190,7 +190,7 @@ export function generateASS(project: Project): string {
     : toASSColor(style.color)
   const secondaryColor = toASSColor(style.highlightColor)
   const outlineColor = toASSColor(style.outlineColor)
-  const shadowColor = toASSColorWithAlpha(style.shadowColor, 0.5)
+  const shadowColor = toASSColorWithAlpha(style.shadowColor, (style.shadowOpacity ?? 80) / 100)
 
   // Calculate vertical margin based on position
   // For custom position, convert positionY (0-1) to margin from bottom

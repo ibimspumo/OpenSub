@@ -199,6 +199,73 @@ class WhisperTranscriber:
             "duration": duration
         }
 
+    def align_text(
+        self,
+        audio_path: str,
+        segments: List[Dict[str, Any]],
+        progress_callback: Optional[Callable] = None
+    ) -> Dict[str, Any]:
+        """
+        Forced alignment: Align given text segments with audio.
+        Used after AI corrections to get accurate word-level timestamps.
+
+        Args:
+            audio_path: Path to audio file
+            segments: List of segments with 'text', 'start', 'end'
+                     e.g. [{"text": "Hello world", "start": 0.0, "end": 2.0}]
+            progress_callback: Optional progress callback
+
+        Returns:
+            Dict with aligned segments containing word-level timestamps
+        """
+        import whisperx_mlx
+
+        if not self.is_initialized:
+            raise RuntimeError("WhisperTranscriber not initialized")
+
+        with self._lock:
+            self.is_processing = True
+            self.cancel_requested = False
+
+        try:
+            # Load audio
+            if progress_callback:
+                progress_callback("loading", 0, "Lade Audio für Alignment...")
+
+            logger.info(f"Loading audio for alignment from {audio_path}")
+            audio = whisperx_mlx.audio.load_audio(audio_path)
+
+            if self._check_cancelled():
+                return {"cancelled": True}
+
+            # Run forced alignment
+            if progress_callback:
+                progress_callback("aligning", 50, "Führe Wort-Alignment durch...")
+
+            logger.info(f"Running forced alignment on {len(segments)} segments...")
+            result = whisperx_mlx.align(
+                segments,
+                self.align_model,
+                self.align_metadata,
+                audio,
+                "cpu",  # Alignment on CPU
+                return_char_alignments=False
+            )
+
+            if self._check_cancelled():
+                return {"cancelled": True}
+
+            if progress_callback:
+                progress_callback("complete", 100, "Alignment abgeschlossen")
+
+            # Format output
+            return self._format_result(result, len(audio) / 16000)
+
+        finally:
+            with self._lock:
+                self.is_processing = False
+            gc.collect()
+
     def cancel(self):
         """Request cancellation of current operation"""
         with self._lock:

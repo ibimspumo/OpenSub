@@ -87,6 +87,7 @@ export interface SubtitleStyle {
   outlineColor: string
   outlineWidth: number
   shadowColor: string
+  shadowOpacity: number   // Shadow opacity (0-100, where 100 is fully opaque)
   shadowBlur: number
   shadowOffsetX: number   // Horizontal shadow offset in pixels
   shadowOffsetY: number   // Vertical shadow offset in pixels
@@ -103,6 +104,11 @@ export interface SubtitleStyle {
   karaokeBoxColor: string         // Background color of the karaoke box
   karaokeBoxPadding: BoxPadding   // Individual padding values (top, right, bottom, left)
   karaokeBoxBorderRadius: number  // Border radius of the box in pixels
+  // Karaoke glow settings (glow effect around the current highlighted word)
+  karaokeGlowEnabled: boolean     // Whether to show a glow around the current karaoke word
+  karaokeGlowColor: string        // Color of the glow (e.g., highlight color or custom)
+  karaokeGlowOpacity: number      // Glow opacity (0-100, where 100 is fully opaque)
+  karaokeGlowBlur: number         // Blur radius of the glow in pixels
 }
 
 export type SubtitlePosition = 'top' | 'center' | 'bottom' | 'custom'
@@ -157,7 +163,8 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   backgroundColor: 'rgba(0, 0, 0, 0.5)',
   outlineColor: '#000000',
   outlineWidth: 10,              // Erhöhter Standard für bessere Lesbarkeit
-  shadowColor: 'rgba(0, 0, 0, 0.8)',
+  shadowColor: '#000000',
+  shadowOpacity: 80,             // 80% opacity (equivalent to old rgba 0.8)
   shadowBlur: 25,                // Erhöhter Standard für mehr Tiefe
   shadowOffsetX: 4,              // Leichter horizontaler Versatz
   shadowOffsetY: 4,              // Leichter vertikaler Versatz
@@ -172,17 +179,23 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   karaokeBoxEnabled: false,
   karaokeBoxColor: '#32CD32',    // Lime green (as shown in reference image)
   karaokeBoxPadding: DEFAULT_BOX_PADDING,  // Individual padding values
-  karaokeBoxBorderRadius: 32    // 32px border radius for rounded corners
+  karaokeBoxBorderRadius: 32,   // 32px border radius for rounded corners
+  // Karaoke glow settings (enabled by default for visual emphasis)
+  karaokeGlowEnabled: true,
+  karaokeGlowColor: '#FFD700',   // Default to highlight color (gold)
+  karaokeGlowOpacity: 100,       // Fully opaque by default
+  karaokeGlowBlur: 10            // 10px blur radius
 }
 
 // List of all valid SubtitleStyle property names
 export const SUBTITLE_STYLE_KEYS: (keyof SubtitleStyle)[] = [
   'fontFamily', 'fontSize', 'fontWeight', 'textTransform',
   'color', 'highlightColor', 'upcomingColor', 'backgroundColor',
-  'outlineColor', 'outlineWidth', 'shadowColor', 'shadowBlur',
+  'outlineColor', 'outlineWidth', 'shadowColor', 'shadowOpacity', 'shadowBlur',
   'shadowOffsetX', 'shadowOffsetY', 'position', 'positionX', 'positionY',
   'animation', 'maxWidth', 'maxLines',
-  'karaokeBoxEnabled', 'karaokeBoxColor', 'karaokeBoxPadding', 'karaokeBoxBorderRadius'
+  'karaokeBoxEnabled', 'karaokeBoxColor', 'karaokeBoxPadding', 'karaokeBoxBorderRadius',
+  'karaokeGlowEnabled', 'karaokeGlowColor', 'karaokeGlowOpacity', 'karaokeGlowBlur'
 ]
 
 // Result of style validation
@@ -339,6 +352,36 @@ export interface TranscriptionProgress {
   message: string
 }
 
+// Forced alignment types (for AI correction timing)
+export interface AlignmentSegment {
+  text: string
+  start: number
+  end: number
+}
+
+export interface AlignmentRequest {
+  audioPath: string
+  segments: AlignmentSegment[]
+}
+
+// Gemini word timing (fallback for WhisperX)
+export interface WordTimingRequest {
+  audioPath: string
+  text: string
+  segmentStart: number
+  segmentEnd: number
+}
+
+export interface GeminiWordTiming {
+  word: string
+  start: number
+  end: number
+}
+
+export interface WordTimingResult {
+  words: GeminiWordTiming[]
+}
+
 // FFmpeg Types
 export interface VideoMetadata {
   duration: number
@@ -399,6 +442,7 @@ export const IPC_CHANNELS = {
   // Whisper
   WHISPER_START: 'whisper:start',
   WHISPER_TRANSCRIBE: 'whisper:transcribe',
+  WHISPER_ALIGN: 'whisper:align',  // Forced alignment for AI corrections
   WHISPER_CANCEL: 'whisper:cancel',
   WHISPER_STATUS: 'whisper:status',
   WHISPER_STOP: 'whisper:stop',
@@ -446,7 +490,8 @@ export const IPC_CHANNELS = {
   // AI Analysis
   AI_ANALYZE: 'ai:analyze',
   AI_CANCEL: 'ai:cancel',
-  AI_PROGRESS: 'ai:progress'
+  AI_PROGRESS: 'ai:progress',
+  AI_WORD_TIMING: 'ai:word-timing'
 } as const
 
 // ============================================

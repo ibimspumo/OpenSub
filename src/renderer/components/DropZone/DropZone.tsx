@@ -135,18 +135,8 @@ export default function DropZone() {
     } finally {
       setIsTranscribing(false)
       setTranscriptionProgress(null)
-
-      // Clean up temporary audio file
-      try {
-        const deleteResult = await window.api.file.deleteTempFile(audioPath)
-        if (deleteResult.success) {
-          console.log('Temporary audio file cleaned up:', audioPath)
-        } else {
-          console.warn('Failed to delete temp audio file:', deleteResult.error)
-        }
-      } catch (cleanupErr) {
-        console.warn('Error cleaning up temp audio file:', cleanupErr)
-      }
+      // Note: Audio file is NOT deleted here - it's needed for AI correction alignment
+      // It will be cleaned up when the project is cleared or a new video is loaded
     }
   }
 

@@ -158,6 +158,30 @@ function blobToBase64(blob: Blob): Promise<string> {
   })
 }
 
+/**
+ * Convert hex color + opacity to rgba string for Canvas API
+ */
+function getShadowColorWithOpacity(style: SubtitleStyle): string {
+  const hex = style.shadowColor || '#000000'
+  const opacity = (style.shadowOpacity ?? 80) / 100
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`
+}
+
+/**
+ * Convert karaoke glow color + opacity to rgba string for Canvas API
+ */
+function getKaraokeGlowColorWithOpacity(style: SubtitleStyle): string {
+  const hex = style.karaokeGlowColor || '#FFD700'
+  const opacity = (style.karaokeGlowOpacity ?? 100) / 100
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`
+}
+
 // ============================================
 // Rendering functions (copied from subtitleFrameRenderer.ts)
 // ============================================
@@ -273,6 +297,10 @@ function drawRoundedRect(
   ctx.closePath()
 }
 
+/**
+ * Render karaoke animation
+ * Uses two-pass rendering: boxes first, then text (ensures boxes are always behind text)
+ */
 function renderKaraoke(
   ctx: OffscreenCanvasRenderingContext2D,
   subtitle: Subtitle,
@@ -297,6 +325,55 @@ function renderKaraoke(
     })
   })
 
+  // PASS 1: Draw all karaoke boxes first (so they're behind all text)
+  if (style.karaokeBoxEnabled) {
+    lines.forEach((line, lineIndex) => {
+      const lineY = startY + lineIndex * lineHeight
+      const lineWords = line.split(' ')
+      const lineWidth = ctx.measureText(line).width
+      let currentX = x - lineWidth / 2
+
+      lineWords.forEach((wordText, wordInLineIndex) => {
+        const globalWordIndex = wordLineMap.findIndex(
+          (w) => w.line === lineIndex && w.wordInLine === wordInLineIndex
+        )
+
+        const wordWidth = ctx.measureText(wordText).width
+        const spaceWidth = wordInLineIndex < lineWords.length - 1 ? ctx.measureText(' ').width : 0
+        const isCurrent = globalWordIndex === currentWordIndex
+
+        if (isCurrent) {
+          ctx.save()
+          const padding = style.karaokeBoxPadding
+          const boxX = currentX - padding.left
+          const boxY = lineY - fontSize / 2 - padding.top
+          const boxWidth = wordWidth + padding.left + padding.right
+          const boxHeight = fontSize + padding.top + padding.bottom
+          const borderRadius = Math.min(style.karaokeBoxBorderRadius, boxHeight / 2, boxWidth / 2)
+
+          ctx.fillStyle = style.karaokeBoxColor
+          // Apply shadow to karaoke box if shadow is enabled
+          if (style.shadowBlur > 0) {
+            ctx.shadowColor = getShadowColorWithOpacity(style)
+            ctx.shadowBlur = style.shadowBlur
+            ctx.shadowOffsetX = style.shadowOffsetX ?? 0
+            ctx.shadowOffsetY = style.shadowOffsetY ?? 0
+          } else {
+            ctx.shadowColor = 'transparent'
+            ctx.shadowBlur = 0
+          }
+
+          drawRoundedRect(ctx, boxX, boxY, boxWidth, boxHeight, borderRadius)
+          ctx.fill()
+          ctx.restore()
+        }
+
+        currentX += wordWidth + spaceWidth
+      })
+    })
+  }
+
+  // PASS 2: Draw all text on top of boxes
   lines.forEach((line, lineIndex) => {
     const lineY = startY + lineIndex * lineHeight
     const lineWords = line.split(' ')
@@ -315,42 +392,35 @@ function renderKaraoke(
       const isPast = globalWordIndex < currentWordIndex
       const isCurrent = globalWordIndex === currentWordIndex
 
-      if (isCurrent && style.karaokeBoxEnabled) {
-        ctx.save()
-        const padding = style.karaokeBoxPadding
-        const boxX = currentX - padding.left
-        const boxY = lineY - fontSize / 2 - padding.top
-        const boxWidth = wordWidth + padding.left + padding.right
-        const boxHeight = fontSize + padding.top + padding.bottom
-        const borderRadius = Math.min(style.karaokeBoxBorderRadius, boxHeight / 2, boxWidth / 2)
-
-        ctx.fillStyle = style.karaokeBoxColor
-        ctx.shadowColor = 'transparent'
-        ctx.shadowBlur = 0
-
-        drawRoundedRect(ctx, boxX, boxY, boxWidth, boxHeight, borderRadius)
-        ctx.fill()
-        ctx.restore()
-      }
-
       ctx.strokeStyle = style.outlineColor
       ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
       ctx.lineJoin = 'round'
 
-      if (isCurrent) {
-        ctx.shadowColor = style.highlightColor
-        ctx.shadowBlur = ANIMATION_CONSTANTS.KARAOKE_HIGHLIGHT_SHADOW_BLUR
-      } else {
-        ctx.shadowColor = style.shadowColor
+      if (isCurrent && style.karaokeGlowEnabled) {
+        ctx.shadowColor = getKaraokeGlowColorWithOpacity(style)
+        ctx.shadowBlur = style.karaokeGlowBlur
+      } else if (!isCurrent) {
+        ctx.shadowColor = getShadowColorWithOpacity(style)
         ctx.shadowBlur = style.shadowBlur
+      } else {
+        // isCurrent but glow disabled
+        ctx.shadowColor = 'transparent'
+        ctx.shadowBlur = 0
       }
 
-      ctx.strokeText(wordText, wordX, lineY)
+      if (style.outlineWidth > 0) {
+        ctx.strokeText(wordText, wordX, lineY)
+      }
 
-      ctx.fillStyle = isCurrent ? style.highlightColor : isPast ? style.color : style.color
-      ctx.globalAlpha = isPast || isCurrent ? 1 : ANIMATION_CONSTANTS.UPCOMING_WORD_OPACITY
+      // Use different colors for past, current, and upcoming words
+      if (isCurrent) {
+        ctx.fillStyle = style.highlightColor
+      } else if (isPast) {
+        ctx.fillStyle = style.color
+      } else {
+        ctx.fillStyle = style.upcomingColor
+      }
       ctx.fillText(wordText, wordX, lineY)
-      ctx.globalAlpha = 1
 
       ctx.shadowBlur = 0
       currentX += wordWidth + spaceWidth
@@ -380,7 +450,7 @@ function renderAppear(
   const totalHeight = fullLines.length * lineHeight
   const startY = y - (totalHeight - lineHeight) / 2
 
-  ctx.shadowColor = style.shadowColor
+  ctx.shadowColor = getShadowColorWithOpacity(style)
   ctx.shadowBlur = style.shadowBlur
   ctx.strokeStyle = style.outlineColor
   ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
@@ -388,7 +458,9 @@ function renderAppear(
 
   lines.forEach((line, index) => {
     const lineY = startY + index * lineHeight
-    ctx.strokeText(line, x, lineY)
+    if (style.outlineWidth > 0) {
+      ctx.strokeText(line, x, lineY)
+    }
     ctx.fillStyle = style.color
     ctx.fillText(line, x, lineY)
   })
@@ -425,7 +497,7 @@ function renderFade(
   }
 
   ctx.globalAlpha = alpha
-  ctx.shadowColor = style.shadowColor
+  ctx.shadowColor = getShadowColorWithOpacity(style)
   ctx.shadowBlur = style.shadowBlur
   ctx.strokeStyle = style.outlineColor
   ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
@@ -433,7 +505,9 @@ function renderFade(
 
   lines.forEach((line, index) => {
     const lineY = startY + index * lineHeight
-    ctx.strokeText(line, x, lineY)
+    if (style.outlineWidth > 0) {
+      ctx.strokeText(line, x, lineY)
+    }
     ctx.fillStyle = style.color
     ctx.fillText(line, x, lineY)
   })
@@ -498,12 +572,14 @@ function renderScale(
         }
       }
 
-      ctx.shadowColor = style.shadowColor
+      ctx.shadowColor = getShadowColorWithOpacity(style)
       ctx.shadowBlur = style.shadowBlur
       ctx.strokeStyle = style.outlineColor
       ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
       ctx.lineJoin = 'round'
-      ctx.strokeText(wordText, wordX, lineY)
+      if (style.outlineWidth > 0) {
+        ctx.strokeText(wordText, wordX, lineY)
+      }
 
       ctx.fillStyle = isCurrent ? style.highlightColor : style.color
       ctx.fillText(wordText, wordX, lineY)
@@ -528,7 +604,7 @@ function renderStatic(
   const totalHeight = lines.length * lineHeight
   const startY = y - (totalHeight - lineHeight) / 2
 
-  ctx.shadowColor = style.shadowColor
+  ctx.shadowColor = getShadowColorWithOpacity(style)
   ctx.shadowBlur = style.shadowBlur
   ctx.strokeStyle = style.outlineColor
   ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
@@ -536,7 +612,9 @@ function renderStatic(
 
   lines.forEach((line, index) => {
     const lineY = startY + index * lineHeight
-    ctx.strokeText(line, x, lineY)
+    if (style.outlineWidth > 0) {
+      ctx.strokeText(line, x, lineY)
+    }
     ctx.fillStyle = style.color
     ctx.fillText(line, x, lineY)
   })

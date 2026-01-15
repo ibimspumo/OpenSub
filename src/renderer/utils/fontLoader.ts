@@ -164,13 +164,44 @@ export async function loadGoogleFont(family: string, weights?: number[]): Promis
       existingLink.remove()
     }
 
-    link.onload = () => {
-      // Mark all weights as loaded
-      const newLoadedWeights = loadedFontWeights.get(family) || new Set<number>()
-      allWeightsToLoad.forEach(w => newLoadedWeights.add(w))
-      loadedFontWeights.set(family, newLoadedWeights)
-      loadingPromises.delete(cacheKey)
-      resolve()
+    console.log(`[FontLoader] Loading Google Font URL: ${link.href}`)
+    console.log(`[FontLoader] Weights to load: ${allWeightsToLoad.join(', ')}`)
+
+    link.onload = async () => {
+      console.log(`[FontLoader] CSS file loaded successfully for ${family}`)
+
+      // The CSS file is loaded, but font files are lazy-loaded by the browser.
+      // For Canvas rendering, we need to explicitly load all font weights
+      // using the Font Loading API to ensure the actual font files are fetched.
+      try {
+        // Debug: Check what @font-face rules were registered
+        const registeredFonts = Array.from(document.fonts)
+          .filter(f => f.family === family)
+          .map(f => ({ weight: f.weight, status: f.status }))
+        console.log(`[FontLoader] Registered @font-face for ${family}:`, registeredFonts)
+
+        // Load all font weights explicitly using document.fonts.load()
+        // This forces the browser to download the actual font files
+        const loadPromises = allWeightsToLoad.map(weight =>
+          document.fonts.load(`${weight} 16px "${family}"`)
+        )
+        await Promise.all(loadPromises)
+
+        // Mark all weights as loaded
+        const newLoadedWeights = loadedFontWeights.get(family) || new Set<number>()
+        allWeightsToLoad.forEach(w => newLoadedWeights.add(w))
+        loadedFontWeights.set(family, newLoadedWeights)
+        loadingPromises.delete(cacheKey)
+        resolve()
+      } catch (fontLoadError) {
+        console.warn(`Some font weights for ${family} may not have loaded:`, fontLoadError)
+        // Still mark as loaded since CSS is available
+        const newLoadedWeights = loadedFontWeights.get(family) || new Set<number>()
+        allWeightsToLoad.forEach(w => newLoadedWeights.add(w))
+        loadedFontWeights.set(family, newLoadedWeights)
+        loadingPromises.delete(cacheKey)
+        resolve()
+      }
     }
 
     link.onerror = () => {
@@ -279,6 +310,90 @@ export async function ensureFontLoaded(value: string): Promise<void> {
   }
 
   await loadGoogleFont(fontInfo.family, fontInfo.weights)
+}
+
+/**
+ * Track which fonts are currently being reloaded to prevent infinite loops
+ */
+const reloadingFonts = new Set<string>()
+
+/**
+ * Ensure a specific font weight is loaded for Canvas rendering.
+ * This is important because Canvas API requires the actual font file to be loaded,
+ * not just the CSS @font-face declaration.
+ * @param fontValue - The CSS font-family value (e.g., "Poppins, sans-serif")
+ * @param weight - The font weight to ensure is loaded (100-900)
+ * @returns Promise that resolves when the font weight is ready for Canvas use
+ */
+export async function ensureFontWeightLoaded(fontValue: string, weight: number): Promise<void> {
+  const fontInfo = getFontInfoByValue(fontValue)
+  if (!fontInfo) {
+    return
+  }
+
+  const family = fontInfo.family
+
+  // Prevent re-entry while reloading
+  if (reloadingFonts.has(family)) {
+    console.log(`[FontLoader] ${family} is currently reloading, skipping...`)
+    return
+  }
+
+  const fontString = `${weight} 16px "${family}"`
+
+  // Check if this specific weight is registered as a @font-face
+  const registeredWeights = Array.from(document.fonts)
+    .filter(f => f.family === family)
+    .map(f => parseInt(f.weight, 10))
+
+  const uniqueWeights = [...new Set(registeredWeights)]
+  console.log(`[FontLoader] Registered weights for ${family}:`, uniqueWeights)
+  console.log(`[FontLoader] Requested weight: ${weight}`)
+
+  // If the requested weight is not registered, we need to reload the CSS with all weights
+  if (!uniqueWeights.includes(weight) && fontInfo.weights?.includes(weight)) {
+    console.log(`[FontLoader] Weight ${weight} not found! Reloading ${family} with all weights...`)
+
+    // Mark as reloading to prevent re-entry
+    reloadingFonts.add(family)
+
+    try {
+      // Force reload by clearing the cache for this font
+      loadedFontWeights.delete(family)
+
+      // Remove existing link element
+      const linkId = `google-font-${family.replace(/\s+/g, '-').toLowerCase()}`
+      const existingLink = document.getElementById(linkId)
+      if (existingLink) {
+        existingLink.remove()
+      }
+
+      // Reload with all weights and WAIT for it to complete
+      console.log(`[FontLoader] Loading URL: https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:wght@${fontInfo.weights.join(';')}&display=swap`)
+      await loadGoogleFont(family, fontInfo.weights)
+
+      // Check what we got after reload
+      const newWeights = Array.from(document.fonts)
+        .filter(f => f.family === family)
+        .map(f => parseInt(f.weight, 10))
+      console.log(`[FontLoader] After reload, registered weights:`, [...new Set(newWeights)])
+    } finally {
+      reloadingFonts.delete(family)
+    }
+  }
+
+  // Now try to load the specific weight
+  try {
+    const loadedFonts = await document.fonts.load(fontString)
+    if (loadedFonts.length > 0) {
+      const actualWeight = parseInt(loadedFonts[0].weight, 10)
+      if (actualWeight !== weight) {
+        console.warn(`[FontLoader] Requested weight ${weight} but browser returned ${actualWeight}`)
+      }
+    }
+  } catch (error) {
+    console.error(`[FontLoader] Error loading font:`, error)
+  }
 }
 
 /**

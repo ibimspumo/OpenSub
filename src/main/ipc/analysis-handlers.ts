@@ -1,7 +1,7 @@
 import { ipcMain, IpcMainInvokeEvent, app } from 'electron'
 import { unlink } from 'fs/promises'
 import { join } from 'path'
-import { OpenRouterService } from '../services/OpenRouterService'
+import { OpenRouterService, WordTimingRequest, WordTimingResult } from '../services/OpenRouterService'
 import { FFmpegService } from '../services/FFmpegService'
 import { IPC_CHANNELS } from '../../shared/types'
 import type { Subtitle, AnalysisConfig } from '../../shared/types'
@@ -90,6 +90,26 @@ export function registerAnalysisHandlers(): void {
       analysisService = null
     }
   })
+
+  // Get word timing from Gemini (fallback when WhisperX alignment fails)
+  ipcMain.handle(
+    IPC_CHANNELS.AI_WORD_TIMING,
+    async (_event: IpcMainInvokeEvent, params: WordTimingRequest): Promise<WordTimingResult> => {
+      // Get API key
+      const apiKey = process.env.OPENROUTER_API_KEY
+      if (!apiKey) {
+        throw new Error('OpenRouter API-Key nicht gefunden. Bitte OPENROUTER_API_KEY in .env Datei konfigurieren.')
+      }
+
+      // Create service instance for this request (use same model as analysis)
+      const service = new OpenRouterService({
+        apiKey,
+        model: 'google/gemini-3-flash-preview'
+      })
+
+      return service.getWordTimings(params)
+    }
+  )
 }
 
 export function cleanupAnalysisService(): void {

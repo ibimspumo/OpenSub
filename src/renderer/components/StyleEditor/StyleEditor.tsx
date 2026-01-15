@@ -13,7 +13,7 @@ import {
 } from '../../../shared/types'
 import StyleProfileSelector from './StyleProfileSelector'
 import FontSelector from './FontSelector'
-import { getWeightOptions, getAvailableWeights } from '../../utils/fontLoader'
+import { getWeightOptions, getAvailableWeights, ensureFontWeightLoaded } from '../../utils/fontLoader'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -669,6 +669,7 @@ export default function StyleEditor() {
         outlineColor: profileStyle.outlineColor,
         outlineWidth: profileStyle.outlineWidth,
         shadowColor: profileStyle.shadowColor,
+        shadowOpacity: profileStyle.shadowOpacity,
         shadowBlur: profileStyle.shadowBlur,
         shadowOffsetX: profileStyle.shadowOffsetX,
         shadowOffsetY: profileStyle.shadowOffsetY,
@@ -681,7 +682,11 @@ export default function StyleEditor() {
         karaokeBoxEnabled: profileStyle.karaokeBoxEnabled,
         karaokeBoxColor: profileStyle.karaokeBoxColor,
         karaokeBoxPadding: profileStyle.karaokeBoxPadding,
-        karaokeBoxBorderRadius: profileStyle.karaokeBoxBorderRadius
+        karaokeBoxBorderRadius: profileStyle.karaokeBoxBorderRadius,
+        karaokeGlowEnabled: profileStyle.karaokeGlowEnabled,
+        karaokeGlowColor: profileStyle.karaokeGlowColor,
+        karaokeGlowOpacity: profileStyle.karaokeGlowOpacity,
+        karaokeGlowBlur: profileStyle.karaokeGlowBlur
       })
     },
     [updateStyle]
@@ -766,9 +771,12 @@ export default function StyleEditor() {
               label="Gewicht"
               value={String(style.fontWeight)}
               options={weightOptions}
-              onChange={(value) =>
-                handleUpdateStyle({ fontWeight: parseInt(value, 10) as FontWeight })
-              }
+              onChange={async (value) => {
+                const weight = parseInt(value, 10) as FontWeight
+                // Ensure the font file for this weight is actually loaded for Canvas rendering
+                await ensureFontWeightLoaded(style.fontFamily, weight)
+                handleUpdateStyle({ fontWeight: weight })
+              }}
             />
           </div>
 
@@ -974,6 +982,69 @@ export default function StyleEditor() {
                   </div>
                 </div>
               )}
+
+              {/* Karaoke Glow Toggle */}
+              <div className="flex items-center justify-between pt-3 border-t border-border">
+                <Label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                  Karaoke-Glow
+                </Label>
+                <Switch
+                  checked={style.karaokeGlowEnabled}
+                  onCheckedChange={(checked) => handleUpdateStyle({ karaokeGlowEnabled: checked })}
+                />
+              </div>
+
+              {/* Karaoke Glow Settings - only shown when enabled */}
+              {style.karaokeGlowEnabled && (
+                <div className="space-y-3 animate-fade-in">
+                  <PremiumColorPicker
+                    label="Glow-Farbe"
+                    value={style.karaokeGlowColor}
+                    onChange={(value) => handleUpdateStyle({ karaokeGlowColor: value })}
+                    presets={COLOR_PRESETS.highlight}
+                  />
+
+                  <PremiumSlider
+                    label="Glow-Transparenz"
+                    value={style.karaokeGlowOpacity}
+                    min={0}
+                    max={100}
+                    step={1}
+                    unit="%"
+                    onChange={(value) => handleUpdateStyle({ karaokeGlowOpacity: value })}
+                  />
+
+                  <PremiumSlider
+                    label="Glow-Unschaerfe"
+                    value={style.karaokeGlowBlur}
+                    min={0}
+                    max={50}
+                    step={1}
+                    unit="px"
+                    onChange={(value) => handleUpdateStyle({ karaokeGlowBlur: value })}
+                  />
+
+                  {/* Karaoke Glow Preview */}
+                  <div className="p-3 rounded-lg bg-muted/40 border border-border">
+                    <div className="flex items-center justify-center py-3">
+                      <span className="text-sm text-muted-foreground mr-1">Beispiel</span>
+                      <span
+                        className="text-sm font-bold px-2"
+                        style={{
+                          color: style.highlightColor,
+                          textShadow: `0 0 ${style.karaokeGlowBlur}px ${style.karaokeGlowColor}${Math.round((style.karaokeGlowOpacity / 100) * 255).toString(16).padStart(2, '0')}`
+                        }}
+                      >
+                        Wort
+                      </span>
+                      <span className="text-sm text-muted-foreground ml-1">Text</span>
+                    </div>
+                    <p className="text-[9px] text-muted-foreground text-center">
+                      Vorschau des Karaoke-Glows
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CollapsibleSection>
@@ -985,6 +1056,16 @@ export default function StyleEditor() {
             value={style.shadowColor}
             onChange={(value) => handleUpdateStyle({ shadowColor: value })}
             presets={COLOR_PRESETS.shadow}
+          />
+
+          <PremiumSlider
+            label="Schatten-Transparenz"
+            value={style.shadowOpacity}
+            min={0}
+            max={100}
+            step={1}
+            unit="%"
+            onChange={(value) => handleUpdateStyle({ shadowOpacity: value })}
           />
 
           <PremiumSlider
@@ -1026,7 +1107,7 @@ export default function StyleEditor() {
                 className="text-lg font-bold transition-all duration-200"
                 style={{
                   color: style.color,
-                  textShadow: `${style.shadowOffsetX ?? 0}px ${style.shadowOffsetY ?? 0}px ${style.shadowBlur}px ${style.shadowColor || 'rgba(0,0,0,0.8)'}`,
+                  textShadow: `${style.shadowOffsetX ?? 0}px ${style.shadowOffsetY ?? 0}px ${style.shadowBlur}px ${style.shadowColor}${Math.round((style.shadowOpacity / 100) * 255).toString(16).padStart(2, '0')}`,
                   WebkitTextStroke: `${Math.min(style.outlineWidth, 2)}px ${style.outlineColor}`
                 }}
               >
@@ -1058,6 +1139,7 @@ export default function StyleEditor() {
               outlineColor: DEFAULT_SUBTITLE_STYLE.outlineColor,
               outlineWidth: DEFAULT_SUBTITLE_STYLE.outlineWidth,
               shadowColor: DEFAULT_SUBTITLE_STYLE.shadowColor,
+              shadowOpacity: DEFAULT_SUBTITLE_STYLE.shadowOpacity,
               shadowBlur: DEFAULT_SUBTITLE_STYLE.shadowBlur,
               shadowOffsetX: DEFAULT_SUBTITLE_STYLE.shadowOffsetX,
               shadowOffsetY: DEFAULT_SUBTITLE_STYLE.shadowOffsetY,
@@ -1071,7 +1153,12 @@ export default function StyleEditor() {
               karaokeBoxEnabled: DEFAULT_SUBTITLE_STYLE.karaokeBoxEnabled,
               karaokeBoxColor: DEFAULT_SUBTITLE_STYLE.karaokeBoxColor,
               karaokeBoxPadding: DEFAULT_SUBTITLE_STYLE.karaokeBoxPadding,
-              karaokeBoxBorderRadius: DEFAULT_SUBTITLE_STYLE.karaokeBoxBorderRadius
+              karaokeBoxBorderRadius: DEFAULT_SUBTITLE_STYLE.karaokeBoxBorderRadius,
+              // Karaoke glow properties
+              karaokeGlowEnabled: DEFAULT_SUBTITLE_STYLE.karaokeGlowEnabled,
+              karaokeGlowColor: DEFAULT_SUBTITLE_STYLE.karaokeGlowColor,
+              karaokeGlowOpacity: DEFAULT_SUBTITLE_STYLE.karaokeGlowOpacity,
+              karaokeGlowBlur: DEFAULT_SUBTITLE_STYLE.karaokeGlowBlur
             })
           }}
           className="w-full bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"

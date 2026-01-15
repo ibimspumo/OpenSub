@@ -26,6 +26,7 @@ interface ProjectState {
 
   // Subtitles
   updateSubtitleText: (id: string, text: string) => void
+  updateSubtitleWithWords: (id: string, text: string, words: Word[]) => void
   updateSubtitleTiming: (id: string, startTime: number, endTime: number) => void
   updateWordText: (subtitleId: string, wordIndex: number, text: string) => void
   deleteSubtitle: (id: string) => void
@@ -47,6 +48,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   project: null,
 
   createProject: (videoPath: string, name: string) => {
+    // Clean up old audio file if exists
+    const oldProject = get().project
+    if (oldProject?.audioPath) {
+      window.api.file.deleteTempFile(oldProject.audioPath)
+        .then(result => {
+          if (result.success) {
+            console.log('Old audio file cleaned up:', oldProject.audioPath)
+          }
+        })
+        .catch(err => console.warn('Failed to clean up old audio file:', err))
+    }
+
     const project: Project = {
       id: uuidv4(),
       name,
@@ -161,6 +174,37 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         )
 
         return { ...sub, text, words }
+      })
+
+      return {
+        project: {
+          ...state.project,
+          subtitles,
+          updatedAt: Date.now()
+        }
+      }
+    })
+  },
+
+  updateSubtitleWithWords: (id: string, text: string, words: Word[]) => {
+    set((state) => {
+      if (!state.project) return state
+
+      const subtitles = state.project.subtitles.map((sub) => {
+        if (sub.id !== id) return sub
+
+        // Update startTime and endTime based on word timings
+        // This is important when AI corrections change the number of words
+        let startTime = sub.startTime
+        let endTime = sub.endTime
+
+        if (words.length > 0) {
+          // Use the first word's start time and last word's end time
+          startTime = words[0].startTime
+          endTime = words[words.length - 1].endTime
+        }
+
+        return { ...sub, text, words, startTime, endTime }
       })
 
       return {
@@ -329,6 +373,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   clearProject: () => {
+    const currentProject = get().project
+    // Clean up audio file when project is cleared
+    if (currentProject?.audioPath) {
+      window.api.file.deleteTempFile(currentProject.audioPath)
+        .then(result => {
+          if (result.success) {
+            console.log('Audio file cleaned up:', currentProject.audioPath)
+          }
+        })
+        .catch(err => console.warn('Failed to clean up audio file:', err))
+    }
     set({ project: null })
   }
 }))

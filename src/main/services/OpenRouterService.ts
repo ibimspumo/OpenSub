@@ -14,6 +14,24 @@ interface CorrectedSubtitle {
   changeType?: 'spelling' | 'grammar' | 'context' | 'punctuation' | 'name'
 }
 
+// Word timing from Gemini
+export interface GeminiWordTiming {
+  word: string
+  start: number
+  end: number
+}
+
+export interface WordTimingRequest {
+  audioPath: string
+  text: string
+  segmentStart: number
+  segmentEnd: number
+}
+
+export interface WordTimingResult {
+  words: GeminiWordTiming[]
+}
+
 interface OpenRouterResponse {
   choices?: Array<{
     message?: {
@@ -239,6 +257,94 @@ ANTWORTE EXAKT IN DIESEM JSON-FORMAT (keine anderen Texte):
     if (this.abortController) {
       this.abortController.abort()
       this.abortController = null
+    }
+  }
+
+  /**
+   * Get word-level timing from Gemini for a text segment.
+   * Used as fallback when WhisperX forced alignment fails.
+   */
+  async getWordTimings(request: WordTimingRequest): Promise<WordTimingResult> {
+    const audioBase64 = await this.loadAudioAsBase64(request.audioPath)
+
+    const prompt = `Du analysierst einen Audio-Ausschnitt. Der Text beginnt ungefähr bei ${request.segmentStart.toFixed(2)}s.
+
+Der gesprochene Text ist:
+"${request.text}"
+
+AUFGABE: Höre dir das Audio an und gib für JEDES WORT den exakten Zeitstempel zurück, wann es beginnt und endet.
+
+WICHTIG:
+- Die Zeitstempel müssen ABSOLUT sein (bezogen auf den Anfang der Audio-Datei)
+- Das erste Wort beginnt ungefähr bei ${request.segmentStart.toFixed(2)}s, aber die Endzeit kann über ${request.segmentEnd.toFixed(2)}s hinausgehen falls nötig
+- Gib die Zeiten in Sekunden mit 2 Dezimalstellen an
+- Jedes Wort aus dem Text muss einen Eintrag haben
+- Achte auf natürliche Sprechgeschwindigkeit (ca. 2-4 Wörter pro Sekunde)
+
+ANTWORTE EXAKT IN DIESEM JSON-FORMAT:
+{
+  "words": [
+    { "word": "Erstes", "start": ${request.segmentStart.toFixed(2)}, "end": ${(request.segmentStart + 0.3).toFixed(2)} },
+    { "word": "Wort", "start": ${(request.segmentStart + 0.3).toFixed(2)}, "end": ${(request.segmentStart + 0.6).toFixed(2)} }
+  ]
+}`
+
+    this.abortController = new AbortController()
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://opensub.app',
+        'X-Title': 'OpenSub'
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: prompt
+              },
+              {
+                type: 'input_audio',
+                input_audio: {
+                  data: audioBase64,
+                  format: 'mp3'
+                }
+              }
+            ]
+          }
+        ],
+        response_format: { type: 'json_object' }
+      }),
+      signal: this.abortController.signal
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`)
+    }
+
+    const result: OpenRouterResponse = await response.json()
+
+    if (result.error) {
+      throw new Error(`API Error: ${result.error.message}`)
+    }
+
+    const content = result.choices?.[0]?.message?.content
+    if (!content) {
+      throw new Error('Keine Antwort von der KI erhalten')
+    }
+
+    try {
+      const parsed = JSON.parse(content)
+      return { words: parsed.words || [] }
+    } catch {
+      throw new Error('Ungültiges JSON in der KI-Antwort')
     }
   }
 }

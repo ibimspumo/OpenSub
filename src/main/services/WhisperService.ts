@@ -7,7 +7,8 @@ import type {
   WhisperConfig,
   TranscriptionOptions,
   TranscriptionResult,
-  TranscriptionProgress
+  TranscriptionProgress,
+  AlignmentSegment
 } from '../../shared/types'
 
 export class WhisperService extends EventEmitter {
@@ -174,6 +175,22 @@ export class WhisperService extends EventEmitter {
     return this.ipc.call('transcribe', {
       audio_path: audioPath,
       language: options.language || this.config.language
+    })
+  }
+
+  /**
+   * Forced alignment: align given text with audio for word-level timestamps.
+   * Used after AI corrections to get accurate timing for corrected text.
+   */
+  async align(
+    audioPath: string,
+    segments: AlignmentSegment[]
+  ): Promise<TranscriptionResult> {
+    if (!this.ipc) throw new Error('Service not started')
+
+    return this.ipc.call('align', {
+      audio_path: audioPath,
+      segments: segments
     })
   }
 

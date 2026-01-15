@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, RefObject, useState } from 'react'
+import { useRef, useEffect, useCallback, RefObject, useState, useMemo } from 'react'
 import type { Subtitle, SubtitleStyle } from '../../../shared/types'
 import { SNAP_POINTS, SNAP_THRESHOLD } from '../../../shared/types'
 import {
@@ -7,6 +7,7 @@ import {
   UI_CONSTANTS
 } from '../../../shared/styleConstants'
 import { useProjectStore } from '../../store/projectStore'
+import { ensureFontWeightLoaded } from '../../utils/fontLoader'
 
 interface SubtitleCanvasProps {
   currentTime: number
@@ -40,6 +41,17 @@ export default function SubtitleCanvas({
   const [localDragPosition, setLocalDragPosition] = useState<{ x: number; y: number } | null>(null)
 
   const { updateStyle } = useProjectStore()
+
+  // Ensure font weight is loaded for Canvas rendering
+  // This is important because Canvas API requires the actual font file,
+  // not just the CSS @font-face declaration
+  useEffect(() => {
+    const weight = typeof style.fontWeight === 'number'
+      ? style.fontWeight
+      : style.fontWeight === 'bold' ? 700 : 400
+    console.log(`[SubtitleCanvas] Font changed: family="${style.fontFamily}", weight=${weight}`)
+    ensureFontWeightLoaded(style.fontFamily, weight)
+  }, [style.fontFamily, style.fontWeight])
 
   // Find current subtitle
   const getCurrentSubtitle = useCallback(() => {
@@ -146,6 +158,27 @@ export default function SubtitleCanvas({
     }
     return text
   }, [style.textTransform])
+
+  // Compute shadow color with opacity as rgba string for Canvas API
+  const shadowColorWithOpacity = useMemo(() => {
+    const hex = style.shadowColor || '#000000'
+    const opacity = (style.shadowOpacity ?? 80) / 100
+    // Parse hex to RGB
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`
+  }, [style.shadowColor, style.shadowOpacity])
+
+  // Compute karaoke glow color with opacity as rgba string for Canvas API
+  const karaokeGlowColorWithOpacity = useMemo(() => {
+    const hex = style.karaokeGlowColor || '#FFD700'
+    const opacity = (style.karaokeGlowOpacity ?? 100) / 100
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`
+  }, [style.karaokeGlowColor, style.karaokeGlowOpacity])
 
   // Get wrapped lines for current subtitle
   const getWrappedLines = useCallback((
@@ -348,6 +381,7 @@ export default function SubtitleCanvas({
   }, [style.maxWidth, style.maxLines, wrapTextOffscreen, applyTextTransform])
 
   // Offscreen rendering functions (render at video resolution)
+  // Uses two-pass rendering: boxes first, then text (ensures boxes are always behind text)
   const renderKaraokeOffscreen = useCallback((
     ctx: OffscreenCanvasRenderingContext2D,
     subtitle: Subtitle,
@@ -362,25 +396,12 @@ export default function SubtitleCanvas({
     const totalHeight = lines.length * lineHeight
     const startY = y - (totalHeight - lineHeight) / 2
 
-    let wordIndex = 0
+    // Build word-to-line mapping
     const wordLineMap: { line: number; wordInLine: number }[] = []
-
-    lines.forEach((line, lineIndex) => {
-      const lineWords = line.split(' ')
-      lineWords.forEach(() => {
-        wordLineMap.push({ line: lineIndex, wordInLine: wordIndex++ % lineWords.length })
-      })
-    })
-
-    // Reset word index for proper mapping
-    wordIndex = 0
     lines.forEach((line, lineIndex) => {
       const lineWords = line.split(' ')
       lineWords.forEach((_, wordInLineIndex) => {
-        if (wordIndex < wordLineMap.length) {
-          wordLineMap[wordIndex] = { line: lineIndex, wordInLine: wordInLineIndex }
-        }
-        wordIndex++
+        wordLineMap.push({ line: lineIndex, wordInLine: wordInLineIndex })
       })
     })
 
@@ -405,6 +426,53 @@ export default function SubtitleCanvas({
       ctx.closePath()
     }
 
+    // PASS 1: Draw all karaoke boxes first (so they're behind all text)
+    if (style.karaokeBoxEnabled) {
+      let globalWordIdx = 0
+      lines.forEach((line, lineIndex) => {
+        const lineY = startY + lineIndex * lineHeight
+        const lineWords = line.split(' ')
+        const lineWidth = ctx.measureText(line).width
+        let currentX = x - lineWidth / 2
+
+        lineWords.forEach((wordText) => {
+          const wordWidth = ctx.measureText(wordText).width
+          const spaceWidth = ctx.measureText(' ').width
+          const isCurrent = globalWordIdx === currentWordIndex
+
+          if (isCurrent) {
+            ctx.save()
+            const padding = style.karaokeBoxPadding
+            const boxX = currentX - padding.left
+            const boxY = lineY - fontSize / 2 - padding.top
+            const boxWidth = wordWidth + padding.left + padding.right
+            const boxHeight = fontSize + padding.top + padding.bottom
+            const borderRadius = Math.min(style.karaokeBoxBorderRadius, boxHeight / 2, boxWidth / 2)
+
+            ctx.fillStyle = style.karaokeBoxColor
+            // Apply shadow to karaoke box if shadow is enabled
+            if (style.shadowBlur > 0) {
+              ctx.shadowColor = shadowColorWithOpacity
+              ctx.shadowBlur = style.shadowBlur
+              ctx.shadowOffsetX = style.shadowOffsetX ?? 0
+              ctx.shadowOffsetY = style.shadowOffsetY ?? 0
+            } else {
+              ctx.shadowColor = 'transparent'
+              ctx.shadowBlur = 0
+            }
+
+            drawRoundedRect(ctx, boxX, boxY, boxWidth, boxHeight, borderRadius)
+            ctx.fill()
+            ctx.restore()
+          }
+
+          currentX += wordWidth + spaceWidth
+          globalWordIdx++
+        })
+      })
+    }
+
+    // PASS 2: Draw all text on top of boxes
     let globalWordIdx = 0
     lines.forEach((line, lineIndex) => {
       const lineY = startY + lineIndex * lineHeight
@@ -420,41 +488,29 @@ export default function SubtitleCanvas({
         const isPast = globalWordIdx < currentWordIndex
         const isCurrent = globalWordIdx === currentWordIndex
 
-        if (isCurrent && style.karaokeBoxEnabled) {
-          ctx.save()
-          const padding = style.karaokeBoxPadding
-          const boxX = currentX - padding.left
-          const boxY = lineY - fontSize / 2 - padding.top
-          const boxWidth = wordWidth + padding.left + padding.right
-          const boxHeight = fontSize + padding.top + padding.bottom
-          const borderRadius = Math.min(style.karaokeBoxBorderRadius, boxHeight / 2, boxWidth / 2)
-
-          ctx.fillStyle = style.karaokeBoxColor
-          ctx.shadowColor = 'transparent'
-          ctx.shadowBlur = 0
-
-          drawRoundedRect(ctx, boxX, boxY, boxWidth, boxHeight, borderRadius)
-          ctx.fill()
-          ctx.restore()
-        }
-
         ctx.strokeStyle = style.outlineColor
         ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
         ctx.lineJoin = 'round'
 
-        if (isCurrent) {
-          ctx.shadowColor = style.highlightColor
-          ctx.shadowBlur = ANIMATION_CONSTANTS.KARAOKE_HIGHLIGHT_SHADOW_BLUR
+        if (isCurrent && style.karaokeGlowEnabled) {
+          ctx.shadowColor = karaokeGlowColorWithOpacity
+          ctx.shadowBlur = style.karaokeGlowBlur
           ctx.shadowOffsetX = 0
           ctx.shadowOffsetY = 0
-        } else {
-          ctx.shadowColor = style.shadowColor
+        } else if (!isCurrent) {
+          ctx.shadowColor = shadowColorWithOpacity
           ctx.shadowBlur = style.shadowBlur
           ctx.shadowOffsetX = style.shadowOffsetX ?? 0
           ctx.shadowOffsetY = style.shadowOffsetY ?? 0
+        } else {
+          // isCurrent but glow disabled
+          ctx.shadowColor = 'transparent'
+          ctx.shadowBlur = 0
         }
 
-        ctx.strokeText(wordText, wordX, lineY)
+        if (style.outlineWidth > 0) {
+          ctx.strokeText(wordText, wordX, lineY)
+        }
 
         // Use different colors for past, current, and upcoming words
         if (isCurrent) {
@@ -495,7 +551,7 @@ export default function SubtitleCanvas({
     const totalHeight = fullLines.length * lineHeight
     const startY = y - (totalHeight - lineHeight) / 2
 
-    ctx.shadowColor = style.shadowColor
+    ctx.shadowColor = shadowColorWithOpacity
     ctx.shadowBlur = style.shadowBlur
     ctx.shadowOffsetX = style.shadowOffsetX ?? 0
     ctx.shadowOffsetY = style.shadowOffsetY ?? 0
@@ -505,7 +561,9 @@ export default function SubtitleCanvas({
 
     lines.forEach((line, index) => {
       const lineY = startY + index * lineHeight
-      ctx.strokeText(line, x, lineY)
+      if (style.outlineWidth > 0) {
+        ctx.strokeText(line, x, lineY)
+      }
       ctx.fillStyle = style.color
       ctx.fillText(line, x, lineY)
     })
@@ -542,7 +600,7 @@ export default function SubtitleCanvas({
     }
 
     ctx.globalAlpha = alpha
-    ctx.shadowColor = style.shadowColor
+    ctx.shadowColor = shadowColorWithOpacity
     ctx.shadowBlur = style.shadowBlur
     ctx.shadowOffsetX = style.shadowOffsetX ?? 0
     ctx.shadowOffsetY = style.shadowOffsetY ?? 0
@@ -552,7 +610,9 @@ export default function SubtitleCanvas({
 
     lines.forEach((line, index) => {
       const lineY = startY + index * lineHeight
-      ctx.strokeText(line, x, lineY)
+      if (style.outlineWidth > 0) {
+        ctx.strokeText(line, x, lineY)
+      }
       ctx.fillStyle = style.color
       ctx.fillText(line, x, lineY)
     })
@@ -605,14 +665,16 @@ export default function SubtitleCanvas({
           }
         }
 
-        ctx.shadowColor = style.shadowColor
+        ctx.shadowColor = shadowColorWithOpacity
         ctx.shadowBlur = style.shadowBlur
         ctx.shadowOffsetX = style.shadowOffsetX ?? 0
         ctx.shadowOffsetY = style.shadowOffsetY ?? 0
         ctx.strokeStyle = style.outlineColor
         ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
         ctx.lineJoin = 'round'
-        ctx.strokeText(wordText, wordX, lineY)
+        if (style.outlineWidth > 0) {
+          ctx.strokeText(wordText, wordX, lineY)
+        }
 
         ctx.fillStyle = isCurrent ? style.highlightColor : style.color
         ctx.fillText(wordText, wordX, lineY)
@@ -637,7 +699,7 @@ export default function SubtitleCanvas({
     const totalHeight = lines.length * lineHeight
     const startY = y - (totalHeight - lineHeight) / 2
 
-    ctx.shadowColor = style.shadowColor
+    ctx.shadowColor = shadowColorWithOpacity
     ctx.shadowBlur = style.shadowBlur
     ctx.shadowOffsetX = style.shadowOffsetX ?? 0
     ctx.shadowOffsetY = style.shadowOffsetY ?? 0
@@ -647,7 +709,9 @@ export default function SubtitleCanvas({
 
     lines.forEach((line, index) => {
       const lineY = startY + index * lineHeight
-      ctx.strokeText(line, x, lineY)
+      if (style.outlineWidth > 0) {
+        ctx.strokeText(line, x, lineY)
+      }
       ctx.fillStyle = style.color
       ctx.fillText(line, x, lineY)
     })
@@ -723,7 +787,14 @@ export default function SubtitleCanvas({
 
     // Render at video resolution (same as export)
     const fontSize = style.fontSize
-    offCtx.font = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`
+    const fontString = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`
+    offCtx.font = fontString
+
+    // DEBUG: Log what font Canvas actually uses
+    if (offCtx.font !== fontString) {
+      console.warn(`[SubtitleCanvas] Font mismatch! Requested: "${fontString}", Canvas uses: "${offCtx.font}"`)
+    }
+
     offCtx.textAlign = 'center'
     offCtx.textBaseline = 'middle'
 
@@ -785,6 +856,7 @@ export default function SubtitleCanvas({
   }, [getCurrentSubtitle, getCurrentWordIndex, style, videoWidth, videoHeight, canvasDimensions, isDragging, isHovering, getWrappedLines, localDragPosition])
 
   // Karaoke animation - highlight current word with multi-line support
+  // Uses two-pass rendering: boxes first, then text (ensures boxes are always behind text)
   const renderKaraoke = (
     ctx: CanvasRenderingContext2D,
     subtitle: Subtitle,
@@ -833,7 +905,55 @@ export default function SubtitleCanvas({
       ctx.closePath()
     }
 
-    // Render each line
+    // PASS 1: Draw all karaoke boxes first (so they're behind all text)
+    if (style.karaokeBoxEnabled) {
+      lines.forEach((line, lineIndex) => {
+        const lineY = startY + lineIndex * lineHeight
+        const lineWords = line.split(' ')
+        const lineWidth = ctx.measureText(line).width
+        let currentX = x - lineWidth / 2
+
+        lineWords.forEach((wordText, wordInLineIndex) => {
+          const globalWordIndex = wordLineMap.findIndex(
+            (w) => w.line === lineIndex && w.wordInLine === wordInLineIndex
+          )
+
+          const wordWidth = ctx.measureText(wordText).width
+          const spaceWidth = wordInLineIndex < lineWords.length - 1 ? ctx.measureText(' ').width : 0
+          const isCurrent = globalWordIndex === currentWordIndex
+
+          if (isCurrent) {
+            ctx.save()
+            const padding = style.karaokeBoxPadding
+            const boxX = currentX - padding.left
+            const boxY = lineY - fontSize / 2 - padding.top
+            const boxWidth = wordWidth + padding.left + padding.right
+            const boxHeight = fontSize + padding.top + padding.bottom
+            const borderRadius = Math.min(style.karaokeBoxBorderRadius, boxHeight / 2, boxWidth / 2)
+
+            ctx.fillStyle = style.karaokeBoxColor
+            // Apply shadow to karaoke box if shadow is enabled
+            if (style.shadowBlur > 0) {
+              ctx.shadowColor = shadowColorWithOpacity
+              ctx.shadowBlur = style.shadowBlur
+              ctx.shadowOffsetX = style.shadowOffsetX ?? 0
+              ctx.shadowOffsetY = style.shadowOffsetY ?? 0
+            } else {
+              ctx.shadowColor = 'transparent'
+              ctx.shadowBlur = 0
+            }
+
+            drawRoundedRect(ctx, boxX, boxY, boxWidth, boxHeight, borderRadius)
+            ctx.fill()
+            ctx.restore()
+          }
+
+          currentX += wordWidth + spaceWidth
+        })
+      })
+    }
+
+    // PASS 2: Draw all text on top of boxes
     lines.forEach((line, lineIndex) => {
       const lineY = startY + lineIndex * lineHeight
       const lineWords = line.split(' ')
@@ -841,7 +961,6 @@ export default function SubtitleCanvas({
       let currentX = x - lineWidth / 2
 
       lineWords.forEach((wordText, wordInLineIndex) => {
-        // Find the global word index for this word
         const globalWordIndex = wordLineMap.findIndex(
           (w) => w.line === lineIndex && w.wordInLine === wordInLineIndex
         )
@@ -853,42 +972,29 @@ export default function SubtitleCanvas({
         const isPast = globalWordIndex < currentWordIndex
         const isCurrent = globalWordIndex === currentWordIndex
 
-        // Draw karaoke box behind the current word if enabled
-        if (isCurrent && style.karaokeBoxEnabled) {
-          ctx.save()
-          const padding = style.karaokeBoxPadding
-          const boxX = currentX - padding.left
-          const boxY = lineY - fontSize / 2 - padding.top
-          const boxWidth = wordWidth + padding.left + padding.right
-          const boxHeight = fontSize + padding.top + padding.bottom
-          const borderRadius = Math.min(style.karaokeBoxBorderRadius, boxHeight / 2, boxWidth / 2)
-
-          ctx.fillStyle = style.karaokeBoxColor
-          ctx.shadowColor = 'transparent'
-          ctx.shadowBlur = 0
-
-          drawRoundedRect(ctx, boxX, boxY, boxWidth, boxHeight, borderRadius)
-          ctx.fill()
-          ctx.restore()
-        }
-
         ctx.strokeStyle = style.outlineColor
         ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
         ctx.lineJoin = 'round'
 
-        if (isCurrent) {
-          ctx.shadowColor = style.highlightColor
-          ctx.shadowBlur = ANIMATION_CONSTANTS.KARAOKE_HIGHLIGHT_SHADOW_BLUR
+        if (isCurrent && style.karaokeGlowEnabled) {
+          ctx.shadowColor = karaokeGlowColorWithOpacity
+          ctx.shadowBlur = style.karaokeGlowBlur
           ctx.shadowOffsetX = 0
           ctx.shadowOffsetY = 0
-        } else {
-          ctx.shadowColor = style.shadowColor
+        } else if (!isCurrent) {
+          ctx.shadowColor = shadowColorWithOpacity
           ctx.shadowBlur = style.shadowBlur
           ctx.shadowOffsetX = style.shadowOffsetX ?? 0
           ctx.shadowOffsetY = style.shadowOffsetY ?? 0
+        } else {
+          // isCurrent but glow disabled
+          ctx.shadowColor = 'transparent'
+          ctx.shadowBlur = 0
         }
 
-        ctx.strokeText(wordText, wordX, lineY)
+        if (style.outlineWidth > 0) {
+          ctx.strokeText(wordText, wordX, lineY)
+        }
 
         // Use different colors for past, current, and upcoming words
         if (isCurrent) {
@@ -935,7 +1041,7 @@ export default function SubtitleCanvas({
     const totalHeight = fullLines.length * lineHeight
     const startY = y - (totalHeight - lineHeight) / 2
 
-    ctx.shadowColor = style.shadowColor
+    ctx.shadowColor = shadowColorWithOpacity
     ctx.shadowBlur = style.shadowBlur
     ctx.shadowOffsetX = style.shadowOffsetX ?? 0
     ctx.shadowOffsetY = style.shadowOffsetY ?? 0
@@ -945,7 +1051,9 @@ export default function SubtitleCanvas({
 
     lines.forEach((line, index) => {
       const lineY = startY + index * lineHeight
-      ctx.strokeText(line, x, lineY)
+      if (style.outlineWidth > 0) {
+        ctx.strokeText(line, x, lineY)
+      }
       ctx.fillStyle = style.color
       ctx.fillText(line, x, lineY)
     })
@@ -983,7 +1091,7 @@ export default function SubtitleCanvas({
     }
 
     ctx.globalAlpha = alpha
-    ctx.shadowColor = style.shadowColor
+    ctx.shadowColor = shadowColorWithOpacity
     ctx.shadowBlur = style.shadowBlur
     ctx.shadowOffsetX = style.shadowOffsetX ?? 0
     ctx.shadowOffsetY = style.shadowOffsetY ?? 0
@@ -993,7 +1101,9 @@ export default function SubtitleCanvas({
 
     lines.forEach((line, index) => {
       const lineY = startY + index * lineHeight
-      ctx.strokeText(line, x, lineY)
+      if (style.outlineWidth > 0) {
+        ctx.strokeText(line, x, lineY)
+      }
       ctx.fillStyle = style.color
       ctx.fillText(line, x, lineY)
     })
@@ -1064,14 +1174,16 @@ export default function SubtitleCanvas({
           }
         }
 
-        ctx.shadowColor = style.shadowColor
+        ctx.shadowColor = shadowColorWithOpacity
         ctx.shadowBlur = style.shadowBlur
         ctx.shadowOffsetX = style.shadowOffsetX ?? 0
         ctx.shadowOffsetY = style.shadowOffsetY ?? 0
         ctx.strokeStyle = style.outlineColor
         ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
         ctx.lineJoin = 'round'
-        ctx.strokeText(wordText, wordX, lineY)
+        if (style.outlineWidth > 0) {
+          ctx.strokeText(wordText, wordX, lineY)
+        }
 
         ctx.fillStyle = isCurrent ? style.highlightColor : style.color
         ctx.fillText(wordText, wordX, lineY)
@@ -1098,7 +1210,7 @@ export default function SubtitleCanvas({
     const totalHeight = lines.length * lineHeight
     const startY = y - (totalHeight - lineHeight) / 2
 
-    ctx.shadowColor = style.shadowColor
+    ctx.shadowColor = shadowColorWithOpacity
     ctx.shadowBlur = style.shadowBlur
     ctx.shadowOffsetX = style.shadowOffsetX ?? 0
     ctx.shadowOffsetY = style.shadowOffsetY ?? 0
@@ -1108,7 +1220,9 @@ export default function SubtitleCanvas({
 
     lines.forEach((line, index) => {
       const lineY = startY + index * lineHeight
-      ctx.strokeText(line, x, lineY)
+      if (style.outlineWidth > 0) {
+        ctx.strokeText(line, x, lineY)
+      }
       ctx.fillStyle = style.color
       ctx.fillText(line, x, lineY)
     })

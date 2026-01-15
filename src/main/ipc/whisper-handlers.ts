@@ -1,7 +1,7 @@
 import { ipcMain, IpcMainInvokeEvent, BrowserWindow } from 'electron'
 import { WhisperService } from '../services/WhisperService'
 import { IPC_CHANNELS } from '../../shared/types'
-import type { WhisperConfig, TranscriptionOptions, TranscriptionProgress } from '../../shared/types'
+import type { WhisperConfig, TranscriptionOptions, TranscriptionProgress, AlignmentRequest } from '../../shared/types'
 import { getMainWindow } from '../index'
 
 let whisperService: WhisperService | null = null
@@ -114,6 +114,18 @@ export function registerWhisperHandlers(): void {
       }
 
       return whisperService.transcribe(audioPath, options)
+    }
+  )
+
+  // Forced alignment for AI corrections
+  ipcMain.handle(
+    IPC_CHANNELS.WHISPER_ALIGN,
+    async (_event: IpcMainInvokeEvent, request: AlignmentRequest) => {
+      if (!whisperService) {
+        throw new Error('WhisperService not started')
+      }
+
+      return whisperService.align(request.audioPath, request.segments)
     }
   )
 

@@ -5,6 +5,7 @@ import type {
   TranscriptionOptions,
   TranscriptionResult,
   TranscriptionProgress,
+  AlignmentSegment,
   VideoMetadata,
   ExportOptions,
   ExportProgress,
@@ -16,7 +17,9 @@ import type {
   Subtitle,
   AnalysisConfig,
   AnalysisResult,
-  AnalysisProgress
+  AnalysisProgress,
+  WordTimingRequest,
+  WordTimingResult
 } from '../shared/types'
 
 // Expose protected methods that allow the renderer process to use
@@ -34,6 +37,12 @@ contextBridge.exposeInMainWorld('api', {
       options?: TranscriptionOptions
     ): Promise<TranscriptionResult> =>
       ipcRenderer.invoke(IPC_CHANNELS.WHISPER_TRANSCRIBE, audioPath, options),
+
+    align: (
+      audioPath: string,
+      segments: AlignmentSegment[]
+    ): Promise<TranscriptionResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.WHISPER_ALIGN, { audioPath, segments }),
 
     cancel: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.WHISPER_CANCEL),
 
@@ -198,6 +207,9 @@ contextBridge.exposeInMainWorld('api', {
     cancel: (): Promise<void> =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_CANCEL),
 
+    getWordTimings: (params: WordTimingRequest): Promise<WordTimingResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_WORD_TIMING, params),
+
     onProgress: (callback: (progress: AnalysisProgress) => void): (() => void) => {
       const handler = (_event: Electron.IpcRendererEvent, progress: AnalysisProgress) => {
         callback(progress)
@@ -217,6 +229,10 @@ declare global {
         transcribe: (
           audioPath: string,
           options?: TranscriptionOptions
+        ) => Promise<TranscriptionResult>
+        align: (
+          audioPath: string,
+          segments: AlignmentSegment[]
         ) => Promise<TranscriptionResult>
         cancel: () => Promise<void>
         getStatus: () => Promise<{ initialized: boolean; processing: boolean }>
@@ -284,6 +300,7 @@ declare global {
           config: AnalysisConfig
         }) => Promise<AnalysisResult>
         cancel: () => Promise<void>
+        getWordTimings: (params: WordTimingRequest) => Promise<WordTimingResult>
         onProgress: (callback: (progress: AnalysisProgress) => void) => () => void
       }
     }
