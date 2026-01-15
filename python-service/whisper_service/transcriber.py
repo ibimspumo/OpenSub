@@ -36,6 +36,13 @@ class WhisperTranscriber:
         progress_callback: Optional[Callable] = None
     ):
         """Load all required models including Whisper model for instant transcription"""
+        # Skip if already initialized to prevent reloading the ~6GB model
+        if self.is_initialized and self.whisper_model is not None:
+            logger.info("WhisperX-MLX already initialized, skipping re-initialization")
+            if progress_callback:
+                progress_callback("initializing", 100, "KI-Modelle bereits geladen")
+            return
+
         import whisperx_mlx
 
         logger.info(f"Initializing WhisperX-MLX with model={model_name}, backend=mlx")
@@ -156,13 +163,27 @@ class WhisperTranscriber:
                 progress_callback("complete", 100, "Transkription abgeschlossen")
 
             # Format output
-            return self._format_result(result, duration)
+            formatted = self._format_result(result, duration)
+
+            # Explicitly delete large objects to free memory
+            del audio
+            del result
+
+            return formatted
 
         finally:
             with self._lock:
                 self.is_processing = False
-            # Clean up memory
+            # Aggressive memory cleanup
             gc.collect()
+            gc.collect()  # Run twice to ensure cyclic references are cleaned
+            # Clear MLX GPU cache to free Metal memory
+            try:
+                import mlx.core as mx
+                mx.clear_cache()
+                logger.info(f"MLX memory after cleanup: active={mx.get_active_memory() / 1e9:.2f}GB, cache={mx.get_cache_memory() / 1e9:.2f}GB")
+            except Exception as e:
+                logger.warning(f"Failed to clear MLX cache: {e}")
 
     def _format_result(
         self,
@@ -255,12 +276,26 @@ class WhisperTranscriber:
                 progress_callback("complete", 100, "Alignment abgeschlossen")
 
             # Format output
-            return self._format_result(result, len(audio) / 16000)
+            duration = len(audio) / 16000
+            formatted = self._format_result(result, duration)
+
+            # Explicitly delete large objects
+            del audio
+            del result
+
+            return formatted
 
         finally:
             with self._lock:
                 self.is_processing = False
+            # Aggressive memory cleanup
             gc.collect()
+            gc.collect()
+            try:
+                import mlx.core as mx
+                mx.clear_cache()
+            except Exception:
+                pass
 
     def cancel(self):
         """Request cancellation of current operation"""

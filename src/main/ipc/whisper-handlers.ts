@@ -68,8 +68,11 @@ export function registerWhisperHandlers(): void {
     async (_event: IpcMainInvokeEvent, config: WhisperConfig) => {
       // If service is already running with model loaded, just return success
       if (whisperService && isModelReady) {
+        console.log('WhisperService already running, skipping re-initialization')
         return { status: 'started' }
       }
+
+      console.log('WhisperService not ready, starting fresh...', { hasService: !!whisperService, isModelReady })
 
       // Otherwise start fresh (fallback)
       if (whisperService) {
