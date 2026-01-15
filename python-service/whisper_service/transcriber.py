@@ -17,6 +17,7 @@ class WhisperTranscriber:
     def __init__(self):
         self.align_model = None
         self.align_metadata = None
+        self.whisper_model = None  # Cache the loaded Whisper model
         self.device = "mps"  # MLX uses Metal/MPS on Apple Silicon
         self.language = "de"
         self.model_name = "large-v3"
@@ -56,35 +57,29 @@ class WhisperTranscriber:
         if progress_callback:
             progress_callback("initializing", 30, "Alignment-Modell geladen")
 
-        # Stage 2: Pre-load Whisper model by doing a warmup transcription (30-100%)
+        # Stage 2: Load and cache Whisper model (30-100%)
         if progress_callback:
             progress_callback("initializing", 35, f"Lade Whisper {model_name} Modell...")
 
-        logger.info(f"Pre-loading Whisper model: {model_name}")
-
-        # Create a short silence buffer for warmup (1 second at 16kHz)
-        import numpy as np
-        warmup_audio = np.zeros(16000, dtype=np.float32)
+        logger.info(f"Loading Whisper model: {model_name}")
 
         if progress_callback:
             progress_callback("initializing", 50, "Initialisiere MLX-Backend...")
 
-        # Run warmup transcription to load and cache the model
-        # This ensures the model is in memory for instant transcription later
+        # Load the model once and cache it for reuse
+        # This prevents reloading the ~6GB model for every transcription
         try:
-            _ = whisperx_mlx.transcribe(
-                warmup_audio,
-                model=model_name,
+            from whisperx_mlx.backends import load_model
+            self.whisper_model = load_model(
+                model_name=model_name,
                 backend="mlx",
-                language=language,
-                batch_size=1,
-                print_progress=False,
-                verbose=False
+                device=device,
+                language=language
             )
-            logger.info("Whisper model warmup complete")
+            logger.info(f"Whisper model {model_name} loaded and cached successfully")
         except Exception as e:
-            # Warmup might fail on silence, but model should still be cached
-            logger.warning(f"Warmup transcription had an issue (expected): {e}")
+            logger.error(f"Failed to load Whisper model: {e}")
+            raise
 
         if progress_callback:
             progress_callback("initializing", 100, "KI-Modelle geladen")
@@ -121,18 +116,19 @@ class WhisperTranscriber:
             if self._check_cancelled():
                 return {"cancelled": True}
 
-            # Stage 2: Transcribe with MLX backend
+            # Stage 2: Transcribe with cached MLX model
             if progress_callback:
                 progress_callback("transcribing", 10, "Transkribiere mit MLX (GPU)...")
 
-            logger.info("Starting MLX transcription...")
-            result = whisperx_mlx.transcribe(
+            logger.info("Starting MLX transcription with cached model...")
+
+            # Use the cached pipeline to avoid reloading ~6GB for every transcription
+            # Call transcribe directly on the cached pipeline instance
+            result = self.whisper_model.transcribe(
                 audio_path,
-                model=self.model_name,
-                backend="mlx",  # Force MLX backend for Apple Silicon
                 language=options.get("language", self.language),
                 batch_size=16,
-                print_progress=False,  # Disable to avoid JSON-RPC interference
+                print_progress=False,
                 verbose=False
             )
 
@@ -288,6 +284,8 @@ class WhisperTranscriber:
     def cleanup(self):
         """Release all resources"""
         logger.info("Cleaning up WhisperX-MLX resources...")
+        self.whisper_model = None  # Release the ~6GB cached model
         self.align_model = None
         self.align_metadata = None
+        self.is_initialized = False
         gc.collect()
