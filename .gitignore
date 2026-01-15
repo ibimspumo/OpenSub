@@ -16,6 +16,9 @@ python-service/**/__pycache__/
 *.egg-info/
 .eggs/
 
+# Build resources (Python standalone, bundled venv)
+build-resources/
+
 # Environment files
 .env
 .env.local

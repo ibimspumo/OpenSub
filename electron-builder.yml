@@ -29,6 +29,7 @@ dmg:
       path: /Applications
 
 extraResources:
+  # Python service code (without dev venv)
   - from: python-service
     to: python-service
     filter:
@@ -36,3 +37,11 @@ extraResources:
       - "!.venv/**"
       - "!__pycache__/**"
       - "!*.pyc"
+
+  # Bundled Python environment (created by scripts/setup-python-env.sh)
+  - from: build-resources/python-env
+    to: python-env
+    filter:
+      - "**/*"
+      - "!**/__pycache__/**"
+      - "!**/*.pyc"

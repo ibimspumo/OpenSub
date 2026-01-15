@@ -34,12 +34,12 @@ export class WhisperService extends EventEmitter {
     const isDev = !app.isPackaged
 
     if (isDev) {
-      // Development: use venv Python
+      // Development: use local venv in python-service
       return path.join(app.getAppPath(), 'python-service', '.venv', 'bin', 'python')
     }
 
-    // Production: use bundled Python
-    return path.join(process.resourcesPath, 'python-service', '.venv', 'bin', 'python')
+    // Production: use bundled Python environment (created by scripts/setup-python-env.sh)
+    return path.join(process.resourcesPath, 'python-env', 'bin', 'python3')
   }
 
   /**

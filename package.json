@@ -17,7 +17,10 @@
     "test:ui": "playwright test --ui",
     "test:visual": "npm run build && playwright test tests/ui-verification.spec.ts",
     "test:visual:update": "npm run build && playwright test tests/ui-verification.spec.ts --update-snapshots",
-    "postinstall": "npx @electron/rebuild -f -w better-sqlite3"
+    "postinstall": "npx @electron/rebuild -f -w better-sqlite3",
+    "setup:python": "bash scripts/download-python.sh && bash scripts/setup-python-env.sh",
+    "dist": "npm run setup:python && npm run build && electron-builder --mac",
+    "dist:unsigned": "npm run build && electron-builder --mac"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.0",
