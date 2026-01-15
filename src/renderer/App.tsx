@@ -244,7 +244,10 @@ function App() {
         <TitleBar isAppMounted={isAppMounted} onExport={handleOpenExportDialog} />
 
         {/* Main Content Area with smooth transitions */}
-        <main className="flex-1 flex overflow-hidden relative">
+        <main className={cn(
+          'flex-1 flex relative',
+          hasProject() ? 'overflow-hidden' : 'overflow-y-auto'
+        )}>
           {!hasProject() ? (
             // Drop Zone - Full screen centered
             <div className="flex-1 animate-fade-in">

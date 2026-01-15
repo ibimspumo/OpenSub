@@ -180,7 +180,10 @@ export default function DropZone() {
     loadingStep === 'metadata' ? 30 : loadingStep === 'audio' ? 70 : loadingStep === 'loading-project' ? 50 : 0
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-6 md:p-8 overflow-y-auto">
+    <div className="min-h-full flex flex-col items-center p-6 md:p-8 pb-12">
+      {/* Flexible spacer for vertical centering when space allows */}
+      <div className="flex-1 min-h-8 max-h-32" />
+
       {/* Main drop zone container with entrance animation */}
       <div
         className={cn(
@@ -463,6 +466,9 @@ export default function DropZone() {
 
       {/* Recent Projects */}
       {!isLoading && <ProjectBrowser onOpenProject={handleOpenProject} />}
+
+      {/* Bottom spacer for vertical centering */}
+      <div className="flex-1 min-h-4" />
     </div>
   )
 }

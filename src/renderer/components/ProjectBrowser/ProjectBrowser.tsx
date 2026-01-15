@@ -1,9 +1,12 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Clock, Film, MoreVertical, Pencil, Trash2, Loader2 } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Clock, Film, MoreVertical, Pencil, Trash2, Loader2, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { StoredProjectMeta } from '../../../shared/types'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+
+const ITEMS_PER_PAGE = 12 // 3 rows × 4 columns
 
 interface ProjectBrowserProps {
   onOpenProject: (projectId: string) => void
@@ -51,6 +54,26 @@ export default function ProjectBrowser({ onOpenProject }: ProjectBrowserProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [contextMenuId, setContextMenuId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+
+  // Filter and paginate projects
+  const filteredProjects = useMemo(() => {
+    if (!searchQuery.trim()) return projects
+    const query = searchQuery.toLowerCase()
+    return projects.filter((p) => p.name.toLowerCase().includes(query))
+  }, [projects, searchQuery])
+
+  const totalPages = Math.ceil(filteredProjects.length / ITEMS_PER_PAGE)
+  const paginatedProjects = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE
+    return filteredProjects.slice(start, start + ITEMS_PER_PAGE)
+  }, [filteredProjects, currentPage])
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery])
 
   // Load projects
   const loadProjects = useCallback(async () => {
@@ -137,15 +160,36 @@ export default function ProjectBrowser({ onOpenProject }: ProjectBrowserProps) {
 
   return (
     <div className="mt-8 w-full max-w-4xl mx-auto px-4">
-      {/* Section header */}
-      <div className="flex items-center gap-2 mb-4">
-        <Clock className="w-4 h-4 text-muted-foreground" />
-        <h2 className="text-sm font-medium text-muted-foreground">Letzte Projekte</h2>
+      {/* Section header with search */}
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <div className="flex items-center gap-2">
+          <Clock className="w-4 h-4 text-muted-foreground" />
+          <h2 className="text-sm font-medium text-muted-foreground">Letzte Projekte</h2>
+        </div>
+
+        {/* Search input */}
+        <div className="relative w-48">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Suchen..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-8 pl-8 text-sm bg-secondary/50 border-border/50 focus:border-primary/50"
+          />
+        </div>
       </div>
+
+      {/* Empty search result */}
+      {filteredProjects.length === 0 && searchQuery && (
+        <div className="py-8 text-center text-muted-foreground text-sm">
+          Keine Projekte für „{searchQuery}" gefunden
+        </div>
+      )}
 
       {/* Project grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-        {projects.map((project) => (
+        {paginatedProjects.map((project) => (
           <div
             key={project.id}
             className="group relative"
@@ -258,6 +302,48 @@ export default function ProjectBrowser({ onOpenProject }: ProjectBrowserProps) {
           </div>
         ))}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-6">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+
+          <div className="flex items-center gap-1">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              <Button
+                key={page}
+                variant={currentPage === page ? 'default' : 'ghost'}
+                size="icon"
+                className={cn(
+                  'h-8 w-8 text-sm',
+                  currentPage === page && 'pointer-events-none'
+                )}
+                onClick={() => setCurrentPage(page)}
+              >
+                {page}
+              </Button>
+            ))}
+          </div>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+          >
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

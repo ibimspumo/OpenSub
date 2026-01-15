@@ -1,9 +1,11 @@
 import { useCallback, useRef, useEffect, useState } from 'react'
-import { MessageSquareText, ArrowDown } from 'lucide-react'
+import { MessageSquareText, ArrowDown, FileText, Clock } from 'lucide-react'
 import { useProjectStore } from '../../store/projectStore'
 import { useUIStore } from '../../store/uiStore'
 import { usePlaybackController } from '../../hooks/usePlaybackController'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import SubtitleItem from './SubtitleItem'
 
@@ -23,6 +25,26 @@ export default function SubtitleList() {
     },
     [setSelectedSubtitleId, controller]
   )
+
+  // Export transcript as plain text (Markdown)
+  const handleExportText = useCallback(async () => {
+    if (!project || project.subtitles.length === 0) return
+    try {
+      await window.api.file.exportTranscriptText(project.subtitles, project.name)
+    } catch (error) {
+      console.error('Failed to export transcript:', error)
+    }
+  }, [project])
+
+  // Export transcript with timecodes (SRT format)
+  const handleExportTimecodes = useCallback(async () => {
+    if (!project || project.subtitles.length === 0) return
+    try {
+      await window.api.file.exportTranscriptTimecodes(project.subtitles, project.name)
+    } catch (error) {
+      console.error('Failed to export transcript:', error)
+    }
+  }, [project])
 
   // Handle scroll to show/hide fade indicators
   const handleScroll = useCallback(() => {
@@ -85,6 +107,49 @@ export default function SubtitleList() {
 
   return (
     <div className="relative h-full flex flex-col">
+      {/* Header with export buttons - only shown when subtitles exist */}
+      {project.subtitles.length > 0 && (
+        <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
+          <span className="text-xs text-muted-foreground font-medium">
+            {project.subtitles.length} Untertitel
+          </span>
+          <TooltipProvider delayDuration={300}>
+            <div className="flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleExportText}
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Als Text exportieren (Markdown)</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleExportTimecodes}
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  >
+                    <Clock className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Mit Timecodes exportieren (SRT)</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
+        </div>
+      )}
+
       <ScrollArea className="flex-1">
         <div
           ref={scrollContainerRef}

@@ -494,8 +494,29 @@ export const IPC_CHANNELS = {
   AI_ANALYZE: 'ai:analyze',
   AI_CANCEL: 'ai:cancel',
   AI_PROGRESS: 'ai:progress',
-  AI_WORD_TIMING: 'ai:word-timing'
+  AI_WORD_TIMING: 'ai:word-timing',
+
+  // Transcript Export
+  TRANSCRIPT_EXPORT_TEXT: 'transcript:export-text',
+  TRANSCRIPT_EXPORT_TIMECODES: 'transcript:export-timecodes',
+
+  // Settings
+  SETTINGS_GET: 'settings:get',
+  SETTINGS_SET: 'settings:set',
+  SETTINGS_HAS_ENV_API_KEY: 'settings:has-env-api-key',
+  SETTINGS_GET_API_KEY: 'settings:get-api-key'
 } as const
+
+// ============================================
+// App Settings Types
+// ============================================
+
+/**
+ * App-wide settings that persist between sessions
+ */
+export interface AppSettings {
+  openRouterApiKey?: string
+}
 
 // ============================================
 // Project Persistence Types

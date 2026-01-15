@@ -19,7 +19,8 @@ import type {
   AnalysisResult,
   AnalysisProgress,
   WordTimingRequest,
-  WordTimingResult
+  WordTimingResult,
+  AppSettings
 } from '../shared/types'
 
 // Expose protected methods that allow the renderer process to use
@@ -155,7 +156,20 @@ contextBridge.exposeInMainWorld('api', {
 
     // Clean up media streams to prevent memory leaks when switching videos
     cleanupMediaStreams: (filePath?: string): Promise<{ success: boolean }> =>
-      ipcRenderer.invoke(IPC_CHANNELS.MEDIA_CLEANUP_STREAMS, filePath)
+      ipcRenderer.invoke(IPC_CHANNELS.MEDIA_CLEANUP_STREAMS, filePath),
+
+    // Transcript export functions
+    exportTranscriptText: (
+      subtitles: Subtitle[],
+      projectName: string
+    ): Promise<{ success: boolean; filePath?: string; error?: string; canceled?: boolean }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.TRANSCRIPT_EXPORT_TEXT, subtitles, projectName),
+
+    exportTranscriptTimecodes: (
+      subtitles: Subtitle[],
+      projectName: string
+    ): Promise<{ success: boolean; filePath?: string; error?: string; canceled?: boolean }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.TRANSCRIPT_EXPORT_TIMECODES, subtitles, projectName)
   },
 
   // ============================================
@@ -221,6 +235,23 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.on(IPC_CHANNELS.AI_PROGRESS, handler)
       return () => ipcRenderer.removeListener(IPC_CHANNELS.AI_PROGRESS, handler)
     }
+  },
+
+  // ============================================
+  // Settings
+  // ============================================
+  settings: {
+    get: (): Promise<AppSettings> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET),
+
+    set: (settings: Partial<AppSettings>): Promise<void> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET, settings),
+
+    hasEnvApiKey: (): Promise<boolean> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_HAS_ENV_API_KEY),
+
+    getApiKey: (): Promise<string | undefined> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_API_KEY)
   }
 })
 
@@ -283,6 +314,14 @@ declare global {
         ) => Promise<{ success: boolean; frameDir?: string; manifestPath?: string; error?: string }>
         cleanupSubtitleFrames: (frameDir: string) => Promise<{ success: boolean; error?: string }>
         cleanupMediaStreams: (filePath?: string) => Promise<{ success: boolean }>
+        exportTranscriptText: (
+          subtitles: Subtitle[],
+          projectName: string
+        ) => Promise<{ success: boolean; filePath?: string; error?: string; canceled?: boolean }>
+        exportTranscriptTimecodes: (
+          subtitles: Subtitle[],
+          projectName: string
+        ) => Promise<{ success: boolean; filePath?: string; error?: string; canceled?: boolean }>
       }
       window: {
         toggleMaximize: () => Promise<boolean>
@@ -307,6 +346,12 @@ declare global {
         cancel: () => Promise<void>
         getWordTimings: (params: WordTimingRequest) => Promise<WordTimingResult>
         onProgress: (callback: (progress: AnalysisProgress) => void) => () => void
+      }
+      settings: {
+        get: () => Promise<AppSettings>
+        set: (settings: Partial<AppSettings>) => Promise<void>
+        hasEnvApiKey: () => Promise<boolean>
+        getApiKey: () => Promise<string | undefined>
       }
     }
   }

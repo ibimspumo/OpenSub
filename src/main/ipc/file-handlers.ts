@@ -3,7 +3,7 @@ import { readFile, writeFile, unlink, rm } from 'fs/promises'
 import { existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { execSync } from 'child_process'
-import { IPC_CHANNELS, StyleProfileExport, SubtitleFrame } from '../../shared/types'
+import { IPC_CHANNELS, StyleProfileExport, SubtitleFrame, Subtitle } from '../../shared/types'
 import { getMainWindow, cleanupMediaStreams } from '../index'
 
 // Cache for system fonts (they don't change during app lifetime)
@@ -447,6 +447,120 @@ export function registerFileHandlers(): void {
       } catch (error) {
         console.error('Error cleaning up media streams:', error)
         return { success: true } // Still return success to not block the renderer
+      }
+    }
+  )
+
+  // Export transcript as plain text (Markdown format)
+  ipcMain.handle(
+    IPC_CHANNELS.TRANSCRIPT_EXPORT_TEXT,
+    async (_event, subtitles: Subtitle[], projectName: string) => {
+      const mainWindow = getMainWindow()
+      if (!mainWindow) return { success: false, error: 'No main window available' }
+
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: 'Transkript exportieren',
+        defaultPath: `${projectName}-transkript.md`,
+        filters: [
+          { name: 'Markdown', extensions: ['md'] },
+          { name: 'Text', extensions: ['txt'] }
+        ]
+      })
+
+      if (result.canceled || !result.filePath) {
+        return { success: false, canceled: true }
+      }
+
+      try {
+        // Generate markdown content
+        const lines: string[] = []
+        lines.push(`# ${projectName}`)
+        lines.push('')
+        lines.push('---')
+        lines.push('')
+
+        // Group text into paragraphs (join subtitles with space, add paragraph break on longer pauses)
+        let currentParagraph: string[] = []
+        let lastEndTime = 0
+
+        for (const subtitle of subtitles) {
+          // If there's a gap > 2 seconds, start a new paragraph
+          if (lastEndTime > 0 && subtitle.startTime - lastEndTime > 2) {
+            if (currentParagraph.length > 0) {
+              lines.push(currentParagraph.join(' '))
+              lines.push('')
+              currentParagraph = []
+            }
+          }
+          currentParagraph.push(subtitle.text.trim())
+          lastEndTime = subtitle.endTime
+        }
+
+        // Add remaining paragraph
+        if (currentParagraph.length > 0) {
+          lines.push(currentParagraph.join(' '))
+        }
+
+        const content = lines.join('\n')
+        await writeFile(result.filePath, content, 'utf-8')
+        return { success: true, filePath: result.filePath }
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to write file'
+        }
+      }
+    }
+  )
+
+  // Export transcript with timecodes (SRT-like format)
+  ipcMain.handle(
+    IPC_CHANNELS.TRANSCRIPT_EXPORT_TIMECODES,
+    async (_event, subtitles: Subtitle[], projectName: string) => {
+      const mainWindow = getMainWindow()
+      if (!mainWindow) return { success: false, error: 'No main window available' }
+
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: 'Transkript mit Timecodes exportieren',
+        defaultPath: `${projectName}-timecodes.txt`,
+        filters: [
+          { name: 'Text', extensions: ['txt'] },
+          { name: 'SRT Untertitel', extensions: ['srt'] }
+        ]
+      })
+
+      if (result.canceled || !result.filePath) {
+        return { success: false, canceled: true }
+      }
+
+      try {
+        // Helper function to format time as HH:MM:SS,mmm (SRT format)
+        const formatTime = (seconds: number): string => {
+          const hours = Math.floor(seconds / 3600)
+          const minutes = Math.floor((seconds % 3600) / 60)
+          const secs = Math.floor(seconds % 60)
+          const millis = Math.round((seconds % 1) * 1000)
+          return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')},${millis.toString().padStart(3, '0')}`
+        }
+
+        const lines: string[] = []
+
+        subtitles.forEach((subtitle, index) => {
+          // SRT format: index, timecodes, text, blank line
+          lines.push((index + 1).toString())
+          lines.push(`${formatTime(subtitle.startTime)} --> ${formatTime(subtitle.endTime)}`)
+          lines.push(subtitle.text.trim())
+          lines.push('')
+        })
+
+        const content = lines.join('\n')
+        await writeFile(result.filePath, content, 'utf-8')
+        return { success: true, filePath: result.filePath }
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to write file'
+        }
       }
     }
   )

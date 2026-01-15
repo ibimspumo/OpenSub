@@ -3,6 +3,7 @@ import { unlink } from 'fs/promises'
 import { join } from 'path'
 import { OpenRouterService, WordTimingRequest, WordTimingResult } from '../services/OpenRouterService'
 import { FFmpegService } from '../services/FFmpegService'
+import { settingsService } from '../services/SettingsService'
 import { IPC_CHANNELS } from '../../shared/types'
 import type { Subtitle, AnalysisConfig } from '../../shared/types'
 import { getMainWindow } from '../index'
@@ -24,10 +25,10 @@ export function registerAnalysisHandlers(): void {
       const { videoPath, subtitles, config } = params
       const mainWindow = getMainWindow()
 
-      // Get API key from environment (loaded via dotenv in main process)
-      const apiKey = config.apiKey || process.env.OPENROUTER_API_KEY
+      // Get API key with fallback: env var → user settings
+      const apiKey = config.apiKey || settingsService.getApiKey()
       if (!apiKey) {
-        throw new Error('OpenRouter API-Key nicht gefunden. Bitte OPENROUTER_API_KEY in .env Datei konfigurieren.')
+        throw new Error('OpenRouter API-Key nicht gefunden. Bitte in den Einstellungen konfigurieren.')
       }
 
       // 1. Extract MP3
@@ -95,10 +96,10 @@ export function registerAnalysisHandlers(): void {
   ipcMain.handle(
     IPC_CHANNELS.AI_WORD_TIMING,
     async (_event: IpcMainInvokeEvent, params: WordTimingRequest): Promise<WordTimingResult> => {
-      // Get API key
-      const apiKey = process.env.OPENROUTER_API_KEY
+      // Get API key with fallback: env var → user settings
+      const apiKey = settingsService.getApiKey()
       if (!apiKey) {
-        throw new Error('OpenRouter API-Key nicht gefunden. Bitte OPENROUTER_API_KEY in .env Datei konfigurieren.')
+        throw new Error('OpenRouter API-Key nicht gefunden. Bitte in den Einstellungen konfigurieren.')
       }
 
       // Create service instance for this request (use same model as analysis)

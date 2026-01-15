@@ -3,6 +3,7 @@ import { useProjectStore } from '../../store/projectStore'
 import { useUIStore } from '../../store/uiStore'
 import SaveIndicator from '../SaveIndicator/SaveIndicator'
 import InlineProjectNameEditor from './InlineProjectNameEditor'
+import SettingsModal from '../Settings/SettingsModal'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -19,7 +20,7 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { Plus, Upload, AlertTriangle, Subtitles } from 'lucide-react'
+import { Plus, Upload, AlertTriangle, Subtitles, Settings } from 'lucide-react'
 
 interface TitleBarProps {
   isAppMounted: boolean
@@ -37,6 +38,7 @@ export default function TitleBar({ isAppMounted, onExport }: TitleBarProps) {
   const { project, hasProject, clearProject, renameProject } = useProjectStore()
   const { hasUnsavedChanges } = useUIStore()
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
 
   // Handle logo click - navigate home with unsaved warning if needed
   const handleLogoClick = useCallback(
@@ -152,7 +154,7 @@ export default function TitleBar({ isAppMounted, onExport }: TitleBarProps) {
         </div>
 
         {/* Action Buttons */}
-        <div className="w-20 flex-shrink-0 flex items-center justify-end gap-1 pr-3 no-drag">
+        <div className="w-28 flex-shrink-0 flex items-center justify-end gap-1 pr-3 no-drag">
           {hasProject() && (
             <>
               {/* New Project Button */}
@@ -202,6 +204,28 @@ export default function TitleBar({ isAppMounted, onExport }: TitleBarProps) {
               </Tooltip>
             </>
           )}
+
+          {/* Settings Button - always visible */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowSettingsModal(true)}
+                className={cn(
+                  'h-8 w-8 text-muted-foreground hover:text-foreground',
+                  'hover:bg-white/[0.06] transition-all duration-150',
+                  '[&_svg]:transition-transform [&_svg]:duration-150',
+                  'hover:[&_svg]:rotate-45'
+                )}
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Einstellungen</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
       </header>
 
@@ -236,6 +260,9 @@ export default function TitleBar({ isAppMounted, onExport }: TitleBarProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Settings Modal */}
+      <SettingsModal open={showSettingsModal} onOpenChange={setShowSettingsModal} />
     </TooltipProvider>
   )
 }
