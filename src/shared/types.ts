@@ -58,10 +58,10 @@ export interface BoxPadding {
 
 // Default box padding (used for karaoke box)
 export const DEFAULT_BOX_PADDING: BoxPadding = {
-  top: 8,
-  right: 24,
-  bottom: 8,
-  left: 24
+  top: 16,
+  right: 12,
+  bottom: 0,
+  left: 12
 }
 
 // Helper to create uniform padding
@@ -151,40 +151,39 @@ export function getDefaultFontSizeForResolution(width: number, height: number): 
   return Math.max(calculatedSize, MIN_FONT_SIZE)
 }
 
-// Default Style
+// Default Style (AgentZ style preset)
 export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   fontFamily: 'Poppins, sans-serif',
-  fontSize: 48,
-  fontWeight: 700,  // Bold weight (Poppins supports 400, 500, 600, 700)
-  textTransform: 'uppercase',    // Versalien als Standard
+  fontSize: 80,
+  fontWeight: 800,  // Extra bold weight
+  textTransform: 'uppercase',
   color: '#FFFFFF',
-  highlightColor: '#FFD700',
-  upcomingColor: '#808080',  // Gray for upcoming words (not yet spoken)
+  highlightColor: '#000000',    // Black text on highlighted word
+  upcomingColor: '#FFFFFF',     // White for upcoming words
   backgroundColor: 'rgba(0, 0, 0, 0.5)',
   outlineColor: '#000000',
-  outlineWidth: 10,              // Erhöhter Standard für bessere Lesbarkeit
+  outlineWidth: 0,
   shadowColor: '#000000',
-  shadowOpacity: 80,             // 80% opacity (equivalent to old rgba 0.8)
-  shadowBlur: 25,                // Erhöhter Standard für mehr Tiefe
-  shadowOffsetX: 4,              // Leichter horizontaler Versatz
-  shadowOffsetY: 4,              // Leichter vertikaler Versatz
+  shadowOpacity: 100,
+  shadowBlur: 52,
+  shadowOffsetX: 0,
+  shadowOffsetY: 0,
   position: 'custom',
-  positionX: 0.5,  // Centered horizontally
-  positionY: 0.65, // TikTok safe zone (~65% from top, above UI elements)
+  positionX: 0.5,
+  positionY: 0.7374730021598273,
   animation: 'karaoke',
-  // Text box settings for optimal readability
-  maxWidth: 0.85,  // 85% of video width
-  maxLines: 2,     // Maximum 2 lines for TikTok-style subtitles
-  // Karaoke box settings (disabled by default)
-  karaokeBoxEnabled: false,
-  karaokeBoxColor: '#32CD32',    // Lime green (as shown in reference image)
-  karaokeBoxPadding: DEFAULT_BOX_PADDING,  // Individual padding values
-  karaokeBoxBorderRadius: 32,   // 32px border radius for rounded corners
-  // Karaoke glow settings (enabled by default for visual emphasis)
-  karaokeGlowEnabled: true,
-  karaokeGlowColor: '#FFD700',   // Default to highlight color (gold)
-  karaokeGlowOpacity: 100,       // Fully opaque by default
-  karaokeGlowBlur: 10            // 10px blur radius
+  maxWidth: 0.6,   // 60% of video width
+  maxLines: 2,
+  // Karaoke box settings (enabled - neon green box behind current word)
+  karaokeBoxEnabled: true,
+  karaokeBoxColor: '#BDFF01',    // Neon green/yellow
+  karaokeBoxPadding: DEFAULT_BOX_PADDING,
+  karaokeBoxBorderRadius: 16,
+  // Karaoke glow settings (disabled)
+  karaokeGlowEnabled: false,
+  karaokeGlowColor: '#BDFF01',
+  karaokeGlowOpacity: 100,
+  karaokeGlowBlur: 37
 }
 
 // List of all valid SubtitleStyle property names

@@ -31,7 +31,10 @@ jobs:
         run: bash scripts/download-python.sh
 
       - name: Setup Python environment
-        run: bash scripts/setup-python-env.sh
+        run: |
+          # Force recreation to ensure latest stdlib/symlink fixes are applied
+          rm -rf build-resources/python-env
+          bash scripts/setup-python-env.sh
 
       # Build the app
       # - If MAC_CERTIFICATE is set: app will be signed
