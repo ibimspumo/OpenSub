@@ -40,8 +40,10 @@ jobs:
       - name: Build macOS app
         env:
           # Code signing (optional - set in GitHub Secrets)
+          # If MAC_CERTIFICATE is not set, disable auto-discovery to skip signing
           CSC_LINK: ${{ secrets.MAC_CERTIFICATE }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
           # Notarization (optional - set in GitHub Secrets)
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}

@@ -11,6 +11,9 @@ import { registerProjectHandlers, cleanupProjectHandlers } from './ipc/project-h
 import { registerAnalysisHandlers, cleanupAnalysisService } from './ipc/analysis-handlers'
 import { registerSettingsHandlers } from './ipc/settings-handlers'
 import { registerModelHandlers } from './ipc/model-handlers'
+import { registerDebugHandlers } from './ipc/debug-handlers'
+import { debugInfo, debugError, getDebugService } from './services/DebugService'
+import { IPC_CHANNELS } from '../shared/types'
 
 // Load .env file
 config({ path: join(app.getAppPath(), '.env') })
@@ -135,13 +138,36 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
+    debugInfo('main', 'Window ready-to-show event fired')
     mainWindow?.show()
+
+    // Log app status at startup
+    const debugService = getDebugService()
+    const status = debugService.getStatus()
+    debugInfo('main', 'App starting - full status', status)
 
     // Start loading AI model after window is shown
     // This allows the loading screen to display progress
-    initializeWhisperServiceAtStartup().catch((error) => {
-      console.error('Failed to initialize AI model at startup:', error)
-    })
+    debugInfo('main', 'Calling initializeWhisperServiceAtStartup...')
+    initializeWhisperServiceAtStartup()
+      .then(() => {
+        debugInfo('main', 'initializeWhisperServiceAtStartup completed successfully')
+        debugService.setWhisperStatus(true, true)
+      })
+      .catch((error) => {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        debugError('main', 'initializeWhisperServiceAtStartup FAILED', { error: errorMessage, stack: error?.stack })
+        debugService.setWhisperStatus(false, false)
+
+        // Send error to renderer so it can display it
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          debugInfo('main', 'Sending WHISPER_ERROR with fatal=true to renderer')
+          mainWindow.webContents.send(IPC_CHANNELS.WHISPER_ERROR, {
+            message: `Python-Service konnte nicht gestartet werden: ${errorMessage}`,
+            fatal: true
+          })
+        }
+      })
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -265,6 +291,7 @@ app.whenReady().then(() => {
   })
 
   // Register IPC handlers
+  registerDebugHandlers()  // Register debug first so other handlers can log
   registerWhisperHandlers()
   registerFFmpegHandlers()
   registerFileHandlers()
@@ -272,6 +299,8 @@ app.whenReady().then(() => {
   registerAnalysisHandlers()
   registerSettingsHandlers()
   registerModelHandlers()
+
+  debugInfo('main', 'All IPC handlers registered')
 
   // IPC handler for window maximize toggle (double-click on title bar)
   ipcMain.handle('window:toggleMaximize', () => {

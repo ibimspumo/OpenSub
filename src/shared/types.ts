@@ -449,6 +449,7 @@ export const IPC_CHANNELS = {
   WHISPER_PROGRESS: 'whisper:progress',
   WHISPER_ERROR: 'whisper:error',
   WHISPER_MODEL_READY: 'whisper:model-ready',  // Emitted when model is loaded at startup
+  WHISPER_DEBUG_LOG: 'whisper:debug-log',  // Debug log output from Python service
 
   // FFmpeg
   FFMPEG_EXTRACT_AUDIO: 'ffmpeg:extract-audio',
@@ -512,7 +513,13 @@ export const IPC_CHANNELS = {
   MODELS_IS_FIRST_RUN: 'models:is-first-run',
   MODELS_DOWNLOAD_PROGRESS: 'models:download-progress',
   MODELS_SELECT: 'models:select',
-  MODELS_GET_SELECTED: 'models:get-selected'
+  MODELS_GET_SELECTED: 'models:get-selected',
+
+  // Debug Logging (app-wide debug system)
+  DEBUG_LOG: 'debug:log',
+  DEBUG_GET_LOGS: 'debug:get-logs',
+  DEBUG_CLEAR: 'debug:clear',
+  DEBUG_GET_STATUS: 'debug:get-status'
 } as const
 
 // ============================================
@@ -578,4 +585,38 @@ export interface StoredProjectMeta {
 // Full stored project (includes all data)
 export interface StoredProject extends StoredProjectMeta {
   data: Project
+}
+
+// ============================================
+// Debug System Types
+// ============================================
+
+/**
+ * Debug log entry with timestamp and category
+ */
+export interface DebugLogEntry {
+  timestamp: number
+  level: 'info' | 'warn' | 'error' | 'debug'
+  category: 'main' | 'renderer' | 'python' | 'ipc' | 'whisper' | 'ffmpeg'
+  message: string
+  data?: unknown
+}
+
+/**
+ * App status information for debugging
+ */
+export interface DebugAppStatus {
+  isPackaged: boolean
+  appPath: string
+  resourcesPath: string
+  pythonPath: string
+  pythonServicePath: string
+  pythonExists: boolean
+  serviceExists: boolean
+  whisperServiceRunning: boolean
+  whisperModelReady: boolean
+  platform: string
+  arch: string
+  electronVersion: string
+  nodeVersion: string
 }

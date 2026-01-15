@@ -6,11 +6,48 @@ import threading
 import logging
 from typing import Optional, Callable, Dict, Any, List
 
-# Suppress progress bars and verbose output that interferes with JSON-RPC
-os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
-os.environ["TQDM_DISABLE"] = "1"
+# Don't disable progress bars - we redirect them to stderr for debug visibility
+# The JSON-RPC communication uses stdout only, stderr is for logs
+# os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+# os.environ["TQDM_DISABLE"] = "1"
 
 logger = logging.getLogger(__name__)
+
+
+class ProgressTqdm:
+    """Custom tqdm-like class that sends progress to a callback instead of printing."""
+
+    def __init__(self, total=None, desc=None, unit='B', unit_scale=True, progress_callback=None, stage='initializing', **kwargs):
+        self.total = total
+        self.desc = desc or "Downloading"
+        self.n = 0
+        self.progress_callback = progress_callback
+        self.stage = stage
+        self.last_percent = -1
+
+    def update(self, n=1):
+        self.n += n
+        if self.total and self.progress_callback:
+            percent = (self.n / self.total) * 100
+            # Only send update every 1% to reduce noise
+            int_percent = int(percent)
+            if int_percent != self.last_percent:
+                self.last_percent = int_percent
+                # Map download progress (0-100) to overall progress (35-90)
+                mapped_percent = 35 + (percent * 0.55)  # 35-90% range
+                size_mb = self.n / (1024 * 1024)
+                total_mb = self.total / (1024 * 1024)
+                message = f"{self.desc}: {size_mb:.1f} / {total_mb:.1f} MB ({int_percent}%)"
+                self.progress_callback(self.stage, mapped_percent, message)
+
+    def close(self):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
 
 
 class WhisperTranscriber:
@@ -43,53 +80,201 @@ class WhisperTranscriber:
                 progress_callback("initializing", 100, "KI-Modelle bereits geladen")
             return
 
-        import whisperx_mlx
+        if progress_callback:
+            progress_callback("initializing", 2, "Starte Python-Umgebung...")
 
         logger.info(f"Initializing WhisperX-MLX with model={model_name}, backend=mlx")
+        logger.info(f"Python version: {sys.version}")
+        logger.info(f"Working directory: {os.getcwd()}")
 
         self.device = device
         self.language = language
         self.model_name = model_name
 
-        # Stage 1: Load alignment model for word-level timestamps (0-30%)
+        # Stage 1: Import required libraries (2-15%)
+        # This import can take 30-60+ seconds on first run as it loads PyTorch, MLX, etc.
         if progress_callback:
-            progress_callback("initializing", 0, "Lade Alignment-Modell...")
+            progress_callback("initializing", 5, "Importiere KI-Bibliotheken (kann 30-60 Sek. dauern)...")
 
-        logger.info("Loading alignment model...")
-        self.align_model, self.align_metadata = whisperx_mlx.load_align_model(
-            language_code=language,
-            device="cpu"  # Alignment model runs on CPU
-        )
+        logger.info("Starting import of whisperx_mlx - this loads PyTorch, MLX, transformers...")
+        logger.info("This may take 30-60 seconds on first run...")
+
+        # Start a background ticker to show progress during the long import
+        import time
+        import_complete = threading.Event()
+
+        def import_ticker():
+            """Send periodic updates during the long import phase"""
+            start_time = time.time()
+            current_percent = 5
+            tick_count = 0
+
+            while not import_complete.is_set() and current_percent < 14:
+                time.sleep(2)  # Update every 2 seconds
+                if import_complete.is_set():
+                    break
+
+                tick_count += 1
+                elapsed = int(time.time() - start_time)
+
+                # Slowly increment from 5% to 14%
+                current_percent = min(5 + (tick_count * 0.5), 14)
+
+                messages = [
+                    "Lade PyTorch Framework...",
+                    "Lade MLX Metal-Backend...",
+                    "Lade Transformers-Bibliothek...",
+                    "Lade Audio-Verarbeitung...",
+                    "Initialisiere Modell-Pipeline...",
+                ]
+                msg = messages[min(tick_count // 3, len(messages) - 1)]
+
+                if progress_callback and not import_complete.is_set():
+                    progress_callback("initializing", current_percent, f"{msg} ({elapsed}s)")
+                    logger.info(f"Import still running... ({elapsed}s elapsed)")
+
+        ticker_thread = threading.Thread(target=import_ticker, daemon=True)
+        ticker_thread.start()
+
+        try:
+            import whisperx_mlx
+            logger.info("whisperx_mlx imported successfully")
+        except Exception as e:
+            logger.error(f"Failed to import whisperx_mlx: {e}")
+            raise
+        finally:
+            import_complete.set()
+            ticker_thread.join(timeout=1)
 
         if progress_callback:
-            progress_callback("initializing", 30, "Alignment-Modell geladen")
+            progress_callback("initializing", 15, "Bibliotheken geladen")
 
-        # Stage 2: Load and cache Whisper model (30-100%)
+        # Stage 2: Load alignment model for word-level timestamps (15-35%)
         if progress_callback:
-            progress_callback("initializing", 35, f"Lade Whisper {model_name} Modell...")
+            progress_callback("initializing", 17, "Lade Alignment-Modell fuer Wort-Timing...")
+
+        logger.info(f"Loading alignment model for language: {language}")
+        try:
+            self.align_model, self.align_metadata = whisperx_mlx.load_align_model(
+                language_code=language,
+                device="cpu"  # Alignment model runs on CPU
+            )
+            logger.info("Alignment model loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to load alignment model: {e}")
+            if progress_callback:
+                progress_callback("initializing", 17, f"Fehler beim Laden des Alignment-Modells: {e}")
+            raise
+
+        if progress_callback:
+            progress_callback("initializing", 35, "Alignment-Modell geladen")
+
+        # Stage 3: Load and cache Whisper model (35-95%)
+        if progress_callback:
+            progress_callback("initializing", 37, f"Bereite Whisper {model_name} Download vor...")
 
         logger.info(f"Loading Whisper model: {model_name}")
+        logger.info("This may download ~2-3 GB on first run...")
 
         if progress_callback:
-            progress_callback("initializing", 50, "Initialisiere MLX-Backend...")
+            progress_callback("initializing", 40, f"Lade Whisper {model_name} (kann bei erstem Start einige Minuten dauern)...")
 
         # Load the model once and cache it for reuse
         # This prevents reloading the ~6GB model for every transcription
         try:
             from whisperx_mlx.backends import load_model
-            self.whisper_model = load_model(
-                model_name=model_name,
-                backend="mlx",
-                device=device,
-                language=language
-            )
+            import time
+
+            # Store progress callback for potential use in download progress
+            self._progress_callback = progress_callback
+
+            logger.info("Calling load_model - this triggers HuggingFace download if needed...")
+
+            if progress_callback:
+                progress_callback("initializing", 40, "Verbinde mit HuggingFace Hub...")
+
+            # Start a background thread to provide progress updates during long download
+            load_complete = threading.Event()
+            load_error = [None]  # Use list to allow modification in thread
+
+            def progress_ticker():
+                """Send periodic progress updates during model loading"""
+                start_time = time.time()
+                current_percent = 45
+                messages = [
+                    "Lade Modell-Gewichte...",
+                    "Download laeuft (kann einige Minuten dauern)...",
+                    "Verarbeite Modelldaten...",
+                    "Entpacke MLX-Tensoren...",
+                    "Optimiere fuer Metal GPU...",
+                    "Fast fertig..."
+                ]
+                msg_index = 0
+
+                while not load_complete.is_set() and current_percent < 88:
+                    time.sleep(2)  # Update every 2 seconds for more responsive feedback
+                    if load_complete.is_set():
+                        break
+
+                    # Slowly increment progress (slower as we approach 88%)
+                    if current_percent < 60:
+                        current_percent += 1.5
+                    elif current_percent < 75:
+                        current_percent += 1
+                    else:
+                        current_percent += 0.5
+
+                    elapsed = int(time.time() - start_time)
+                    elapsed_str = f"{elapsed // 60}:{elapsed % 60:02d}"
+
+                    msg = messages[min(msg_index, len(messages) - 1)]
+                    if elapsed > 20 and msg_index < len(messages) - 1:
+                        msg_index += 1
+
+                    if progress_callback and not load_complete.is_set():
+                        progress_callback("initializing", min(current_percent, 88), f"{msg} ({elapsed_str})")
+                        logger.info(f"Model loading... {current_percent:.0f}% ({elapsed_str})")
+
+            # Start progress ticker thread
+            ticker_thread = threading.Thread(target=progress_ticker, daemon=True)
+            ticker_thread.start()
+
+            try:
+                self.whisper_model = load_model(
+                    model_name=model_name,
+                    backend="mlx",
+                    device=device,
+                    language=language
+                )
+            finally:
+                load_complete.set()  # Signal ticker to stop
+                ticker_thread.join(timeout=1)  # Wait for ticker to stop
+
             logger.info(f"Whisper model {model_name} loaded and cached successfully")
+
+            if progress_callback:
+                progress_callback("initializing", 92, "Whisper-Modell geladen, finalisiere...")
+
         except Exception as e:
             logger.error(f"Failed to load Whisper model: {e}")
+            if progress_callback:
+                progress_callback("initializing", 40, f"Fehler: {e}")
             raise
 
+        # Stage 4: Final initialization (95-100%)
         if progress_callback:
-            progress_callback("initializing", 100, "KI-Modelle geladen")
+            progress_callback("initializing", 95, "Initialisiere MLX Metal-Backend...")
+
+        # Warm up MLX
+        try:
+            import mlx.core as mx
+            logger.info(f"MLX backend initialized - Device: {mx.default_device()}")
+            logger.info(f"MLX memory: active={mx.get_active_memory() / 1e9:.2f}GB, cache={mx.get_cache_memory() / 1e9:.2f}GB")
+        except Exception as e:
+            logger.warning(f"Could not get MLX memory info: {e}")
+
+        if progress_callback:
+            progress_callback("initializing", 100, "KI-Modelle erfolgreich geladen")
 
         self.is_initialized = True
         logger.info("WhisperX-MLX initialization complete - models pre-loaded")

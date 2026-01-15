@@ -5,6 +5,7 @@ import type { WhisperConfig, TranscriptionOptions, TranscriptionProgress, Alignm
 import { getMainWindow } from '../index'
 import { settingsService } from '../services/SettingsService'
 import { getWhisperModelName } from '../services/ModelManager'
+import { debugInfo, debugError } from '../services/DebugService'
 
 let whisperService: WhisperService | null = null
 let isModelReady = false
@@ -22,10 +23,13 @@ export function isWhisperModelReady(): boolean {
 
 // Initialize WhisperService at app startup
 export async function initializeWhisperServiceAtStartup(): Promise<void> {
+  debugInfo('whisper', 'initializeWhisperServiceAtStartup called')
+
   // Get the selected model from settings (defaults to large-v3)
   const selectedModelId = settingsService.getSelectedModelId()
   const whisperModelName = getWhisperModelName(selectedModelId)
 
+  debugInfo('whisper', 'Model selection', { selectedModelId, whisperModelName })
   console.log(`Using Whisper model: ${whisperModelName} (from: ${selectedModelId})`)
 
   const config: WhisperConfig = {
@@ -36,9 +40,11 @@ export async function initializeWhisperServiceAtStartup(): Promise<void> {
 
   whisperService = new WhisperService(config)
   currentModelId = selectedModelId
+  debugInfo('whisper', 'WhisperService instance created')
 
   // Forward progress events to renderer (for loading screen)
   whisperService.on('progress', (progress: TranscriptionProgress) => {
+    debugInfo('whisper', 'Progress event', { progress })
     const mainWindow = getMainWindow()
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(IPC_CHANNELS.WHISPER_PROGRESS, progress)
@@ -46,25 +52,43 @@ export async function initializeWhisperServiceAtStartup(): Promise<void> {
   })
 
   whisperService.on('error', (error: Error) => {
+    debugError('whisper', 'Error event from WhisperService', { message: error.message })
     const mainWindow = getMainWindow()
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(IPC_CHANNELS.WHISPER_ERROR, { message: error.message })
     }
   })
 
+  // Forward debug log events to renderer (for debug display)
+  whisperService.on('debug-log', (logLine: string) => {
+    const mainWindow = getMainWindow()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(IPC_CHANNELS.WHISPER_DEBUG_LOG, { log: logLine })
+    }
+  })
+
   try {
+    debugInfo('whisper', 'Starting WhisperService.start()...')
     console.log('Starting WhisperService at app startup...')
     await whisperService.start()
+    debugInfo('whisper', 'WhisperService.start() completed')
+
+    debugInfo('whisper', 'Starting WhisperService.initialize()...')
     await whisperService.initialize()
+    debugInfo('whisper', 'WhisperService.initialize() completed')
+
     isModelReady = true
 
     // Notify renderer that model is ready
     const mainWindow = getMainWindow()
     if (mainWindow && !mainWindow.isDestroyed()) {
+      debugInfo('whisper', 'Sending WHISPER_MODEL_READY to renderer')
       mainWindow.webContents.send(IPC_CHANNELS.WHISPER_MODEL_READY, { ready: true })
     }
+    debugInfo('whisper', 'WhisperService initialized successfully', { isModelReady })
     console.log('WhisperService initialized successfully')
   } catch (error) {
+    debugError('whisper', 'Failed to initialize WhisperService at startup', { error: String(error) })
     console.error('Failed to initialize WhisperService at startup:', error)
     isModelReady = false
     throw error
@@ -76,13 +100,15 @@ export function registerWhisperHandlers(): void {
   ipcMain.handle(
     IPC_CHANNELS.WHISPER_START,
     async (_event: IpcMainInvokeEvent, config: WhisperConfig) => {
+      debugInfo('whisper', 'WHISPER_START called', { config, hasService: !!whisperService, isModelReady })
+
       // If service is already running with model loaded, just return success
       if (whisperService && isModelReady) {
-        console.log('WhisperService already running, skipping re-initialization')
+        debugInfo('whisper', 'WhisperService already running, skipping re-initialization')
         return { status: 'started' }
       }
 
-      console.log('WhisperService not ready, starting fresh...', { hasService: !!whisperService, isModelReady })
+      debugInfo('whisper', 'WhisperService not ready, starting fresh...', { hasService: !!whisperService, isModelReady })
 
       // Otherwise start fresh (fallback)
       if (whisperService) {
@@ -122,11 +148,22 @@ export function registerWhisperHandlers(): void {
       audioPath: string,
       options?: TranscriptionOptions
     ) => {
+      debugInfo('whisper', 'WHISPER_TRANSCRIBE called', { audioPath, options, hasService: !!whisperService })
+
       if (!whisperService) {
+        debugError('whisper', 'WHISPER_TRANSCRIBE failed: service not started')
         throw new Error('WhisperService not started')
       }
 
-      return whisperService.transcribe(audioPath, options)
+      try {
+        debugInfo('whisper', 'Starting transcription...')
+        const result = await whisperService.transcribe(audioPath, options)
+        debugInfo('whisper', 'Transcription completed', { segmentCount: result?.segments?.length })
+        return result
+      } catch (error) {
+        debugError('whisper', 'Transcription error', { error: String(error) })
+        throw error
+      }
     }
   )
 

@@ -3,6 +3,7 @@ import { FFmpegService } from '../services/FFmpegService'
 import { IPC_CHANNELS } from '../../shared/types'
 import type { ExportOptions } from '../../shared/types'
 import { getMainWindow } from '../index'
+import { debugInfo, debugError } from '../services/DebugService'
 
 const ffmpegService = new FFmpegService()
 
@@ -11,7 +12,15 @@ export function registerFFmpegHandlers(): void {
   ipcMain.handle(
     IPC_CHANNELS.FFMPEG_EXTRACT_AUDIO,
     async (_event: IpcMainInvokeEvent, videoPath: string, outputPath: string) => {
-      return ffmpegService.extractAudio(videoPath, outputPath)
+      debugInfo('ffmpeg', 'EXTRACT_AUDIO called', { videoPath, outputPath })
+      try {
+        const result = await ffmpegService.extractAudio(videoPath, outputPath)
+        debugInfo('ffmpeg', 'EXTRACT_AUDIO completed', { result })
+        return result
+      } catch (error) {
+        debugError('ffmpeg', 'EXTRACT_AUDIO error', { error: String(error) })
+        throw error
+      }
     }
   )
 
@@ -19,7 +28,15 @@ export function registerFFmpegHandlers(): void {
   ipcMain.handle(
     IPC_CHANNELS.FFMPEG_GET_METADATA,
     async (_event: IpcMainInvokeEvent, videoPath: string) => {
-      return ffmpegService.getMetadata(videoPath)
+      debugInfo('ffmpeg', 'GET_METADATA called', { videoPath })
+      try {
+        const result = await ffmpegService.getMetadata(videoPath)
+        debugInfo('ffmpeg', 'GET_METADATA completed', { result })
+        return result
+      } catch (error) {
+        debugError('ffmpeg', 'GET_METADATA error', { error: String(error) })
+        throw error
+      }
     }
   )
 

@@ -14,6 +14,7 @@ import DiffPreview from './components/DiffPreview/DiffPreview'
 import TitleBar from './components/TitleBar/TitleBar'
 import ModelLoadingScreen from './components/ModelLoadingScreen/ModelLoadingScreen'
 import SetupWizard from './components/Setup/SetupWizard'
+import DebugPanel from './components/DebugPanel/DebugPanel'
 import { TooltipProvider } from './components/ui/tooltip'
 import { Button } from './components/ui/button'
 import { generateExportFrames } from './utils/subtitleFrameRenderer'
@@ -53,6 +54,8 @@ function App() {
   const [modelLoadingProgress, setModelLoadingProgress] = useState<TranscriptionProgressType | null>(null)
   const [isFirstRun, setIsFirstRun] = useState(false)
   const [showSetupWizard, setShowSetupWizard] = useState(false)
+  const [showDebugPanel, setShowDebugPanel] = useState(false)
+  const [fatalError, setFatalError] = useState<string | null>(null)
 
   // Auto-save hook
   useAutoSave()
@@ -70,27 +73,63 @@ function App() {
     return () => clearTimeout(timer)
   }, [])
 
+  // Debug panel keyboard shortcut (Cmd+Shift+D)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey && e.shiftKey && e.key === 'd') {
+        e.preventDefault()
+        setShowDebugPanel(prev => !prev)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  // Listen for fatal whisper errors (e.g., Python service failed to start)
+  useEffect(() => {
+    const unsubscribe = window.api.whisper.onError((error: { message: string; fatal?: boolean }) => {
+      if (error.fatal) {
+        setFatalError(error.message)
+        setIsModelLoading(false)
+        // Auto-open debug panel on fatal error
+        setShowDebugPanel(true)
+      }
+    })
+    return () => unsubscribe()
+  }, [])
+
   // Listen for AI model loading progress at app startup
   useEffect(() => {
+    window.api.debug.log('info', 'renderer', 'App useEffect: Starting model loading setup')
+
     // Check if this is a first-run (no models downloaded yet)
     window.api.models.isFirstRunSetupNeeded().then((needed) => {
+      window.api.debug.log('info', 'renderer', 'isFirstRunSetupNeeded result', { needed })
       setIsFirstRun(needed)
       if (needed) {
         // Show setup wizard for first-run
         setShowSetupWizard(true)
       }
-    }).catch(console.error)
+    }).catch((err) => {
+      window.api.debug.log('error', 'renderer', 'isFirstRunSetupNeeded error', { error: String(err) })
+      console.error(err)
+    })
 
     // Check if model is already ready (in case we missed the event)
     window.api.whisper.isModelReady().then(({ ready }) => {
+      window.api.debug.log('info', 'renderer', 'isModelReady check result', { ready })
       if (ready) {
         setIsModelLoading(false)
         setShowSetupWizard(false)
       }
-    }).catch(console.error)
+    }).catch((err) => {
+      window.api.debug.log('error', 'renderer', 'isModelReady error', { error: String(err) })
+      console.error(err)
+    })
 
     // Listen for model loading progress
     const unsubProgress = window.api.whisper.onProgress((progress) => {
+      window.api.debug.log('debug', 'renderer', 'Model loading progress received', { progress })
       if (progress.stage === 'initializing') {
         setModelLoadingProgress(progress)
       }
@@ -98,9 +137,11 @@ function App() {
 
     // Listen for model ready event
     const unsubReady = window.api.whisper.onModelReady(({ ready }) => {
+      window.api.debug.log('info', 'renderer', 'onModelReady event received', { ready })
       if (ready) {
         // Small delay to show completion
         setTimeout(() => {
+          window.api.debug.log('info', 'renderer', 'Setting isModelLoading to false after delay')
           setIsModelLoading(false)
           setModelLoadingProgress(null)
           setIsFirstRun(false)
@@ -447,6 +488,50 @@ function App() {
             </Button>
           </div>
         )}
+
+        {/* Fatal Error Display (e.g., Python service failed) */}
+        {fatalError && (
+          <div
+            className={cn(
+              'fixed inset-0 z-[90] bg-black/80 backdrop-blur-sm',
+              'flex items-center justify-center p-8'
+            )}
+          >
+            <div className="bg-gray-900 border border-red-500/30 rounded-xl p-6 max-w-lg">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+                  <AlertCircle className="w-5 h-5 text-red-400" />
+                </div>
+                <h2 className="text-lg font-semibold text-white">Kritischer Fehler</h2>
+              </div>
+              <p className="text-gray-300 mb-4">{fatalError}</p>
+              <p className="text-sm text-gray-500 mb-4">
+                Das Debug-Panel wurde automatisch geoeffnet. Druecke Cmd+Shift+D um es anzuzeigen.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDebugPanel(true)}
+                  className="flex-1"
+                >
+                  Debug-Panel oeffnen
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setFatalError(null)}
+                >
+                  Schliessen
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Debug Panel */}
+        <DebugPanel
+          isOpen={showDebugPanel}
+          onClose={() => setShowDebugPanel(false)}
+        />
       </div>
     </TooltipProvider>
   )

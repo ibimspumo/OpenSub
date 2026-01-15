@@ -52,5 +52,57 @@ rm -rf "$VENV_DIR/lib/python3.12/site-packages/pip" 2>/dev/null || true
 rm -rf "$VENV_DIR/lib/python3.12/site-packages/setuptools" 2>/dev/null || true
 
 echo ""
+echo "Fixing Python symlinks for bundling..."
+# The venv creates symlinks to the standalone Python, but these are absolute paths
+# that won't work after bundling. We need to copy the actual binaries instead.
+
+# Remove the symlinks
+rm -f "$VENV_DIR/bin/python" "$VENV_DIR/bin/python3" "$VENV_DIR/bin/python3.12"
+
+# Copy the actual Python binary
+cp "$PYTHON_DIR/bin/python3.12" "$VENV_DIR/bin/python3.12"
+
+# Create relative symlinks
+cd "$VENV_DIR/bin"
+ln -s python3.12 python3
+ln -s python3.12 python
+cd "$PROJECT_ROOT"
+
+# Copy the COMPLETE Python standard library (required for PYTHONHOME to work in bundled app)
+# We need to preserve site-packages while replacing the stdlib
+echo "Copying complete Python standard library..."
+
+SITE_PACKAGES="$VENV_DIR/lib/python3.12/site-packages"
+
+# Backup site-packages
+if [ -d "$SITE_PACKAGES" ]; then
+    mv "$SITE_PACKAGES" "$VENV_DIR/site-packages-backup"
+fi
+
+# Copy the entire stdlib
+rm -rf "$VENV_DIR/lib/python3.12"
+cp -r "$PYTHON_DIR/lib/python3.12" "$VENV_DIR/lib/"
+
+# Restore site-packages
+if [ -d "$VENV_DIR/site-packages-backup" ]; then
+    rm -rf "$VENV_DIR/lib/python3.12/site-packages" 2>/dev/null || true
+    mv "$VENV_DIR/site-packages-backup" "$SITE_PACKAGES"
+fi
+
+# Copy the libpython shared library if it exists (needed on some systems)
+if [ -f "$PYTHON_DIR/lib/libpython3.12.dylib" ]; then
+    cp "$PYTHON_DIR/lib/libpython3.12.dylib" "$VENV_DIR/lib/"
+fi
+
+echo ""
 echo "Python environment created successfully at $VENV_DIR"
-"$VENV_DIR/bin/python3" --version
+
+echo ""
+echo "Verifying Python with PYTHONHOME..."
+PYTHONHOME="$VENV_DIR" "$VENV_DIR/bin/python3" --version
+PYTHONHOME="$VENV_DIR" "$VENV_DIR/bin/python3" -c "import encodings; print('encodings module: OK')"
+
+echo ""
+echo "Verifying binary is standalone (no external symlinks):"
+file "$VENV_DIR/bin/python3.12"
+ls -la "$VENV_DIR/bin/python"*

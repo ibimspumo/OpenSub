@@ -21,7 +21,9 @@ import type {
   WordTimingRequest,
   WordTimingResult,
   AppSettings,
-  ModelInfo
+  ModelInfo,
+  DebugLogEntry,
+  DebugAppStatus
 } from '../shared/types'
 
 // Expose protected methods that allow the renderer process to use
@@ -78,6 +80,14 @@ contextBridge.exposeInMainWorld('api', {
       }
       ipcRenderer.on(IPC_CHANNELS.WHISPER_MODEL_READY, handler)
       return () => ipcRenderer.removeListener(IPC_CHANNELS.WHISPER_MODEL_READY, handler)
+    },
+
+    onDebugLog: (callback: (data: { log: string }) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { log: string }) => {
+        callback(data)
+      }
+      ipcRenderer.on(IPC_CHANNELS.WHISPER_DEBUG_LOG, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.WHISPER_DEBUG_LOG, handler)
     }
   },
 
@@ -273,6 +283,36 @@ contextBridge.exposeInMainWorld('api', {
 
     select: (modelId: string): Promise<{ success: boolean; error?: string }> =>
       ipcRenderer.invoke(IPC_CHANNELS.MODELS_SELECT, modelId)
+  },
+
+  // ============================================
+  // Debug System
+  // ============================================
+  debug: {
+    getLogs: (): Promise<DebugLogEntry[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.DEBUG_GET_LOGS),
+
+    clearLogs: (): Promise<void> =>
+      ipcRenderer.invoke(IPC_CHANNELS.DEBUG_CLEAR),
+
+    getStatus: (): Promise<DebugAppStatus & { debugEnabled: boolean }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.DEBUG_GET_STATUS),
+
+    log: (
+      level: DebugLogEntry['level'],
+      category: DebugLogEntry['category'],
+      message: string,
+      data?: unknown
+    ): Promise<void> =>
+      ipcRenderer.invoke(IPC_CHANNELS.DEBUG_LOG, level, category, message, data),
+
+    onLog: (callback: (entry: DebugLogEntry) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, entry: DebugLogEntry) => {
+        callback(entry)
+      }
+      ipcRenderer.on(IPC_CHANNELS.DEBUG_LOG, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.DEBUG_LOG, handler)
+    }
   }
 })
 
@@ -297,6 +337,7 @@ declare global {
         onProgress: (callback: (progress: TranscriptionProgress) => void) => () => void
         onError: (callback: (error: { message: string }) => void) => () => void
         onModelReady: (callback: (data: { ready: boolean }) => void) => () => void
+        onDebugLog: (callback: (data: { log: string }) => void) => () => void
       }
       ffmpeg: {
         extractAudio: (videoPath: string, outputPath: string) => Promise<string>
@@ -380,6 +421,18 @@ declare global {
         isFirstRunSetupNeeded: () => Promise<boolean>
         getSelected: () => Promise<string>
         select: (modelId: string) => Promise<{ success: boolean; error?: string }>
+      }
+      debug: {
+        getLogs: () => Promise<DebugLogEntry[]>
+        clearLogs: () => Promise<void>
+        getStatus: () => Promise<DebugAppStatus & { debugEnabled: boolean }>
+        log: (
+          level: DebugLogEntry['level'],
+          category: DebugLogEntry['category'],
+          message: string,
+          data?: unknown
+        ) => Promise<void>
+        onLog: (callback: (entry: DebugLogEntry) => void) => () => void
       }
     }
   }

@@ -69,34 +69,44 @@ export default function DropZone() {
       setLoadingStep('metadata')
       setError(null)
 
+      window.api.debug.log('info', 'renderer', 'handleFile called', { filePath })
+
       try {
         // Get video filename for project name
         const fileName = filePath.split('/').pop() || 'Untitled'
         const projectName = fileName.replace(/\.[^.]+$/, '')
 
         // Create project
+        window.api.debug.log('info', 'renderer', 'Creating project', { projectName })
         createProject(filePath, projectName)
 
         // Get video metadata
+        window.api.debug.log('info', 'renderer', 'Getting metadata...')
         const metadata = await window.api.ffmpeg.getMetadata(filePath)
+        window.api.debug.log('info', 'renderer', 'Metadata received', { metadata })
         setVideoMetadata(metadata.duration, metadata.width, metadata.height)
 
         // Extract audio to system temp directory
         setLoadingStep('audio')
+        window.api.debug.log('info', 'renderer', 'Extracting audio...')
         const tempDir = await window.api.file.getTempDir()
         const audioPath = `${tempDir}/opensub_audio_${Date.now()}.wav`
         const extractedPath = await window.api.ffmpeg.extractAudio(filePath, audioPath)
+        window.api.debug.log('info', 'renderer', 'Audio extracted', { extractedPath })
         setAudioPath(extractedPath)
 
         setIsLoading(false)
         setLoadingStep(null)
 
         // Start transcription automatically
+        window.api.debug.log('info', 'renderer', 'Starting transcription...')
         await startTranscription(extractedPath)
       } catch (err) {
         setIsLoading(false)
         setLoadingStep(null)
-        setError(err instanceof Error ? err.message : 'Fehler beim Laden des Videos')
+        const errorMsg = err instanceof Error ? err.message : 'Fehler beim Laden des Videos'
+        window.api.debug.log('error', 'renderer', 'handleFile error', { error: errorMsg })
+        setError(errorMsg)
         console.error('Error loading video:', err)
       }
     },
@@ -104,34 +114,44 @@ export default function DropZone() {
   )
 
   const startTranscription = async (audioPath: string) => {
+    window.api.debug.log('info', 'renderer', 'startTranscription called', { audioPath })
     setIsTranscribing(true)
     setTranscriptionProgress({ stage: 'loading', percent: 0, message: 'Starte...' })
 
     try {
       // Set up progress listener
       const unsubscribe = window.api.whisper.onProgress((progress) => {
+        window.api.debug.log('debug', 'renderer', 'Transcription progress', { progress })
         setTranscriptionProgress(progress)
       })
 
       // Start whisper service with MLX backend (Apple Silicon GPU)
+      window.api.debug.log('info', 'renderer', 'Calling whisper.start...')
       await window.api.whisper.start({
         model: 'large-v3',
         language: 'de',
         device: 'mps'
       })
+      window.api.debug.log('info', 'renderer', 'whisper.start completed')
 
       // Transcribe
+      window.api.debug.log('info', 'renderer', 'Calling whisper.transcribe...')
       const result = await window.api.whisper.transcribe(audioPath, {
         language: 'de'
       })
+      window.api.debug.log('info', 'renderer', 'whisper.transcribe completed', { segmentCount: result?.segments?.length })
 
       unsubscribe()
 
       // Update project with results
+      window.api.debug.log('info', 'renderer', 'Setting transcription result...')
       setTranscriptionResult(result)
+      window.api.debug.log('info', 'renderer', 'Transcription flow completed successfully')
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Transkription fehlgeschlagen'
+      window.api.debug.log('error', 'renderer', 'startTranscription error', { error: errorMsg })
       console.error('Transcription error:', err)
-      setError(err instanceof Error ? err.message : 'Transkription fehlgeschlagen')
+      setError(errorMsg)
     } finally {
       setIsTranscribing(false)
       setTranscriptionProgress(null)
