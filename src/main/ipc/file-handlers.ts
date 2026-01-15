@@ -4,7 +4,7 @@ import { existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { execSync } from 'child_process'
 import { IPC_CHANNELS, StyleProfileExport, SubtitleFrame } from '../../shared/types'
-import { getMainWindow } from '../index'
+import { getMainWindow, cleanupMediaStreams } from '../index'
 
 // Cache for system fonts (they don't change during app lifetime)
 let cachedSystemFonts: string[] | null = null
@@ -433,6 +433,20 @@ export function registerFileHandlers(): void {
           success: false,
           error: error instanceof Error ? error.message : 'Failed to cleanup frames directory'
         }
+      }
+    }
+  )
+
+  // Cleanup media streams when switching videos to prevent memory leaks
+  ipcMain.handle(
+    IPC_CHANNELS.MEDIA_CLEANUP_STREAMS,
+    async (_event, filePath?: string): Promise<{ success: boolean }> => {
+      try {
+        cleanupMediaStreams(filePath)
+        return { success: true }
+      } catch (error) {
+        console.error('Error cleaning up media streams:', error)
+        return { success: true } // Still return success to not block the renderer
       }
     }
   )

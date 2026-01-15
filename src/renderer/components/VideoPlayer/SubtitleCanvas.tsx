@@ -724,7 +724,28 @@ export default function SubtitleCanvas({
   // Create/update offscreen canvas only when video dimensions change
   useEffect(() => {
     if (videoWidth > 0 && videoHeight > 0) {
+      // Clean up old canvas to prevent memory leaks
+      // While OffscreenCanvas should be GC'd, we explicitly clear references
+      if (offscreenCanvasRef.current) {
+        // Clear the canvas content to release GPU memory
+        const ctx = offscreenCanvasRef.current.getContext('2d')
+        if (ctx) {
+          ctx.clearRect(0, 0, offscreenCanvasRef.current.width, offscreenCanvasRef.current.height)
+        }
+        offscreenCanvasRef.current = null
+      }
       offscreenCanvasRef.current = new OffscreenCanvas(videoWidth, videoHeight)
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (offscreenCanvasRef.current) {
+        const ctx = offscreenCanvasRef.current.getContext('2d')
+        if (ctx) {
+          ctx.clearRect(0, 0, offscreenCanvasRef.current.width, offscreenCanvasRef.current.height)
+        }
+        offscreenCanvasRef.current = null
+      }
     }
   }, [videoWidth, videoHeight])
 

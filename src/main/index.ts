@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, dialog, protocol } from 'electron'
 import { join } from 'path'
-import { createReadStream, statSync } from 'fs'
+import { createReadStream, statSync, ReadStream } from 'fs'
 import { lookup } from 'mime-types'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { config } from 'dotenv'
@@ -12,6 +12,91 @@ import { registerAnalysisHandlers, cleanupAnalysisService } from './ipc/analysis
 
 // Load .env file
 config({ path: join(app.getAppPath(), '.env') })
+
+// Track active media streams to prevent memory leaks
+// Key: filePath, Value: Set of active streams for that file
+const activeMediaStreams = new Map<string, Set<ReadStream>>()
+const MAX_STREAMS_PER_FILE = 5 // Limit concurrent streams per file
+
+/**
+ * Clean up old streams for a file when too many are open
+ */
+function cleanupOldStreams(filePath: string): void {
+  const streams = activeMediaStreams.get(filePath)
+  if (!streams) return
+
+  // If we have too many streams, destroy the oldest ones
+  if (streams.size >= MAX_STREAMS_PER_FILE) {
+    const streamsArray = Array.from(streams)
+    // Destroy all but the newest stream
+    for (let i = 0; i < streamsArray.length - 1; i++) {
+      const stream = streamsArray[i]
+      try {
+        stream.destroy()
+        streams.delete(stream)
+      } catch {
+        // Ignore errors when destroying streams
+      }
+    }
+  }
+}
+
+/**
+ * Register a new stream and track it
+ */
+function trackStream(filePath: string, stream: ReadStream): void {
+  cleanupOldStreams(filePath)
+
+  let streams = activeMediaStreams.get(filePath)
+  if (!streams) {
+    streams = new Set()
+    activeMediaStreams.set(filePath, streams)
+  }
+  streams.add(stream)
+
+  // Auto-remove stream when it ends or errors
+  const cleanup = () => {
+    streams?.delete(stream)
+    if (streams?.size === 0) {
+      activeMediaStreams.delete(filePath)
+    }
+  }
+
+  stream.once('end', cleanup)
+  stream.once('error', cleanup)
+  stream.once('close', cleanup)
+}
+
+/**
+ * Clean up all streams for a specific file
+ */
+export function cleanupMediaStreams(filePath?: string): void {
+  if (filePath) {
+    const streams = activeMediaStreams.get(filePath)
+    if (streams) {
+      for (const stream of streams) {
+        try {
+          stream.destroy()
+        } catch {
+          // Ignore errors
+        }
+      }
+      activeMediaStreams.delete(filePath)
+    }
+  } else {
+    // Clean up all streams
+    for (const [, streams] of activeMediaStreams) {
+      for (const stream of streams) {
+        try {
+          stream.destroy()
+        } catch {
+          // Ignore errors
+        }
+      }
+    }
+    activeMediaStreams.clear()
+  }
+}
 
 // Register custom protocol for serving local media files
 protocol.registerSchemesAsPrivileged([
@@ -99,6 +184,9 @@ app.whenReady().then(() => {
           // Create a stream for the requested range
           const stream = createReadStream(filePath, { start, end })
 
+          // Track the stream to prevent memory leaks
+          trackStream(filePath, stream)
+
           // Convert Node.js stream to Web ReadableStream
           const webStream = new ReadableStream({
             start(controller) {
@@ -109,6 +197,7 @@ app.whenReady().then(() => {
                 controller.close()
               })
               stream.on('error', (err) => {
+                stream.destroy()
                 controller.error(err)
               })
             },
@@ -132,6 +221,10 @@ app.whenReady().then(() => {
 
       // No Range header - return full file
       const stream = createReadStream(filePath)
+
+      // Track the stream to prevent memory leaks
+      trackStream(filePath, stream)
+
       const webStream = new ReadableStream({
         start(controller) {
           stream.on('data', (chunk: Buffer) => {
@@ -141,6 +234,7 @@ app.whenReady().then(() => {
             controller.close()
           })
           stream.on('error', (err) => {
+            stream.destroy()
             controller.error(err)
           })
         },
@@ -201,6 +295,7 @@ app.on('window-all-closed', async () => {
   await cleanupWhisperService()
   cleanupProjectHandlers()
   cleanupAnalysisService()
+  cleanupMediaStreams() // Clean up all media streams
 
   if (process.platform !== 'darwin') {
     app.quit()
@@ -210,6 +305,7 @@ app.on('window-all-closed', async () => {
 // Handle app quit
 app.on('before-quit', async () => {
   await cleanupWhisperService()
+  cleanupMediaStreams() // Clean up all media streams
 })
 
 // Export mainWindow for IPC handlers

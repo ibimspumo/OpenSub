@@ -465,6 +465,9 @@ export const IPC_CHANNELS = {
   FILE_GET_TEMP_DIR: 'file:get-temp-dir',
   FILE_DELETE_TEMP: 'file:delete-temp',
 
+  // Media Stream Cleanup (prevents memory leaks when switching videos)
+  MEDIA_CLEANUP_STREAMS: 'media:cleanup-streams',
+
   // Subtitle Frame Rendering
   SUBTITLE_FRAMES_SAVE: 'subtitle:frames-save',
   SUBTITLE_FRAMES_CLEANUP: 'subtitle:frames-cleanup',

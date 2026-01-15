@@ -60,6 +60,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         .catch(err => console.warn('Failed to clean up old audio file:', err))
     }
 
+    // Clean up media streams from the old video to prevent memory leaks
+    if (oldProject?.videoPath) {
+      window.api.file.cleanupMediaStreams(oldProject.videoPath)
+        .then(() => {
+          console.log('Media streams cleaned up for:', oldProject.videoPath)
+        })
+        .catch(err => console.warn('Failed to clean up media streams:', err))
+    }
+
     const project: Project = {
       id: uuidv4(),
       name,
@@ -383,6 +392,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           }
         })
         .catch(err => console.warn('Failed to clean up audio file:', err))
+    }
+    // Clean up media streams to prevent memory leaks
+    if (currentProject?.videoPath) {
+      window.api.file.cleanupMediaStreams(currentProject.videoPath)
+        .then(() => {
+          console.log('Media streams cleaned up for:', currentProject.videoPath)
+        })
+        .catch(err => console.warn('Failed to clean up media streams:', err))
     }
     set({ project: null })
   }

@@ -151,7 +151,11 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke(IPC_CHANNELS.SUBTITLE_FRAMES_SAVE, frames, fps),
 
     cleanupSubtitleFrames: (frameDir: string): Promise<{ success: boolean; error?: string }> =>
-      ipcRenderer.invoke(IPC_CHANNELS.SUBTITLE_FRAMES_CLEANUP, frameDir)
+      ipcRenderer.invoke(IPC_CHANNELS.SUBTITLE_FRAMES_CLEANUP, frameDir),
+
+    // Clean up media streams to prevent memory leaks when switching videos
+    cleanupMediaStreams: (filePath?: string): Promise<{ success: boolean }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MEDIA_CLEANUP_STREAMS, filePath)
   },
 
   // ============================================
@@ -278,6 +282,7 @@ declare global {
           fps: number
         ) => Promise<{ success: boolean; frameDir?: string; manifestPath?: string; error?: string }>
         cleanupSubtitleFrames: (frameDir: string) => Promise<{ success: boolean; error?: string }>
+        cleanupMediaStreams: (filePath?: string) => Promise<{ success: boolean }>
       }
       window: {
         toggleMaximize: () => Promise<boolean>
