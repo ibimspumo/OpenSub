@@ -93,7 +93,7 @@ The standalone build bundles everything you need:
 
 | Component | Version | Purpose |
 |-----------|---------|---------|
-| **Python** | 3.11 | Runtime for AI services |
+| **Python** | 3.12 | Runtime for AI services |
 | **PyTorch** | 2.x | Machine learning framework |
 | **WhisperX** | Latest | Speech recognition engine |
 | **FFmpeg** | 6.x | Video/audio processing |
