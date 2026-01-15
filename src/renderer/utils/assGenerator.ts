@@ -1,4 +1,11 @@
 import type { Project, Subtitle, SubtitleStyle } from '../../shared/types'
+import {
+  RENDERING_CONSTANTS,
+  ANIMATION_CONSTANTS,
+  UI_CONSTANTS,
+  getFontNameForASS,
+  getASSAlignment
+} from '../../shared/styleConstants'
 
 /**
  * Apply text transform (uppercase) if configured
@@ -28,7 +35,7 @@ function wrapTextForASS(
   maxLines: number
 ): string {
   // Approximate character width (average for proportional fonts)
-  const avgCharWidth = fontSize * 0.55
+  const avgCharWidth = fontSize * RENDERING_CONSTANTS.CHARACTER_WIDTH_ESTIMATE
   const maxCharsPerLine = Math.floor(maxWidth / avgCharWidth)
 
   if (maxCharsPerLine <= 0 || text.length <= maxCharsPerLine) {
@@ -66,35 +73,6 @@ function wrapTextForASS(
 
   // Join with ASS hard line break
   return lines.join('\\N')
-}
-
-/**
- * Map CSS/web font names to their actual font file names for libass
- * libass needs the actual font name as it appears in the font file, not CSS aliases
- */
-function getFontNameForASS(fontFamily: string): string {
-  // Extract the first font name from the font family string
-  const primaryFont = fontFamily.split(',')[0].trim().replace(/['"]/g, '')
-
-  // Map common web fonts to their macOS equivalents
-  const fontMap: Record<string, string> = {
-    'Inter': 'Inter',
-    'SF Pro': 'SF Pro',
-    'SF Pro Display': 'SF Pro Display',
-    'SF Pro Text': 'SF Pro Text',
-    'system-ui': 'Helvetica Neue',
-    'sans-serif': 'Helvetica Neue',
-    '-apple-system': 'SF Pro Text',
-    'BlinkMacSystemFont': 'SF Pro Text',
-    'Segoe UI': 'Helvetica Neue',
-    'Roboto': 'Roboto',
-    'Arial': 'Arial',
-    'Helvetica': 'Helvetica',
-    'Helvetica Neue': 'Helvetica Neue'
-  }
-
-  // Return mapped font or original if not in map
-  return fontMap[primaryFont] || primaryFont
 }
 
 /**
@@ -166,19 +144,8 @@ export function generateASS(project: Project): string {
     return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${cs.toString().padStart(2, '0')}`
   }
 
-  // Calculate vertical alignment
-  let alignment: number
-  switch (style.position) {
-    case 'top':
-      alignment = 8 // Top center
-      break
-    case 'center':
-      alignment = 5 // Middle center
-      break
-    case 'bottom':
-    default:
-      alignment = 2 // Bottom center
-  }
+  // Calculate vertical alignment using centralized constants
+  const alignment = getASSAlignment(style.position)
 
   // Calculate margins based on maxWidth for text box constraints
   // MarginL and MarginR together define the text box width
@@ -209,9 +176,9 @@ export function generateASS(project: Project): string {
 
   // Default style
   // ASS uses -1 for bold, 0 for normal
-  // For numeric weights, consider >= 600 as bold (Semi Bold and above)
+  // For numeric weights, consider >= BOLD_WEIGHT_THRESHOLD as bold (Semi Bold and above)
   const isBold = typeof style.fontWeight === 'number'
-    ? style.fontWeight >= 600
+    ? style.fontWeight >= RENDERING_CONSTANTS.BOLD_WEIGHT_THRESHOLD
     : style.fontWeight === 'bold'
   const fontWeight = isBold ? -1 : 0
   // In ASS karaoke: PrimaryColor is for words not yet highlighted (upcoming)
@@ -226,7 +193,7 @@ export function generateASS(project: Project): string {
 
   // Calculate vertical margin based on position
   // For custom position, convert positionY (0-1) to margin from bottom
-  let marginV = 30 // default
+  let marginV = UI_CONSTANTS.DEFAULT_MARGIN_V
   if (style.position === 'custom' && typeof style.positionY === 'number') {
     // positionY is from top (0 = top, 1 = bottom)
     // MarginV in ASS is from the alignment edge
@@ -290,7 +257,7 @@ export function generateASS(project: Project): string {
       let karaokeText = ''
       let currentLineLength = 0
       let lineCount = 1
-      const avgCharWidth = style.fontSize * 0.55
+      const avgCharWidth = style.fontSize * RENDERING_CONSTANTS.CHARACTER_WIDTH_ESTIMATE
       const maxCharsPerLine = Math.floor(textBoxWidth / avgCharWidth)
 
       // Karaoke box styling using \bord\shad technique
@@ -343,7 +310,7 @@ export function generateASS(project: Project): string {
       lines.push(`Dialogue: 0,${start},${end},Default,,0,0,0,,${wrapTag}${karaokeText.trim()}`)
     } else if (style.animation === 'fade') {
       // Fade in/out effect with text wrapping
-      const fadeMs = 300
+      const fadeMs = ANIMATION_CONSTANTS.FADE_MS
       // Apply text transform before wrapping
       const transformedText = applyTextTransform(subtitle.text, style)
       const wrappedText = wrapTextForASS(transformedText, textBoxWidth, style.fontSize, maxLines)

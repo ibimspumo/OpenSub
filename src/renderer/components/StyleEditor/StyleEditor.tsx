@@ -3,7 +3,14 @@ import { parseColor } from 'react-aria-components'
 import { useProjectStore } from '../../store/projectStore'
 import { useUIStore } from '../../store/uiStore'
 import type { AnimationType, SubtitlePosition, SubtitleStyle, FontWeight } from '../../../shared/types'
-import { DEFAULT_SUBTITLE_STYLE } from '../../../shared/types'
+import {
+  DEFAULT_SUBTITLE_STYLE,
+  COLOR_PRESETS,
+  SLIDER_RANGES,
+  POSITION_OPTIONS,
+  ANIMATION_OPTIONS,
+  UI_CONSTANTS
+} from '../../../shared/types'
 import StyleProfileSelector from './StyleProfileSelector'
 import FontSelector from './FontSelector'
 import { getWeightOptions, getAvailableWeights } from '../../utils/fontLoader'
@@ -523,20 +530,6 @@ export default function StyleEditor() {
     }))
   }, [style.fontFamily])
 
-  const positionOptions: { value: SubtitlePosition; label: string }[] = [
-    { value: 'top', label: 'Oben' },
-    { value: 'center', label: 'Mitte' },
-    { value: 'bottom', label: 'Unten' }
-  ]
-
-  const animationOptions: { value: AnimationType; label: string }[] = [
-    { value: 'karaoke', label: 'Karaoke' },
-    { value: 'appear', label: 'Erscheinen' },
-    { value: 'fade', label: 'Einblenden' },
-    { value: 'scale', label: 'Skalieren' },
-    { value: 'none', label: 'Keine' }
-  ]
-
   return (
     <div className="p-4 space-y-4 animate-fade-in">
       {/* Header with elegant styling */}
@@ -628,14 +621,14 @@ export default function StyleEditor() {
               label="Textfarbe"
               value={style.color}
               onChange={(value) => handleUpdateStyle({ color: value })}
-              presets={['#FFFFFF', '#F8F8F8', '#E8E8E8', '#D0D0D0', '#A0A0A0', '#808080', '#404040', '#000000']}
+              presets={COLOR_PRESETS.text}
             />
 
             <PremiumColorPicker
               label="Highlight"
               value={style.highlightColor}
               onChange={(value) => handleUpdateStyle({ highlightColor: value })}
-              presets={['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#FF8C00']}
+              presets={COLOR_PRESETS.highlight}
             />
           </div>
 
@@ -645,7 +638,7 @@ export default function StyleEditor() {
               label="Kommende Woerter"
               value={style.upcomingColor}
               onChange={(value) => handleUpdateStyle({ upcomingColor: value })}
-              presets={['#808080', '#A0A0A0', '#606060', '#505050', '#707070', '#909090', '#B0B0B0', '#404040']}
+              presets={COLOR_PRESETS.upcoming}
             />
           )}
 
@@ -654,7 +647,7 @@ export default function StyleEditor() {
               label="Umrissfarbe"
               value={style.outlineColor}
               onChange={(value) => handleUpdateStyle({ outlineColor: value })}
-              presets={['#000000', '#1A1A1A', '#333333', '#4A4A4A', '#666666', '#0A0A0A', '#2D2D2D', '#1F1F1F']}
+              presets={COLOR_PRESETS.outline}
             />
 
             <PremiumSlider
@@ -674,7 +667,7 @@ export default function StyleEditor() {
           <PremiumButtonGroup
             label="Vertikale Position"
             value={style.position}
-            options={positionOptions}
+            options={POSITION_OPTIONS}
             onChange={(value) => handleUpdateStyle({ position: value as SubtitlePosition })}
             columns={3}
           />
@@ -705,7 +698,7 @@ export default function StyleEditor() {
                 className="absolute left-1/2 -translate-x-1/2 h-3 bg-primary/60 rounded-sm transition-all duration-300 shadow-lg shadow-primary/20"
                 style={{
                   width: `${(style.maxWidth ?? 0.85) * 100}%`,
-                  top: style.position === 'top' ? '12%' : style.position === 'center' ? '50%' : '85%',
+                  top: UI_CONSTANTS.POSITION_PREVIEW[style.position as keyof typeof UI_CONSTANTS.POSITION_PREVIEW] || UI_CONSTANTS.POSITION_PREVIEW.bottom,
                   transform: `translate(-50%, ${style.position === 'center' ? '-50%' : '0'})`
                 }}
               >
@@ -723,7 +716,7 @@ export default function StyleEditor() {
           <PremiumButtonGroup
             label="Animationstyp"
             value={style.animation}
-            options={animationOptions}
+            options={ANIMATION_OPTIONS}
             onChange={(value) => handleUpdateStyle({ animation: value as AnimationType })}
             columns={2}
           />
@@ -765,7 +758,7 @@ export default function StyleEditor() {
                     label="Box-Farbe"
                     value={style.karaokeBoxColor}
                     onChange={(value) => handleUpdateStyle({ karaokeBoxColor: value })}
-                    presets={['#32CD32', '#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#FF8C00', '#9B59B6', '#E74C3C']}
+                    presets={COLOR_PRESETS.karaokeBox}
                   />
 
                   <div className="grid grid-cols-2 gap-3">
@@ -823,7 +816,7 @@ export default function StyleEditor() {
             label="Schattenfarbe"
             value={style.shadowColor}
             onChange={(value) => handleUpdateStyle({ shadowColor: value })}
-            presets={['#000000', '#1A1A1A', '#333333', '#0A0A0A', '#2D2D2D', '#1F1F1F', '#4A4A4A', '#666666']}
+            presets={COLOR_PRESETS.shadow}
           />
 
           <PremiumSlider

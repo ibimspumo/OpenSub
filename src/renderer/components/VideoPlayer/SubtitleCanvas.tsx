@@ -1,6 +1,11 @@
 import { useRef, useEffect, useCallback, RefObject, useState } from 'react'
 import type { Subtitle, SubtitleStyle } from '../../../shared/types'
 import { SNAP_POINTS, SNAP_THRESHOLD } from '../../../shared/types'
+import {
+  RENDERING_CONSTANTS,
+  ANIMATION_CONSTANTS,
+  UI_CONSTANTS
+} from '../../../shared/styleConstants'
 import { useProjectStore } from '../../store/projectStore'
 
 interface SubtitleCanvasProps {
@@ -176,7 +181,7 @@ export default function SubtitleCanvas({
 
     // Get wrapped lines for multi-line support
     const lines = getWrappedLines(ctx, currentSubtitle, displayWidth)
-    const lineHeight = fontSize * 1.4
+    const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
     const totalHeight = lines.length * lineHeight
 
     // Find the maximum line width
@@ -185,7 +190,7 @@ export default function SubtitleCanvas({
     const xCenter = displayWidth * style.positionX
     const yCenter = displayHeight * style.positionY
 
-    const padding = 15
+    const padding = UI_CONSTANTS.SUBTITLE_PADDING
 
     return {
       x: xCenter - maxLineWidth / 2 - padding,
@@ -250,10 +255,10 @@ export default function SubtitleCanvas({
       const deltaY = e.clientY - dragStartRef.current.y
 
       // Convert pixel delta to position percentage
-      const newPosX = Math.max(0.1, Math.min(0.9,
+      const newPosX = Math.max(RENDERING_CONSTANTS.POSITION_BOUNDARIES.MIN, Math.min(RENDERING_CONSTANTS.POSITION_BOUNDARIES.MAX,
         dragStartRef.current.posX + deltaX / canvasDimensions.width
       ))
-      const newPosY = Math.max(0.1, Math.min(0.9,
+      const newPosY = Math.max(RENDERING_CONSTANTS.POSITION_BOUNDARIES.MIN, Math.min(RENDERING_CONSTANTS.POSITION_BOUNDARIES.MAX,
         dragStartRef.current.posY + deltaY / canvasDimensions.height
       ))
 
@@ -353,7 +358,7 @@ export default function SubtitleCanvas({
     width: number
   ) => {
     const lines = getWrappedLinesOffscreen(ctx, subtitle, width)
-    const lineHeight = fontSize * 1.4
+    const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
     const totalHeight = lines.length * lineHeight
     const startY = y - (totalHeight - lineHeight) / 2
 
@@ -434,12 +439,12 @@ export default function SubtitleCanvas({
         }
 
         ctx.strokeStyle = style.outlineColor
-        ctx.lineWidth = style.outlineWidth * 2
+        ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
         ctx.lineJoin = 'round'
 
         if (isCurrent) {
           ctx.shadowColor = style.highlightColor
-          ctx.shadowBlur = 10
+          ctx.shadowBlur = ANIMATION_CONSTANTS.KARAOKE_HIGHLIGHT_SHADOW_BLUR
           ctx.shadowOffsetX = 0
           ctx.shadowOffsetY = 0
         } else {
@@ -484,7 +489,7 @@ export default function SubtitleCanvas({
 
     const visibleSubtitle = { ...subtitle, words: visibleWords }
     const lines = getWrappedLinesOffscreen(ctx, visibleSubtitle, width)
-    const lineHeight = fontSize * 1.4
+    const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
 
     const fullLines = getWrappedLinesOffscreen(ctx, subtitle, width)
     const totalHeight = fullLines.length * lineHeight
@@ -495,7 +500,7 @@ export default function SubtitleCanvas({
     ctx.shadowOffsetX = style.shadowOffsetX ?? 0
     ctx.shadowOffsetY = style.shadowOffsetY ?? 0
     ctx.strokeStyle = style.outlineColor
-    ctx.lineWidth = style.outlineWidth * 2
+    ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
     ctx.lineJoin = 'round'
 
     lines.forEach((line, index) => {
@@ -519,12 +524,12 @@ export default function SubtitleCanvas({
     width: number
   ) => {
     const lines = getWrappedLinesOffscreen(ctx, subtitle, width)
-    const lineHeight = fontSize * 1.4
+    const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
     const totalHeight = lines.length * lineHeight
     const startY = y - (totalHeight - lineHeight) / 2
 
-    const fadeInDuration = 0.3
-    const fadeOutDuration = 0.3
+    const fadeInDuration = ANIMATION_CONSTANTS.FADE_DURATION
+    const fadeOutDuration = ANIMATION_CONSTANTS.FADE_DURATION
 
     let alpha = 1
     const elapsed = currentTime - subtitle.startTime
@@ -542,7 +547,7 @@ export default function SubtitleCanvas({
     ctx.shadowOffsetX = style.shadowOffsetX ?? 0
     ctx.shadowOffsetY = style.shadowOffsetY ?? 0
     ctx.strokeStyle = style.outlineColor
-    ctx.lineWidth = style.outlineWidth * 2
+    ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
     ctx.lineJoin = 'round'
 
     lines.forEach((line, index) => {
@@ -568,7 +573,7 @@ export default function SubtitleCanvas({
     width: number
   ) => {
     const lines = getWrappedLinesOffscreen(ctx, subtitle, width)
-    const lineHeight = fontSize * 1.4
+    const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
     const totalHeight = lines.length * lineHeight
     const startY = y - (totalHeight - lineHeight) / 2
 
@@ -591,8 +596,8 @@ export default function SubtitleCanvas({
         if (isCurrent) {
           const word = subtitle.words[globalWordIdx]
           if (word) {
-            const scaleProgress = Math.min(1, (currentTime - word.startTime) / 0.15)
-            const scale = 1 + 0.2 * Math.sin(scaleProgress * Math.PI)
+            const scaleProgress = Math.min(1, (currentTime - word.startTime) / ANIMATION_CONSTANTS.SCALE_DURATION)
+            const scale = 1 + ANIMATION_CONSTANTS.SCALE_AMPLITUDE * Math.sin(scaleProgress * Math.PI)
 
             ctx.translate(wordX, lineY)
             ctx.scale(scale, scale)
@@ -605,7 +610,7 @@ export default function SubtitleCanvas({
         ctx.shadowOffsetX = style.shadowOffsetX ?? 0
         ctx.shadowOffsetY = style.shadowOffsetY ?? 0
         ctx.strokeStyle = style.outlineColor
-        ctx.lineWidth = style.outlineWidth * 2
+        ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
         ctx.lineJoin = 'round'
         ctx.strokeText(wordText, wordX, lineY)
 
@@ -628,7 +633,7 @@ export default function SubtitleCanvas({
     width: number
   ) => {
     const lines = getWrappedLinesOffscreen(ctx, subtitle, width)
-    const lineHeight = fontSize * 1.4
+    const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
     const totalHeight = lines.length * lineHeight
     const startY = y - (totalHeight - lineHeight) / 2
 
@@ -637,7 +642,7 @@ export default function SubtitleCanvas({
     ctx.shadowOffsetX = style.shadowOffsetX ?? 0
     ctx.shadowOffsetY = style.shadowOffsetY ?? 0
     ctx.strokeStyle = style.outlineColor
-    ctx.lineWidth = style.outlineWidth * 2
+    ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
     ctx.lineJoin = 'round'
 
     lines.forEach((line, index) => {
@@ -676,8 +681,8 @@ export default function SubtitleCanvas({
     // Draw snap lines when dragging (at display resolution)
     if (isDragging) {
       ctx.save()
-      ctx.setLineDash([5, 5])
-      ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)'
+      ctx.setLineDash(UI_CONSTANTS.SNAP_LINE_DASH)
+      ctx.strokeStyle = UI_CONSTANTS.SNAP_LINE_COLOR
       ctx.lineWidth = 1
 
       // Horizontal snap lines
@@ -763,12 +768,12 @@ export default function SubtitleCanvas({
       const lineHeight = scaledFontSize * 1.4
       const totalHeight = lines.length * lineHeight
       const maxLineWidth = Math.max(...lines.map(line => ctx.measureText(line).width))
-      const padding = 15
+      const padding = UI_CONSTANTS.SUBTITLE_PADDING
 
       ctx.save()
-      ctx.strokeStyle = isDragging ? 'rgba(59, 130, 246, 0.8)' : 'rgba(255, 255, 255, 0.3)'
+      ctx.strokeStyle = isDragging ? UI_CONSTANTS.DRAG_INDICATOR_COLOR : UI_CONSTANTS.HOVER_INDICATOR_COLOR
       ctx.lineWidth = 2
-      ctx.setLineDash(isDragging ? [] : [5, 5])
+      ctx.setLineDash(isDragging ? [] : UI_CONSTANTS.SNAP_LINE_DASH)
       ctx.strokeRect(
         displayWidth * posX - maxLineWidth / 2 - padding,
         displayHeight * posY - totalHeight / 2 - padding,
@@ -790,7 +795,7 @@ export default function SubtitleCanvas({
     displayWidth: number
   ) => {
     const lines = getWrappedLines(ctx, subtitle, displayWidth)
-    const lineHeight = fontSize * 1.4
+    const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
     const totalHeight = lines.length * lineHeight
     const startY = y - (totalHeight - lineHeight) / 2
 
@@ -868,12 +873,12 @@ export default function SubtitleCanvas({
         }
 
         ctx.strokeStyle = style.outlineColor
-        ctx.lineWidth = style.outlineWidth * 2
+        ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
         ctx.lineJoin = 'round'
 
         if (isCurrent) {
           ctx.shadowColor = style.highlightColor
-          ctx.shadowBlur = 10
+          ctx.shadowBlur = ANIMATION_CONSTANTS.KARAOKE_HIGHLIGHT_SHADOW_BLUR
           ctx.shadowOffsetX = 0
           ctx.shadowOffsetY = 0
         } else {
@@ -923,7 +928,7 @@ export default function SubtitleCanvas({
     }
 
     const lines = getWrappedLines(ctx, visibleSubtitle, displayWidth)
-    const lineHeight = fontSize * 1.4
+    const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
 
     // Get full lines for consistent vertical positioning
     const fullLines = getWrappedLines(ctx, subtitle, displayWidth)
@@ -935,7 +940,7 @@ export default function SubtitleCanvas({
     ctx.shadowOffsetX = style.shadowOffsetX ?? 0
     ctx.shadowOffsetY = style.shadowOffsetY ?? 0
     ctx.strokeStyle = style.outlineColor
-    ctx.lineWidth = style.outlineWidth * 2
+    ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
     ctx.lineJoin = 'round'
 
     lines.forEach((line, index) => {
@@ -960,12 +965,12 @@ export default function SubtitleCanvas({
     displayWidth: number
   ) => {
     const lines = getWrappedLines(ctx, subtitle, displayWidth)
-    const lineHeight = fontSize * 1.4
+    const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
     const totalHeight = lines.length * lineHeight
     const startY = y - (totalHeight - lineHeight) / 2
 
-    const fadeInDuration = 0.3
-    const fadeOutDuration = 0.3
+    const fadeInDuration = ANIMATION_CONSTANTS.FADE_DURATION
+    const fadeOutDuration = ANIMATION_CONSTANTS.FADE_DURATION
 
     let alpha = 1
     const elapsed = currentTime - subtitle.startTime
@@ -983,7 +988,7 @@ export default function SubtitleCanvas({
     ctx.shadowOffsetX = style.shadowOffsetX ?? 0
     ctx.shadowOffsetY = style.shadowOffsetY ?? 0
     ctx.strokeStyle = style.outlineColor
-    ctx.lineWidth = style.outlineWidth * 2
+    ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
     ctx.lineJoin = 'round'
 
     lines.forEach((line, index) => {
@@ -1010,7 +1015,7 @@ export default function SubtitleCanvas({
     displayWidth: number
   ) => {
     const lines = getWrappedLines(ctx, subtitle, displayWidth)
-    const lineHeight = fontSize * 1.4
+    const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
     const totalHeight = lines.length * lineHeight
     const startY = y - (totalHeight - lineHeight) / 2
 
@@ -1050,8 +1055,8 @@ export default function SubtitleCanvas({
         if (isCurrent) {
           const word = subtitle.words[globalWordIndex]
           if (word) {
-            const scaleProgress = Math.min(1, (currentTime - word.startTime) / 0.15)
-            const scale = 1 + 0.2 * Math.sin(scaleProgress * Math.PI)
+            const scaleProgress = Math.min(1, (currentTime - word.startTime) / ANIMATION_CONSTANTS.SCALE_DURATION)
+            const scale = 1 + ANIMATION_CONSTANTS.SCALE_AMPLITUDE * Math.sin(scaleProgress * Math.PI)
 
             ctx.translate(wordX, lineY)
             ctx.scale(scale, scale)
@@ -1064,7 +1069,7 @@ export default function SubtitleCanvas({
         ctx.shadowOffsetX = style.shadowOffsetX ?? 0
         ctx.shadowOffsetY = style.shadowOffsetY ?? 0
         ctx.strokeStyle = style.outlineColor
-        ctx.lineWidth = style.outlineWidth * 2
+        ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
         ctx.lineJoin = 'round'
         ctx.strokeText(wordText, wordX, lineY)
 
@@ -1087,7 +1092,7 @@ export default function SubtitleCanvas({
     displayWidth: number
   ) => {
     const lines = getWrappedLines(ctx, subtitle, displayWidth)
-    const lineHeight = fontSize * 1.4
+    const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
 
     // Calculate starting Y position to center all lines around the target Y
     const totalHeight = lines.length * lineHeight
@@ -1098,7 +1103,7 @@ export default function SubtitleCanvas({
     ctx.shadowOffsetX = style.shadowOffsetX ?? 0
     ctx.shadowOffsetY = style.shadowOffsetY ?? 0
     ctx.strokeStyle = style.outlineColor
-    ctx.lineWidth = style.outlineWidth * 2
+    ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
     ctx.lineJoin = 'round'
 
     lines.forEach((line, index) => {

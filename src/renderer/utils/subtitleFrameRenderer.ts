@@ -9,6 +9,10 @@
  */
 
 import type { Subtitle, SubtitleStyle, Word } from '../../shared/types'
+import {
+  RENDERING_CONSTANTS,
+  ANIMATION_CONSTANTS
+} from '../../shared/styleConstants'
 import { getWorkerPool, terminateWorkerPool as _terminateWorkerPool, type FrameResult } from './workerPool'
 
 // Re-export for cleanup
@@ -173,7 +177,7 @@ function renderKaraoke(
   style: SubtitleStyle
 ): void {
   const lines = getWrappedLines(ctx, subtitle, displayWidth, style)
-  const lineHeight = fontSize * 1.4
+  const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
   const totalHeight = lines.length * lineHeight
   const startY = y - (totalHeight - lineHeight) / 2
 
@@ -226,12 +230,12 @@ function renderKaraoke(
       }
 
       ctx.strokeStyle = style.outlineColor
-      ctx.lineWidth = style.outlineWidth * 2
+      ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
       ctx.lineJoin = 'round'
 
       if (isCurrent) {
         ctx.shadowColor = style.highlightColor
-        ctx.shadowBlur = 10
+        ctx.shadowBlur = ANIMATION_CONSTANTS.KARAOKE_HIGHLIGHT_SHADOW_BLUR
       } else {
         ctx.shadowColor = style.shadowColor
         ctx.shadowBlur = style.shadowBlur
@@ -240,7 +244,7 @@ function renderKaraoke(
       ctx.strokeText(wordText, wordX, lineY)
 
       ctx.fillStyle = isCurrent ? style.highlightColor : isPast ? style.color : style.color
-      ctx.globalAlpha = isPast || isCurrent ? 1 : 0.6
+      ctx.globalAlpha = isPast || isCurrent ? 1 : ANIMATION_CONSTANTS.UPCOMING_WORD_OPACITY
       ctx.fillText(wordText, wordX, lineY)
       ctx.globalAlpha = 1
 
@@ -269,7 +273,7 @@ function renderAppear(
   const visibleSubtitle = { ...subtitle, words: visibleWords }
 
   const lines = getWrappedLines(ctx, visibleSubtitle, displayWidth, style)
-  const lineHeight = fontSize * 1.4
+  const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
 
   const fullLines = getWrappedLines(ctx, subtitle, displayWidth, style)
   const totalHeight = fullLines.length * lineHeight
@@ -278,7 +282,7 @@ function renderAppear(
   ctx.shadowColor = style.shadowColor
   ctx.shadowBlur = style.shadowBlur
   ctx.strokeStyle = style.outlineColor
-  ctx.lineWidth = style.outlineWidth * 2
+  ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
   ctx.lineJoin = 'round'
 
   lines.forEach((line, index) => {
@@ -305,12 +309,12 @@ function renderFade(
   style: SubtitleStyle
 ): void {
   const lines = getWrappedLines(ctx, subtitle, displayWidth, style)
-  const lineHeight = fontSize * 1.4
+  const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
   const totalHeight = lines.length * lineHeight
   const startY = y - (totalHeight - lineHeight) / 2
 
-  const fadeInDuration = 0.3
-  const fadeOutDuration = 0.3
+  const fadeInDuration = ANIMATION_CONSTANTS.FADE_DURATION
+  const fadeOutDuration = ANIMATION_CONSTANTS.FADE_DURATION
 
   let alpha = 1
   const elapsed = currentTime - subtitle.startTime
@@ -326,7 +330,7 @@ function renderFade(
   ctx.shadowColor = style.shadowColor
   ctx.shadowBlur = style.shadowBlur
   ctx.strokeStyle = style.outlineColor
-  ctx.lineWidth = style.outlineWidth * 2
+  ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
   ctx.lineJoin = 'round'
 
   lines.forEach((line, index) => {
@@ -355,7 +359,7 @@ function renderScale(
   style: SubtitleStyle
 ): void {
   const lines = getWrappedLines(ctx, subtitle, displayWidth, style)
-  const lineHeight = fontSize * 1.4
+  const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
   const totalHeight = lines.length * lineHeight
   const startY = y - (totalHeight - lineHeight) / 2
 
@@ -390,8 +394,8 @@ function renderScale(
       if (isCurrent) {
         const word = subtitle.words[globalWordIndex]
         if (word) {
-          const scaleProgress = Math.min(1, (currentTime - word.startTime) / 0.15)
-          const scale = 1 + 0.2 * Math.sin(scaleProgress * Math.PI)
+          const scaleProgress = Math.min(1, (currentTime - word.startTime) / ANIMATION_CONSTANTS.SCALE_DURATION)
+          const scale = 1 + ANIMATION_CONSTANTS.SCALE_AMPLITUDE * Math.sin(scaleProgress * Math.PI)
 
           ctx.translate(wordX, lineY)
           ctx.scale(scale, scale)
@@ -402,7 +406,7 @@ function renderScale(
       ctx.shadowColor = style.shadowColor
       ctx.shadowBlur = style.shadowBlur
       ctx.strokeStyle = style.outlineColor
-      ctx.lineWidth = style.outlineWidth * 2
+      ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
       ctx.lineJoin = 'round'
       ctx.strokeText(wordText, wordX, lineY)
 
@@ -428,14 +432,14 @@ function renderStatic(
   style: SubtitleStyle
 ): void {
   const lines = getWrappedLines(ctx, subtitle, displayWidth, style)
-  const lineHeight = fontSize * 1.4
+  const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
   const totalHeight = lines.length * lineHeight
   const startY = y - (totalHeight - lineHeight) / 2
 
   ctx.shadowColor = style.shadowColor
   ctx.shadowBlur = style.shadowBlur
   ctx.strokeStyle = style.outlineColor
-  ctx.lineWidth = style.outlineWidth * 2
+  ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
   ctx.lineJoin = 'round'
 
   lines.forEach((line, index) => {
@@ -583,7 +587,7 @@ export function calculateFrameTimes(
       }
     } else if (animation === 'fade') {
       // For fade animation, add frames during fade in/out
-      const fadeDuration = 0.3
+      const fadeDuration = ANIMATION_CONSTANTS.FADE_DURATION
       const fadeSteps = Math.ceil(fadeDuration / frameInterval)
 
       // Fade in frames

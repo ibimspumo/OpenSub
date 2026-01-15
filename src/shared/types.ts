@@ -2,6 +2,9 @@
 // OpenSub Shared Types
 // ============================================
 
+// Re-export all style constants for convenience
+export * from './styleConstants'
+
 // Projekt-Struktur
 export interface Project {
   id: string
