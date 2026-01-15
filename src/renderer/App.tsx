@@ -8,6 +8,7 @@ import SubtitleList from './components/SubtitleEditor/SubtitleList'
 import StyleEditor from './components/StyleEditor/StyleEditor'
 import TranscriptionProgress from './components/TranscriptionProgress/TranscriptionProgress'
 import ExportProgress from './components/ExportProgress/ExportProgress'
+import ExportDialog from './components/ExportDialog/ExportDialog'
 import AnalysisProgress from './components/AnalysisProgress/AnalysisProgress'
 import DiffPreview from './components/DiffPreview/DiffPreview'
 import TitleBar from './components/TitleBar/TitleBar'
@@ -20,7 +21,11 @@ import { loadGoogleFont } from './utils/fontLoader'
 import { PlaybackControllerProvider } from './hooks/usePlaybackController'
 import { cn } from './lib/utils'
 import { X, AlertCircle } from 'lucide-react'
-import type { SubtitleFrame, TranscriptionProgress as TranscriptionProgressType } from '../shared/types'
+import type {
+  SubtitleFrame,
+  TranscriptionProgress as TranscriptionProgressType,
+  ExportSettings
+} from '../shared/types'
 
 function App() {
   const { project, hasProject } = useProjectStore()
@@ -36,7 +41,9 @@ function App() {
     setIsAnalyzing,
     setAnalysisProgress,
     setShowDiffPreview,
-    setPendingChanges
+    setPendingChanges,
+    showExportDialog,
+    setShowExportDialog
   } = useUIStore()
   const [exportError, setExportError] = useState<string | null>(null)
   const [isAppMounted, setIsAppMounted] = useState(false)
@@ -118,16 +125,22 @@ function App() {
     }
   }, [project])
 
+  // Open export dialog
+  const handleOpenExportDialog = useCallback(() => {
+    if (!project || project.subtitles.length === 0) return
+    setShowExportDialog(true)
+  }, [project, setShowExportDialog])
+
   // Export handler - uses frame-based rendering for pixel-perfect subtitle overlay
-  const handleExport = useCallback(async () => {
+  const handleConfirmExport = useCallback(async (settings: ExportSettings) => {
     if (!project) return
 
     let frameDir: string | undefined
 
     try {
-      // Select output file
+      // Select output file with user's chosen filename
       const outputPath = await window.api.file.selectOutput(
-        `${project.name}_subtitled.mp4`
+        `${settings.filename}.mp4`
       )
       if (!outputPath) return
 
@@ -139,13 +152,17 @@ function App() {
       const metadata = await window.api.ffmpeg.getMetadata(project.videoPath)
       const fps = metadata.fps || 30
 
+      // Use target resolution from settings
+      const targetWidth = settings.resolution.width
+      const targetHeight = settings.resolution.height
+
       // Phase 1: Render subtitle frames (0-40% progress)
-      // This renders each subtitle frame as a PNG for pixel-perfect overlay
+      // Render at target resolution for proper scaling
       const frameInfos = await generateExportFrames(
         project.subtitles,
         project.style,
-        project.resolution.width,
-        project.resolution.height,
+        targetWidth,
+        targetHeight,
         fps,
         (percent) => {
           // Map 0-100% of frame rendering to 0-40% of total progress
@@ -185,7 +202,9 @@ function App() {
       // Export using frame-based overlay for pixel-perfect results
       await window.api.ffmpeg.exportVideo(project.videoPath, '', {
         outputPath,
-        quality: 'high',
+        quality: settings.quality,
+        targetWidth,
+        targetHeight,
         useFrameRendering: true,
         frameDir
       })
@@ -222,7 +241,7 @@ function App() {
         )}
       >
         {/* Premium Title Bar */}
-        <TitleBar isAppMounted={isAppMounted} onExport={handleExport} />
+        <TitleBar isAppMounted={isAppMounted} onExport={handleOpenExportDialog} />
 
         {/* Main Content Area with smooth transitions */}
         <main className="flex-1 flex overflow-hidden relative">
@@ -342,6 +361,11 @@ function App() {
 
         {isExporting && (
           <ExportProgress />
+        )}
+
+        {/* Export Dialog */}
+        {showExportDialog && (
+          <ExportDialog onExport={handleConfirmExport} />
         )}
 
         {/* AI Analysis Modal */}

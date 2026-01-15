@@ -401,14 +401,22 @@ export class FFmpegService {
 
       // Build complex filter for overlay with timing
       // The overlay is positioned at 0,0 (full frame) and enabled based on time
-      const filterComplex = `[1:v]setpts=PTS+${firstFrameStart}/TB[sub];[0:v][sub]overlay=0:0:enable='between(t,${firstFrameStart},${lastFrame.endTime})'`
+      // If target resolution is specified, add scale filter at the beginning
+      let filterComplex: string
+
+      if (options.targetWidth && options.targetHeight) {
+        // Scale video first, then overlay subtitle frames
+        // Note: subtitle frames should already be rendered at target resolution
+        filterComplex = `[0:v]scale=${options.targetWidth}:${options.targetHeight}[scaled];[1:v]setpts=PTS+${firstFrameStart}/TB[sub];[scaled][sub]overlay=0:0:enable='between(t,${firstFrameStart},${lastFrame.endTime})'`
+      } else if (options.scale && options.scale !== 1) {
+        // Legacy scale option (proportional scaling)
+        filterComplex = `[0:v]scale=iw*${options.scale}:ih*${options.scale}[scaled];[1:v]setpts=PTS+${firstFrameStart}/TB[sub];[scaled][sub]overlay=0:0:enable='between(t,${firstFrameStart},${lastFrame.endTime})'`
+      } else {
+        // No scaling needed
+        filterComplex = `[1:v]setpts=PTS+${firstFrameStart}/TB[sub];[0:v][sub]overlay=0:0:enable='between(t,${firstFrameStart},${lastFrame.endTime})'`
+      }
 
       command.complexFilter(filterComplex)
-
-      // Scale filter if needed
-      if (options.scale && options.scale !== 1) {
-        command.videoFilters(`scale=iw*${options.scale}:ih*${options.scale}`)
-      }
 
       // Use VideoToolbox hardware encoding if available
       if (useVideoToolbox) {

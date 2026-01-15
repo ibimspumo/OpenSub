@@ -1,5 +1,10 @@
 import { create } from 'zustand'
-import type { TranscriptionProgress, AnalysisProgress, SubtitleChange } from '../../shared/types'
+import type {
+  TranscriptionProgress,
+  AnalysisProgress,
+  SubtitleChange,
+  ExportSettings
+} from '../../shared/types'
 
 // Save status type
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
@@ -37,6 +42,10 @@ interface UIState {
   pendingChanges: SubtitleChange[]
   showDiffPreview: boolean
 
+  // Export Dialog
+  showExportDialog: boolean
+  exportSettings: ExportSettings | null
+
   // Actions
   setIsPlaying: (isPlaying: boolean) => void
   setCurrentTime: (time: number) => void
@@ -66,6 +75,10 @@ interface UIState {
   updateChangeStatus: (subtitleId: string, status: 'accepted' | 'rejected') => void
   acceptAllChanges: () => void
   rejectAllChanges: () => void
+
+  // Export Dialog actions
+  setShowExportDialog: (show: boolean) => void
+  setExportSettings: (settings: ExportSettings | null) => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -100,6 +113,10 @@ export const useUIStore = create<UIState>((set) => ({
   analysisProgress: null,
   pendingChanges: [],
   showDiffPreview: false,
+
+  // Export Dialog
+  showExportDialog: false,
+  exportSettings: null,
 
   // Actions
   setIsPlaying: (isPlaying) => set({ isPlaying }),
@@ -140,5 +157,9 @@ export const useUIStore = create<UIState>((set) => ({
   rejectAllChanges: () =>
     set((state) => ({
       pendingChanges: state.pendingChanges.map((change) => ({ ...change, status: 'rejected' as const }))
-    }))
+    })),
+
+  // Export Dialog actions
+  setShowExportDialog: (showExportDialog) => set({ showExportDialog }),
+  setExportSettings: (exportSettings) => set({ exportSettings })
 }))

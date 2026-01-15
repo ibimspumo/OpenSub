@@ -349,10 +349,28 @@ export interface VideoMetadata {
   audioCodec: string
 }
 
+// Resolution preset for export dialog
+export interface ResolutionPreset {
+  id: string
+  label: string
+  width: number
+  height: number
+}
+
+// Export settings selected by user in export dialog
+export interface ExportSettings {
+  filename: string
+  resolution: ResolutionPreset
+  quality: 'high' | 'medium' | 'low'
+}
+
 export interface ExportOptions {
   outputPath: string
   quality: 'high' | 'medium' | 'low'
   scale?: number
+  // Target resolution (for rescaling video)
+  targetWidth?: number
+  targetHeight?: number
   // Frame-based rendering options (for pixel-perfect subtitle overlay)
   useFrameRendering?: boolean
   frameDir?: string  // Directory containing rendered PNG frames
