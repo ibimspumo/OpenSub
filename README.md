@@ -5,7 +5,9 @@ A professional desktop subtitle editor with AI-powered transcription. Create, ed
 ![Platform](https://img.shields.io/badge/Platform-macOS-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Electron](https://img.shields.io/badge/Electron-28-47848F)
-![Version](https://img.shields.io/badge/Version-0.2.1-orange)
+![Version](https://img.shields.io/badge/Version-0.3.0-orange)
+
+> **Built with AI** — This entire application was developed using [Claude Code](https://claude.ai/claude-code), Anthropic's AI coding assistant. From architecture decisions to implementation details, every line of code was written collaboratively with AI.
 
 <p align="center">
   <strong>Standalone App — No Python or FFmpeg Installation Required</strong>
@@ -85,7 +87,15 @@ OpenSub is distributed as a **fully standalone application** — no external dep
 3. **Drag** OpenSub to your Applications folder
 4. **Launch** OpenSub from Applications
 
-> **First Launch Note**: On first run, macOS may show a security warning since the app is not notarized. Right-click the app and select "Open" to bypass this, or go to **System Settings → Privacy & Security** and click "Open Anyway".
+> **⚠️ Important - macOS Security Warning**
+>
+> Since the app is not code-signed, macOS will block it with a "damaged" or "unverified developer" warning. To fix this, open Terminal and run:
+>
+> ```bash
+> xattr -cr /Applications/OpenSub.app
+> ```
+>
+> Then launch the app normally. This only needs to be done once after installation.
 
 ### What's Included
 
