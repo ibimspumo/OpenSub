@@ -5,7 +5,7 @@ A professional desktop subtitle editor with AI-powered transcription. Create, ed
 ![Platform](https://img.shields.io/badge/Platform-macOS-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Electron](https://img.shields.io/badge/Electron-28-47848F)
-![Version](https://img.shields.io/badge/Version-0.3.0-orange)
+![Version](https://img.shields.io/badge/Version-0.3.1-orange)
 
 > **Built with AI** — This entire application was developed using [Claude Code](https://claude.ai/claude-code), Anthropic's AI coding assistant. From architecture decisions to implementation details, every line of code was written collaboratively with AI.
 
