@@ -9,7 +9,15 @@ import type {
 // Save status type
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
+// Inspector tabs (right panel)
+export type InspectorTab = 'style' | 'animation' | 'effects'
+
 interface UIState {
+  // Layout: collapsible side panels + inspector tab
+  leftPanelOpen: boolean
+  rightPanelOpen: boolean
+  inspectorTab: InspectorTab
+
   // Video player
   isPlaying: boolean
   currentTime: number
@@ -47,6 +55,10 @@ interface UIState {
   exportSettings: ExportSettings | null
 
   // Actions
+  toggleLeftPanel: () => void
+  toggleRightPanel: () => void
+  setInspectorTab: (tab: InspectorTab) => void
+
   setIsPlaying: (isPlaying: boolean) => void
   setCurrentTime: (time: number) => void
   setVolume: (volume: number) => void
@@ -85,6 +97,14 @@ interface UIState {
 }
 
 export const useUIStore = create<UIState>((set) => ({
+  leftPanelOpen: true,
+  rightPanelOpen: true,
+  inspectorTab: 'style',
+
+  toggleLeftPanel: () => set((state) => ({ leftPanelOpen: !state.leftPanelOpen })),
+  toggleRightPanel: () => set((state) => ({ rightPanelOpen: !state.rightPanelOpen })),
+  setInspectorTab: (inspectorTab) => set({ inspectorTab }),
+
   isPlaying: false,
   currentTime: 0,
   volume: 1,

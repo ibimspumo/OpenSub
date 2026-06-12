@@ -1,25 +1,42 @@
-import { useCallback, useRef, useEffect, useState } from 'react'
+import { useCallback, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MessageSquareText, ArrowDown, FileText, Clock } from 'lucide-react'
+import { MessageSquareText, Sparkles, Download, FileText, Clock } from 'lucide-react'
 import { useProjectStore } from '@/store/projectStore'
 import { useUIStore } from '@/store/uiStore'
 import { usePlaybackController } from '@/hooks/usePlaybackController'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import SubtitleItem from './SubtitleItem'
-import { transcript } from '@/lib/api'
+import { transcript, analysis } from '@/lib/api'
 
 export default function SubtitleList() {
   const { t } = useTranslation()
   const { project } = useProjectStore()
-  const { selectedSubtitleId, setSelectedSubtitleId } = useUIStore()
+  const {
+    selectedSubtitleId,
+    setSelectedSubtitleId,
+    isAnalyzing,
+    setIsAnalyzing,
+    setAnalysisProgress,
+    setPendingChanges,
+    setShowDiffPreview
+  } = useUIStore()
   const controller = usePlaybackController()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const [showTopFade, setShowTopFade] = useState(false)
-  const [showBottomFade, setShowBottomFade] = useState(false)
-  const [isInitialRender, setIsInitialRender] = useState(true)
+
+  const subtitles = project?.subtitles ?? []
+
+  // The line currently being spoken — follows playback
+  const activeSubtitleId = useMemo(() => {
+    const time = controller.currentTime
+    return subtitles.find((s) => time >= s.startTime && time < s.endTime)?.id ?? null
+  }, [subtitles, controller.currentTime])
 
   const handleSelect = useCallback(
     (id: string, startTime: number) => {
@@ -29,7 +46,6 @@ export default function SubtitleList() {
     [setSelectedSubtitleId, controller]
   )
 
-  // Export transcript as plain text (Markdown)
   const handleExportText = useCallback(async () => {
     if (!project || project.subtitles.length === 0) return
     try {
@@ -39,7 +55,6 @@ export default function SubtitleList() {
     }
   }, [project])
 
-  // Export transcript with timecodes (SRT format)
   const handleExportTimecodes = useCallback(async () => {
     if (!project || project.subtitles.length === 0) return
     try {
@@ -49,210 +64,154 @@ export default function SubtitleList() {
     }
   }, [project])
 
-  // Handle scroll to show/hide fade indicators
-  const handleScroll = useCallback(() => {
-    const container = scrollContainerRef.current
-    if (!container) return
+  // AI correction (lives with the text it corrects)
+  const handleStartAnalysis = useCallback(async () => {
+    if (!project || project.subtitles.length === 0 || isAnalyzing) return
 
-    const { scrollTop, scrollHeight, clientHeight } = container
-    const threshold = 20
+    setIsAnalyzing(true)
+    setAnalysisProgress({ stage: 'extracting', percent: 0, message: t('analysis.startAnalysis') })
 
-    setShowTopFade(scrollTop > threshold)
-    setShowBottomFade(scrollTop < scrollHeight - clientHeight - threshold)
-  }, [])
+    try {
+      const result = await analysis.analyze({
+        audioPath: project.audioPath,
+        subtitles: project.subtitles,
+        config: {
+          model: 'google/gemini-3-flash-preview',
+          language: 'de'
+        }
+      })
 
-  // Initial check for scroll position and set up observer
-  useEffect(() => {
-    const container = scrollContainerRef.current
-    if (!container) return
+      setPendingChanges(result.changes)
+      setIsAnalyzing(false)
+      setAnalysisProgress(null)
 
-    // Initial check
-    handleScroll()
-
-    // Set up resize observer to recheck on size changes
-    const resizeObserver = new ResizeObserver(handleScroll)
-    resizeObserver.observe(container)
-
-    // Trigger initial render animation
-    const timer = setTimeout(() => setIsInitialRender(false), 100)
-
-    return () => {
-      resizeObserver.disconnect()
-      clearTimeout(timer)
-    }
-  }, [handleScroll, project?.subtitles.length])
-
-  // Auto-scroll to selected subtitle with smooth behavior
-  useEffect(() => {
-    if (!selectedSubtitleId || !scrollContainerRef.current) return
-
-    const container = scrollContainerRef.current
-    const selectedElement = container.querySelector(`[data-subtitle-id="${selectedSubtitleId}"]`)
-
-    if (selectedElement) {
-      const containerRect = container.getBoundingClientRect()
-      const elementRect = selectedElement.getBoundingClientRect()
-
-      // Check if element is outside visible area
-      const isAbove = elementRect.top < containerRect.top + 60
-      const isBelow = elementRect.bottom > containerRect.bottom - 60
-
-      if (isAbove || isBelow) {
-        selectedElement.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center'
-        })
+      if (result.changes.length > 0) {
+        setShowDiffPreview(true)
       }
+    } catch (error) {
+      console.error('Analysis failed:', error)
+      setIsAnalyzing(false)
+      setAnalysisProgress({
+        stage: 'error',
+        percent: 0,
+        message: error instanceof Error ? error.message : t('analysis.analysisFailed')
+      })
     }
-  }, [selectedSubtitleId])
+  }, [project, isAnalyzing, setIsAnalyzing, setAnalysisProgress, setPendingChanges, setShowDiffPreview, t])
+
+  // Keep the active/selected line in view
+  const scrollTargetId = selectedSubtitleId ?? (controller.isPlaying ? activeSubtitleId : null)
+  useEffect(() => {
+    if (!scrollTargetId || !scrollContainerRef.current) return
+
+    const container = scrollContainerRef.current
+    const element = container.querySelector(`[data-subtitle-id="${scrollTargetId}"]`)
+    if (!element) return
+
+    const containerRect = container.getBoundingClientRect()
+    const elementRect = element.getBoundingClientRect()
+    const isAbove = elementRect.top < containerRect.top + 48
+    const isBelow = elementRect.bottom > containerRect.bottom - 48
+
+    if (isAbove || isBelow) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [scrollTargetId])
 
   if (!project) return null
 
   return (
     <div className="relative h-full flex flex-col">
-      {/* Header with export buttons - only shown when subtitles exist */}
-      {project.subtitles.length > 0 && (
-        <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
-          <span className="text-xs text-muted-foreground font-medium">
-            {t('subtitleList.subtitleCount', { count: project.subtitles.length })}
+      {/* Single panel header: title + count + actions */}
+      <div className="h-10 flex items-center gap-2 px-3 shrink-0">
+        <h2 className="text-xs font-semibold text-foreground/80">
+          {t('app.transcript')}
+        </h2>
+        {subtitles.length > 0 && (
+          <span className="text-[10px] text-muted-foreground/70 tabular-nums px-1.5 py-px rounded-full bg-white/[0.05]">
+            {subtitles.length}
           </span>
-          <TooltipProvider delayDuration={300}>
-            <div className="flex items-center gap-1">
+        )}
+
+        <div className="ml-auto flex items-center gap-0.5">
+          {subtitles.length > 0 && (
+            <>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleExportText}
-                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  <button
+                    onClick={handleStartAnalysis}
+                    disabled={isAnalyzing}
+                    className={cn(
+                      'pressable w-6 h-6 rounded-md flex items-center justify-center transition-colors',
+                      isAnalyzing
+                        ? 'text-primary animate-pulse-soft'
+                        : 'text-muted-foreground hover:text-primary hover:bg-primary/10'
+                    )}
                   >
-                    <FileText className="h-3.5 w-3.5" />
-                  </Button>
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>{t('subtitleList.exportAsText')}</p>
-                </TooltipContent>
+                <TooltipContent side="bottom">{t('styleEditor.aiCorrection')}</TooltipContent>
               </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleExportTimecodes}
-                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                  >
-                    <Clock className="h-3.5 w-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>{t('subtitleList.exportWithTimecodes')}</p>
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          </TooltipProvider>
-        </div>
-      )}
 
-      <ScrollArea className="flex-1">
-        <div
-          ref={scrollContainerRef}
-          onScroll={handleScroll}
-          className="h-full overflow-y-auto overflow-x-hidden px-3 py-3"
-        >
-          {project.subtitles.length === 0 ? (
-            // Empty State with ShadCN styling
-            <div className="flex flex-col items-center justify-center py-16 px-4 animate-fade-in">
-              {/* Decorative icon with glow */}
-              <div className="relative mb-5">
-                <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse-soft" />
-                <div
-                  className={cn(
-                    'relative w-16 h-16 rounded-2xl flex items-center justify-center',
-                    'bg-gradient-to-br from-card to-muted',
-                    'border border-border shadow-lg'
-                  )}
-                >
-                  <MessageSquareText className="w-8 h-8 text-muted-foreground" />
-                </div>
-              </div>
-
-              {/* Empty state text */}
-              <h3 className="text-sm font-medium text-foreground mb-1.5">
-                {t('subtitleList.noSubtitles')}
-              </h3>
-              <p className="text-xs text-muted-foreground text-center max-w-[220px] leading-relaxed">
-                {t('subtitleList.noSubtitlesHint')}
-              </p>
-
-              {/* Decorative hint arrow */}
-              <div className="mt-8 flex flex-col items-center gap-1.5 text-muted-foreground/60 animate-pulse-soft">
-                <ArrowDown className="w-4 h-4" />
-                <span className="text-[10px] uppercase tracking-wider font-medium">
-                  {t('subtitleList.transcribe')}
-                </span>
-              </div>
-            </div>
-          ) : (
-            // Subtitle List with staggered animations
-            <div className="space-y-2">
-              {project.subtitles.map((subtitle, index) => (
-                <div
-                  key={subtitle.id}
-                  data-subtitle-id={subtitle.id}
-                  className={cn(
-                    'transition-all duration-300 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]',
-                    isInitialRender
-                      ? 'opacity-0 translate-y-2'
-                      : 'opacity-100 translate-y-0'
-                  )}
-                  style={{
-                    transitionDelay: isInitialRender ? `${Math.min(index * 30, 300)}ms` : '0ms'
-                  }}
-                >
-                  <SubtitleItem
-                    subtitle={subtitle}
-                    isSelected={selectedSubtitleId === subtitle.id}
-                    onSelect={() => handleSelect(subtitle.id, subtitle.startTime)}
-                  />
-                </div>
-              ))}
-
-              {/* Bottom spacer for better scroll experience */}
-              <div className="h-4" aria-hidden="true" />
-            </div>
+              <DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <button className="pressable w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-colors">
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">{t('subtitleList.exportTranscript')}</TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent align="end" sideOffset={6}>
+                  <DropdownMenuItem onClick={handleExportText}>
+                    <FileText className="w-3.5 h-3.5" />
+                    {t('subtitleList.exportAsText')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportTimecodes}>
+                    <Clock className="w-3.5 h-3.5" />
+                    {t('subtitleList.exportWithTimecodes')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
           )}
         </div>
-      </ScrollArea>
+      </div>
 
-      {/* Top fade indicator for scroll position */}
+      {/* List */}
       <div
-        className={cn(
-          'absolute top-0 left-0 right-2 h-8 pointer-events-none z-10',
-          'bg-gradient-to-b from-background/90 via-background/50 to-transparent',
-          'transition-opacity duration-200 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]',
-          showTopFade ? 'opacity-100' : 'opacity-0'
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin px-1.5 pb-3"
+      >
+        {subtitles.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 px-4 animate-fade-in">
+            <div className="w-12 h-12 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center mb-4">
+              <MessageSquareText className="w-5 h-5 text-muted-foreground" />
+            </div>
+            <h3 className="text-[13px] font-medium text-foreground mb-1">
+              {t('subtitleList.noSubtitles')}
+            </h3>
+            <p className="text-xs text-muted-foreground text-center max-w-[200px] leading-relaxed">
+              {t('subtitleList.noSubtitlesHint')}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-px">
+            {subtitles.map((subtitle) => (
+              <SubtitleItem
+                key={subtitle.id}
+                subtitle={subtitle}
+                isSelected={selectedSubtitleId === subtitle.id}
+                isActive={activeSubtitleId === subtitle.id}
+                onSelect={() => handleSelect(subtitle.id, subtitle.startTime)}
+              />
+            ))}
+          </div>
         )}
-        aria-hidden="true"
-      />
-
-      {/* Bottom fade indicator for scroll position */}
-      <div
-        className={cn(
-          'absolute bottom-0 left-0 right-2 h-12 pointer-events-none z-10',
-          'bg-gradient-to-t from-background/90 via-background/50 to-transparent',
-          'transition-opacity duration-200 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]',
-          showBottomFade ? 'opacity-100' : 'opacity-0'
-        )}
-        aria-hidden="true"
-      />
-
-      {/* Subtle side border glow when scrollable */}
-      {project.subtitles.length > 5 && (
-        <div
-          className="absolute top-0 right-0 w-px h-full bg-gradient-to-b from-transparent via-primary/10 to-transparent pointer-events-none"
-          aria-hidden="true"
-        />
-      )}
+      </div>
     </div>
   )
 }

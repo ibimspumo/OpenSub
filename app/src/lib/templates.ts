@@ -28,12 +28,12 @@ export const STYLE_TEMPLATES: StyleTemplate[] = [
       highlightColor: '#FFD700',
       upcomingColor: '#FFFFFF',
       outlineColor: '#000000',
-      outlineWidth: 6,
+      outlineWidth: 3,
       shadowColor: '#000000',
-      shadowOpacity: 90,
-      shadowBlur: 12,
+      shadowOpacity: 55,
+      shadowBlur: 8,
       shadowOffsetX: 0,
-      shadowOffsetY: 4,
+      shadowOffsetY: 2,
       animation: 'karaoke',
       karaokeBoxEnabled: false,
       karaokeGlowEnabled: false
@@ -85,7 +85,7 @@ export const STYLE_TEMPLATES: StyleTemplate[] = [
       animation: 'fade',
       karaokeBoxEnabled: false,
       karaokeGlowEnabled: false,
-      maxWidth: 0.75
+      maxWidth: 0.6
     }
   },
   {
@@ -131,7 +131,7 @@ export const STYLE_TEMPLATES: StyleTemplate[] = [
       animation: 'karaoke',
       karaokeBoxEnabled: false,
       karaokeGlowEnabled: false,
-      maxWidth: 0.8,
+      maxWidth: 0.6,
       maxLines: 2,
       position: 'bottom',
       positionX: 0.5,

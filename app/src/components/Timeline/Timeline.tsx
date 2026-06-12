@@ -1,12 +1,11 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Clock, ZoomIn, ZoomOut } from 'lucide-react'
+import { ZoomIn, ZoomOut } from 'lucide-react'
 import { useProjectStore } from '@/store/projectStore'
 import { useUIStore } from '@/store/uiStore'
 import { usePlaybackController } from '@/hooks/usePlaybackController'
 import { ffmpeg } from '@/lib/api'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import {
   Tooltip,
   TooltipContent,
@@ -97,7 +96,7 @@ export default function Timeline() {
     const mid = height / 2
     const amp = height * 0.46
 
-    ctx.fillStyle = 'rgba(189, 255, 1, 0.28)'
+    ctx.fillStyle = 'rgba(189, 255, 1, 0.16)'
     ctx.beginPath()
 
     const bucketCount = peaks.length / 2
@@ -283,38 +282,26 @@ export default function Timeline() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="h-full flex flex-col overflow-hidden bg-card/60 animate-fade-in">
-        {/* Header */}
-        <div className="h-10 flex items-center justify-between px-3 border-b border-border/50">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center w-6 h-6 rounded-md bg-primary/10">
-              <Clock className="w-3.5 h-3.5 text-primary" />
-            </div>
-            <span className="text-xs font-medium text-muted-foreground tracking-wide uppercase">
-              Timeline
-            </span>
-            <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0">
-              {t('app.entriesCount', { count: project.subtitles.length })}
-            </Badge>
-          </div>
-
-          {/* Zoom controls */}
-          <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5 border border-border/50">
+      <div className="h-full flex flex-col overflow-hidden animate-fade-in">
+        {/* Track area */}
+        <div className="flex-1 relative overflow-hidden">
+          {/* Floating zoom control */}
+          <div className="absolute top-1.5 right-2 z-40 flex items-center gap-0.5 rounded-lg bg-background/70 backdrop-blur-md border hairline px-0.5 py-0.5 opacity-60 hover:opacity-100 transition-opacity duration-200">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6"
+                  className="h-5 w-5"
                   onClick={() => setTimelineZoom(Math.max(0.25, timelineZoom - 0.25))}
                   disabled={timelineZoom <= 0.25}
                 >
-                  <ZoomOut className="h-3.5 w-3.5" />
+                  <ZoomOut className="h-3 w-3" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="top">{t('timeline.zoomOut')}</TooltipContent>
             </Tooltip>
-            <span className="px-1.5 min-w-[3rem] text-center text-xs font-medium text-muted-foreground tabular-nums">
+            <span className="px-1 min-w-[2.25rem] text-center text-[10px] font-medium text-muted-foreground tabular-nums">
               {Math.round(timelineZoom * 100)}%
             </span>
             <Tooltip>
@@ -322,20 +309,16 @@ export default function Timeline() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6"
+                  className="h-5 w-5"
                   onClick={() => setTimelineZoom(Math.min(4, timelineZoom + 0.25))}
                   disabled={timelineZoom >= 4}
                 >
-                  <ZoomIn className="h-3.5 w-3.5" />
+                  <ZoomIn className="h-3 w-3" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="top">{t('timeline.zoomIn')}</TooltipContent>
             </Tooltip>
           </div>
-        </div>
-
-        {/* Track area */}
-        <div className="flex-1 relative overflow-hidden">
           {/* Waveform layer — fixed to viewport, redrawn on scroll */}
           <canvas
             ref={waveformRef}
@@ -398,15 +381,17 @@ export default function Timeline() {
                         left,
                         width,
                         background: accentColor
-                          ? `color-mix(in oklch, ${accentColor} ${isSelected ? 85 : 55}%, transparent)`
+                          ? `color-mix(in oklch, ${accentColor} ${isSelected ? 45 : 22}%, rgba(255,255,255,0.04))`
                           : isSelected
-                            ? 'color-mix(in oklch, var(--primary) 90%, transparent)'
-                            : 'color-mix(in oklch, var(--primary) 55%, transparent)',
+                            ? 'color-mix(in oklch, var(--primary) 22%, rgba(255,255,255,0.05))'
+                            : isHovered
+                              ? 'rgba(255,255,255,0.11)'
+                              : 'rgba(255,255,255,0.07)',
                         boxShadow: isSelected
-                          ? '0 0 0 1.5px color-mix(in oklch, var(--primary) 60%, transparent), 0 4px 14px rgba(0,0,0,0.4)'
+                          ? '0 0 0 1px color-mix(in oklch, var(--primary) 70%, transparent), 0 4px 14px rgba(0,0,0,0.4)'
                           : isHovered
-                            ? '0 2px 10px rgba(0,0,0,0.35)'
-                            : '0 1px 3px rgba(0,0,0,0.3)'
+                            ? '0 0 0 1px rgba(255,255,255,0.14), 0 2px 10px rgba(0,0,0,0.35)'
+                            : '0 0 0 1px rgba(255,255,255,0.07)'
                       }}
                       onMouseDown={(e) => handleSubtitleMouseDown(e, subtitle.id, 'move')}
                       onClick={(e) => e.stopPropagation()}
@@ -414,10 +399,15 @@ export default function Timeline() {
                       onMouseLeave={() => setHoveredSubtitleId(null)}
                     >
                       {/* Inner highlight */}
-                      <div className="absolute inset-0 rounded-md bg-gradient-to-b from-white/15 to-transparent pointer-events-none" />
+                      <div className="absolute inset-0 rounded-md bg-gradient-to-b from-white/[0.06] to-transparent pointer-events-none" />
 
                       {/* Text */}
-                      <div className="relative h-full px-2 flex items-center text-[10px] font-medium truncate leading-tight text-primary-foreground/90 pointer-events-none">
+                      <div
+                        className={cn(
+                          'relative h-full px-2 flex items-center text-[10px] font-medium truncate leading-tight pointer-events-none',
+                          isSelected ? 'text-foreground' : 'text-foreground/70'
+                        )}
+                      >
                         {subtitle.text}
                       </div>
 

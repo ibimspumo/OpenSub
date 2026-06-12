@@ -205,7 +205,7 @@ export default function DropZone() {
 
         <Card
           className={cn(
-            'relative group aspect-[4/3] p-0',
+            'relative group aspect-[16/10] p-0',
             'flex flex-col items-center justify-center',
             'cursor-pointer overflow-hidden',
             'transition-all duration-300',

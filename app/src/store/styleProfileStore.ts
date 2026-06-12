@@ -19,12 +19,18 @@ export interface ProfileImportResult {
 
 interface StyleProfileState {
   profiles: StyleProfile[]
+  /** User overrides for built-in templates, keyed by template id */
+  templateOverrides: Record<string, SubtitleStyle>
 
   // CRUD Operations
   createProfile: (name: string, style: SubtitleStyle) => StyleProfile
   updateProfile: (id: string, updates: Partial<Pick<StyleProfile, 'name' | 'style'>>) => void
   deleteProfile: (id: string) => void
   getProfile: (id: string) => StyleProfile | undefined
+
+  // Built-in template overrides
+  setTemplateOverride: (templateId: string, style: SubtitleStyle) => void
+  clearTemplateOverride: (templateId: string) => void
 
   // Import/Export
   importProfile: (data: StyleProfileExport) => ProfileImportResult
@@ -38,6 +44,20 @@ export const useStyleProfileStore = create<StyleProfileState>()(
   persist(
     (set, get) => ({
       profiles: [],
+      templateOverrides: {},
+
+      setTemplateOverride: (templateId, style) => {
+        set((state) => ({
+          templateOverrides: { ...state.templateOverrides, [templateId]: { ...style } }
+        }))
+      },
+
+      clearTemplateOverride: (templateId) => {
+        set((state) => {
+          const { [templateId]: _removed, ...rest } = state.templateOverrides
+          return { templateOverrides: rest }
+        })
+      },
 
       createProfile: (name: string, style: SubtitleStyle) => {
         const now = Date.now()
@@ -117,21 +137,34 @@ export const useStyleProfileStore = create<StyleProfileState>()(
     }),
     {
       name: STORAGE_KEY,
-      partialize: (state) => ({ profiles: state.profiles }),
+      partialize: (state) => ({
+        profiles: state.profiles,
+        templateOverrides: state.templateOverrides
+      }),
       // Migrate and validate profiles when loading from storage
       merge: (persistedState, currentState) => {
-        const persisted = persistedState as { profiles?: StyleProfile[] }
-        if (!persisted?.profiles || !Array.isArray(persisted.profiles)) {
-          return currentState
+        const persisted = persistedState as {
+          profiles?: StyleProfile[]
+          templateOverrides?: Record<string, SubtitleStyle>
         }
 
-        const normalizedProfiles = persisted.profiles.map((profile) => {
-          if (!profile.style) return profile
-          const validation = validateAndNormalizeStyle(profile.style as unknown as Record<string, unknown>)
-          return { ...profile, style: validation.style }
-        })
+        const normalizedProfiles = Array.isArray(persisted?.profiles)
+          ? persisted.profiles.map((profile) => {
+              if (!profile.style) return profile
+              const validation = validateAndNormalizeStyle(profile.style as unknown as Record<string, unknown>)
+              return { ...profile, style: validation.style }
+            })
+          : currentState.profiles
 
-        return { ...currentState, profiles: normalizedProfiles }
+        const normalizedOverrides: Record<string, SubtitleStyle> = {}
+        if (persisted?.templateOverrides) {
+          for (const [id, style] of Object.entries(persisted.templateOverrides)) {
+            const validation = validateAndNormalizeStyle(style as unknown as Record<string, unknown>)
+            normalizedOverrides[id] = validation.style
+          }
+        }
+
+        return { ...currentState, profiles: normalizedProfiles, templateOverrides: normalizedOverrides }
       }
     }
   )

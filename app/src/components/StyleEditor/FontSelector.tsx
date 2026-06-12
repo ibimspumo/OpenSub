@@ -43,6 +43,12 @@ export default function FontSelector({ value, onChange }: FontSelectorProps) {
   const [loadingSystemFonts, setLoadingSystemFonts] = useState(false)
   const [loadingFonts, setLoadingFonts] = useState<Set<string>>(new Set())
   const searchInputRef = useRef<HTMLInputElement>(null)
+  // Progressive rendering: each row previews its own font family, and WebKit
+  // activates fonts synchronously — rendering hundreds at once froze the UI
+  // for seconds. Render in chunks as the user scrolls instead.
+  const SYSTEM_CHUNK = 40
+  const [systemLimit, setSystemLimit] = useState(SYSTEM_CHUNK)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
 
   // Load system fonts on mount
   useEffect(() => {
@@ -65,12 +71,31 @@ export default function FontSelector({ value, onChange }: FontSelectorProps) {
     loadSystemFonts()
   }, [])
 
-  // Focus search input when dropdown opens
+  // Focus search input when dropdown opens, reset progressive rendering
   useEffect(() => {
     if (isOpen && searchInputRef.current) {
       setTimeout(() => searchInputRef.current?.focus(), 100)
     }
+    setSystemLimit(SYSTEM_CHUNK)
   }, [isOpen])
+
+  // Reset chunk limit when the search changes
+  useEffect(() => {
+    setSystemLimit(SYSTEM_CHUNK)
+  }, [search])
+
+  // Reveal the next chunk when the sentinel scrolls into view
+  useEffect(() => {
+    const sentinel = loadMoreRef.current
+    if (!sentinel || !isOpen) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) {
+        setSystemLimit((limit) => limit + SYSTEM_CHUNK)
+      }
+    })
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [isOpen, systemLimit, search])
 
   // Get current font display name
   const currentFontName = useMemo(() => {
@@ -271,7 +296,7 @@ export default function FontSelector({ value, onChange }: FontSelectorProps) {
                   </div>
                 )}
 
-                {/* System fonts */}
+                {/* System fonts — rendered progressively to avoid font-activation jank */}
                 {filteredFonts.system.length > 0 && (
                   <div>
                     {renderCategoryHeader(
@@ -280,8 +305,13 @@ export default function FontSelector({ value, onChange }: FontSelectorProps) {
                       filteredFonts.system.length
                     )}
                     <div className="p-1">
-                      {filteredFonts.system.map(renderFontOption)}
+                      {filteredFonts.system.slice(0, systemLimit).map(renderFontOption)}
                     </div>
+                    {filteredFonts.system.length > systemLimit && (
+                      <div ref={loadMoreRef} className="flex items-center justify-center py-2">
+                        <Loader2 className="w-3.5 h-3.5 text-muted-foreground animate-spin" />
+                      </div>
+                    )}
                   </div>
                 )}
               </>

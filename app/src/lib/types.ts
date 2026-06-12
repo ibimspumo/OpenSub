@@ -76,10 +76,12 @@ export interface BoxPadding {
   left: number
 }
 
+/* Optically centers uppercase text in the karaoke box
+   (caps sit high in the em box, so top needs less than visual center suggests) */
 export const DEFAULT_BOX_PADDING: BoxPadding = {
-  top: 16,
+  top: 10,
   right: 12,
-  bottom: 0,
+  bottom: 4,
   left: 12
 }
 

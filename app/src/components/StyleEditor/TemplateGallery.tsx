@@ -1,132 +1,281 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { LayoutGrid, Check } from 'lucide-react'
+import { Check, Plus, RotateCcw, Save, Trash2 } from 'lucide-react'
 import type { SubtitleStyle } from '@/lib/types'
 import { STYLE_TEMPLATES } from '@/lib/templates'
+import { useStyleProfileStore } from '@/store/styleProfileStore'
 import { ensureFontLoaded } from '@/utils/fontLoader'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import StylePreview from './StylePreview'
+
+const CARD_W = 124
+const PREVIEW_H = 64
+
+interface GalleryItem {
+  id: string
+  name: string
+  previewText: string
+  style: SubtitleStyle
+  kind: 'builtin' | 'profile'
+  isOverridden: boolean
+}
 
 interface TemplateGalleryProps {
+  currentStyle: SubtitleStyle
   onApplyTemplate: (style: SubtitleStyle) => void
 }
 
 /**
- * Horizontal gallery of curated style templates with an animated
- * karaoke-style live preview per card.
+ * Unified style gallery: built-in templates and user profiles in one row,
+ * every card editable (overwrite with the current style), plus-card to save
+ * the current style as a new template. Previews render through the exact
+ * same canvas code as the video preview and export.
  */
-export default function TemplateGallery({ onApplyTemplate }: TemplateGalleryProps) {
+export default function TemplateGallery({ currentStyle, onApplyTemplate }: TemplateGalleryProps) {
   const { t } = useTranslation()
+  const {
+    profiles,
+    templateOverrides,
+    createProfile,
+    updateProfile,
+    deleteProfile,
+    setTemplateOverride,
+    clearTemplateOverride
+  } = useStyleProfileStore()
+
   const [appliedId, setAppliedId] = useState<string | null>(null)
-  // Cycle the highlighted word for the karaoke preview effect
-  const [highlightTick, setHighlightTick] = useState(0)
+  const [isCreating, setIsCreating] = useState(false)
+  const [newName, setNewName] = useState('')
+  // Shared animation tick so all previews highlight words in sync
+  const [tick, setTick] = useState(0)
 
   useEffect(() => {
-    const interval = setInterval(() => setHighlightTick((v) => v + 1), 700)
+    const interval = setInterval(() => setTick((v) => v + 1), 700)
     return () => clearInterval(interval)
   }, [])
 
-  // Preload template fonts so previews render correctly
-  useEffect(() => {
-    for (const template of STYLE_TEMPLATES) {
-      ensureFontLoaded(template.style.fontFamily).catch(() => {})
-    }
-  }, [])
+  const items = useMemo<GalleryItem[]>(() => {
+    const builtins: GalleryItem[] = STYLE_TEMPLATES.map((template) => {
+      const override = templateOverrides[template.id]
+      return {
+        id: template.id,
+        name: template.name,
+        previewText: template.previewText,
+        style: override ?? template.style,
+        kind: 'builtin',
+        isOverridden: Boolean(override)
+      }
+    })
+    const userProfiles: GalleryItem[] = profiles.map((profile) => ({
+      id: profile.id,
+      name: profile.name,
+      previewText: profile.name,
+      style: profile.style,
+      kind: 'profile',
+      isOverridden: false
+    }))
+    return [...builtins, ...userProfiles]
+  }, [profiles, templateOverrides])
 
-  const handleApply = async (templateId: string) => {
-    const template = STYLE_TEMPLATES.find((tpl) => tpl.id === templateId)
-    if (!template) return
-    await ensureFontLoaded(template.style.fontFamily).catch(() => {})
-    // Templates define the look — the font size stays tied to the video
-    // resolution of the current project, so we keep the user's current size.
-    const { fontSize: _templateFontSize, ...styleWithoutSize } = template.style
-    onApplyTemplate(styleWithoutSize as typeof template.style)
-    setAppliedId(templateId)
-    setTimeout(() => setAppliedId(null), 1500)
+  // Preload all gallery fonts so canvas previews render correctly
+  useEffect(() => {
+    for (const item of items) {
+      ensureFontLoaded(item.style.fontFamily).catch(() => {})
+    }
+  }, [items])
+
+  const handleApply = async (item: GalleryItem) => {
+    await ensureFontLoaded(item.style.fontFamily).catch(() => {})
+    // The style defines the look — font size stays tied to the video resolution
+    const { fontSize: _size, ...styleWithoutSize } = item.style
+    onApplyTemplate(styleWithoutSize as SubtitleStyle)
+    setAppliedId(item.id)
+    setTimeout(() => setAppliedId(null), 1200)
+  }
+
+  const handleOverwrite = (item: GalleryItem) => {
+    if (item.kind === 'builtin') {
+      setTemplateOverride(item.id, currentStyle)
+    } else {
+      updateProfile(item.id, { style: currentStyle })
+    }
+  }
+
+  const handleCreate = () => {
+    const name = newName.trim()
+    if (!name) return
+    createProfile(name, currentStyle)
+    setNewName('')
+    setIsCreating(false)
   }
 
   return (
-    <div className="pb-3 border-b border-border space-y-2.5">
-      <div className="flex items-center gap-2.5">
-        <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-muted text-muted-foreground">
-          <LayoutGrid className="w-4 h-4" />
-        </div>
-        <span className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
-          {t('templates.title')}
-        </span>
-      </div>
+    <div className="space-y-2">
+      <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/80 pt-1">
+        {t('templates.title')}
+      </h3>
 
-      <div className="flex gap-2 overflow-x-auto scrollbar-thin pb-1.5 -mx-1 px-1">
-        {STYLE_TEMPLATES.map((template) => {
-          const { style } = template
-          const words = template.previewText.split(' ')
-          const activeWord = highlightTick % words.length
-          const isApplied = appliedId === template.id
+      {/* py gives scaled/hovered cards room — prevents top clipping */}
+      <div className="flex gap-2 overflow-x-auto scrollbar-thin py-1.5 -mx-1 px-1">
+        {items.map((item) => {
+          const isApplied = appliedId === item.id
 
           return (
-            <button
-              key={template.id}
-              onClick={() => handleApply(template.id)}
+            <div
+              key={item.id}
               className={cn(
-                'group relative flex-shrink-0 w-[104px] rounded-lg overflow-hidden',
-                'border border-border/60 bg-black',
-                'transition-all duration-200 hover:border-primary/50 hover:scale-[1.03]',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                isApplied && 'border-primary ring-1 ring-primary/40'
+                'group relative flex-shrink-0 rounded-lg overflow-hidden cursor-pointer',
+                'border bg-black transition-all duration-200',
+                'hover:border-primary/50 hover:-translate-y-0.5',
+                isApplied ? 'border-primary ring-1 ring-primary/40' : 'border-white/[0.08]'
               )}
+              style={{ width: CARD_W }}
+              onClick={() => handleApply(item)}
             >
-              {/* Preview area — simulates video frame */}
-              <div className="relative h-14 flex items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-950 overflow-hidden">
-                <div className="flex flex-wrap gap-x-1 items-center justify-center px-1 leading-none">
-                  {words.map((word, i) => {
-                    const isActive = i === activeWord
-                    return (
-                      <span
-                        key={i}
-                        className="text-[11px] transition-all duration-200"
-                        style={{
-                          fontFamily: style.fontFamily,
-                          fontWeight: style.fontWeight as number,
-                          color: isActive ? style.highlightColor : style.color,
-                          backgroundColor:
-                            isActive && style.karaokeBoxEnabled
-                              ? style.karaokeBoxColor
-                              : 'transparent',
-                          borderRadius: 4,
-                          padding: isActive && style.karaokeBoxEnabled ? '1px 3px' : '1px 0',
-                          textShadow:
-                            isActive && style.karaokeGlowEnabled
-                              ? `0 0 8px ${style.karaokeGlowColor}`
-                              : style.outlineWidth > 0
-                                ? `-1px -1px 0 ${style.outlineColor}, 1px -1px 0 ${style.outlineColor}, -1px 1px 0 ${style.outlineColor}, 1px 1px 0 ${style.outlineColor}`
-                                : '0 1px 4px rgba(0,0,0,0.8)',
-                          transform: isActive && style.animation === 'scale' ? 'scale(1.15)' : 'none'
+              {/* Preview — same renderer as video & export */}
+              <div
+                className="relative flex items-center justify-center overflow-hidden bg-gradient-to-br from-zinc-800 to-zinc-950"
+                style={{ height: PREVIEW_H }}
+              >
+                <StylePreview
+                  style={item.style}
+                  text={item.previewText}
+                  width={CARD_W}
+                  height={PREVIEW_H}
+                  tick={tick}
+                />
+
+                {/* Hover actions */}
+                <div
+                  className={cn(
+                    'absolute top-1 right-1 flex items-center gap-0.5',
+                    'opacity-0 group-hover:opacity-100 transition-opacity duration-150'
+                  )}
+                >
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        className="pressable w-5 h-5 rounded-md bg-black/60 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-primary transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleOverwrite(item)
                         }}
                       >
-                        {word}
-                      </span>
-                    )
-                  })}
+                        <Save className="w-3 h-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">{t('templates.overwrite')}</TooltipContent>
+                  </Tooltip>
+
+                  {item.kind === 'builtin' && item.isOverridden && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          className="pressable w-5 h-5 rounded-md bg-black/60 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-foreground transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            clearTemplateOverride(item.id)
+                          }}
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">{t('templates.resetOverride')}</TooltipContent>
+                    </Tooltip>
+                  )}
+
+                  {item.kind === 'profile' && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          className="pressable w-5 h-5 rounded-md bg-black/60 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-destructive transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            deleteProfile(item.id)
+                          }}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">{t('common.delete')}</TooltipContent>
+                    </Tooltip>
+                  )}
                 </div>
 
-                {/* Applied check overlay */}
+                {/* Applied check */}
                 {isApplied && (
-                  <div className="absolute inset-0 bg-primary/20 backdrop-blur-[1px] flex items-center justify-center animate-fade-in">
-                    <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                      <Check className="w-4 h-4 text-primary-foreground" />
+                  <div className="absolute inset-0 bg-primary/15 flex items-center justify-center animate-fade-in">
+                    <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                      <Check className="w-3.5 h-3.5 text-primary-foreground" />
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Template name */}
-              <div className="px-2 py-1.5 bg-card/80 border-t border-border/40">
+              {/* Name */}
+              <div className="px-2 py-1 border-t border-white/[0.06] flex items-center justify-center gap-1">
+                {item.isOverridden && <span className="w-1 h-1 rounded-full bg-primary/70 shrink-0" />}
                 <p className="text-[10px] font-medium text-muted-foreground group-hover:text-foreground truncate text-center transition-colors">
-                  {template.name}
+                  {item.name}
                 </p>
               </div>
-            </button>
+            </div>
           )
         })}
+
+        {/* Plus card: save the current style as a new template */}
+        <div
+          className={cn(
+            'flex-shrink-0 rounded-lg border border-dashed transition-all duration-200',
+            isCreating
+              ? 'border-primary/40 bg-white/[0.03]'
+              : 'border-white/[0.12] hover:border-primary/40 hover:bg-white/[0.03] cursor-pointer'
+          )}
+          style={{ width: CARD_W, minHeight: PREVIEW_H + 26 }}
+          onClick={() => !isCreating && setIsCreating(true)}
+        >
+          {isCreating ? (
+            <div className="h-full flex flex-col items-stretch justify-center gap-1.5 p-2">
+              <Input
+                autoFocus
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder={t('templates.namePlaceholder')}
+                className="h-7 text-[11px] bg-white/[0.04] border-white/[0.08]"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleCreate()
+                  if (e.key === 'Escape') {
+                    setIsCreating(false)
+                    setNewName('')
+                  }
+                }}
+                onBlur={() => {
+                  if (!newName.trim()) setIsCreating(false)
+                }}
+              />
+              <button
+                className="pressable h-6 rounded-md bg-primary text-primary-foreground text-[10px] font-semibold disabled:opacity-40"
+                disabled={!newName.trim()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleCreate()
+                }}
+              >
+                {t('common.save')}
+              </button>
+            </div>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-foreground transition-colors py-3">
+              <Plus className="w-4 h-4" />
+              <span className="text-[9px] font-medium text-center px-1 leading-tight">
+                {t('templates.addProfile')}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

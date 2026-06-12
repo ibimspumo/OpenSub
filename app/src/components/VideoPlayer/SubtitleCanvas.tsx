@@ -16,6 +16,8 @@ interface SubtitleCanvasProps {
   videoWidth: number
   videoHeight: number
   videoRef: RefObject<HTMLVideoElement | null>
+  /** Click on the video area outside the subtitle (the canvas swallows pointer events) */
+  onBackgroundClick?: () => void
 }
 
 export default function SubtitleCanvas({
@@ -24,7 +26,8 @@ export default function SubtitleCanvas({
   style,
   videoWidth,
   videoHeight,
-  videoRef
+  videoRef,
+  onBackgroundClick
 }: SubtitleCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animationRef = useRef<number | undefined>(undefined)
@@ -37,6 +40,8 @@ export default function SubtitleCanvas({
   const [isDragging, setIsDragging] = useState(false)
   const [isHovering, setIsHovering] = useState(false)
   const dragStartRef = useRef<{ x: number; y: number; posX: number; posY: number } | null>(null)
+  // Mousedown outside the subtitle — becomes a background click on mouseup without movement
+  const backgroundDownRef = useRef<{ x: number; y: number } | null>(null)
   // Local position during drag (to avoid triggering auto-save on every mouse move)
   const [localDragPosition, setLocalDragPosition] = useState<{ x: number; y: number } | null>(null)
 
@@ -234,18 +239,17 @@ export default function SubtitleCanvas({
 
   // Mouse event handlers
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const bounds = getSubtitleBounds()
-    if (!bounds) return
-
     const canvas = canvasRef.current
     if (!canvas) return
 
+    const bounds = getSubtitleBounds()
     const rect = canvas.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
 
     // Check if click is within subtitle bounds
     if (
+      bounds &&
       x >= bounds.x &&
       x <= bounds.x + bounds.width &&
       y >= bounds.y &&
@@ -259,6 +263,9 @@ export default function SubtitleCanvas({
         posY: style.positionY
       }
       e.preventDefault()
+    } else {
+      // Outside the subtitle → candidate for a video click (play/pause)
+      backgroundDownRef.current = { x: e.clientX, y: e.clientY }
     }
   }, [getSubtitleBounds, style.positionX, style.positionY])
 
@@ -300,7 +307,18 @@ export default function SubtitleCanvas({
     }
   }, [isDragging, getSubtitleBounds, canvasDimensions, applySnap])
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Click outside the subtitle without dragging → forward to the video (play/pause)
+    if (backgroundDownRef.current) {
+      const moved =
+        Math.abs(e.clientX - backgroundDownRef.current.x) +
+        Math.abs(e.clientY - backgroundDownRef.current.y)
+      backgroundDownRef.current = null
+      if (moved < 5) {
+        onBackgroundClick?.()
+      }
+    }
+
     // Commit the position to the store only when drag ends
     if (localDragPosition) {
       updateStyle({
@@ -312,10 +330,11 @@ export default function SubtitleCanvas({
     }
     setIsDragging(false)
     dragStartRef.current = null
-  }, [localDragPosition, updateStyle])
+  }, [localDragPosition, updateStyle, onBackgroundClick])
 
   const handleMouseLeave = useCallback(() => {
     setIsHovering(false)
+    backgroundDownRef.current = null
     if (isDragging) {
       // Commit the position to the store when leaving canvas during drag
       if (localDragPosition) {

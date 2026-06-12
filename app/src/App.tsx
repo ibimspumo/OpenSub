@@ -44,7 +44,11 @@ function App() {
     setShowDiffPreview,
     setPendingChanges,
     showExportDialog,
-    setShowExportDialog
+    setShowExportDialog,
+    leftPanelOpen,
+    rightPanelOpen,
+    toggleLeftPanel,
+    toggleRightPanel
   } = useUIStore()
   const [exportError, setExportError] = useState<string | null>(null)
   const [isAppMounted, setIsAppMounted] = useState(false)
@@ -77,7 +81,7 @@ function App() {
       .catch(console.error)
   }, [])
 
-  // Global undo/redo shortcuts (Cmd+Z / Cmd+Shift+Z)
+  // Global shortcuts: undo/redo (Cmd+Z / Cmd+Shift+Z), panel toggles (Cmd+1 / Cmd+2)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
@@ -88,11 +92,17 @@ function App() {
         } else {
           undo()
         }
+      } else if (e.metaKey && e.key === '1') {
+        e.preventDefault()
+        toggleLeftPanel()
+      } else if (e.metaKey && e.key === '2') {
+        e.preventDefault()
+        toggleRightPanel()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [undo, redo])
+  }, [undo, redo, toggleLeftPanel, toggleRightPanel])
 
   // Preload default fonts (Poppins is the default, Montserrat also popular)
   useEffect(() => {
@@ -236,35 +246,27 @@ function App() {
                   showEditor ? 'opacity-100' : 'opacity-0'
                 )}
               >
-                {/* Top: 3-column layout */}
+                {/* Top: focus stage — video center, collapsible panels */}
                 <div className="flex-1 flex min-h-0 overflow-hidden">
-                  {/* Left: subtitle list */}
+                  {/* Left: transcript */}
                   <div
                     className={cn(
-                      'w-80 min-w-[280px] flex flex-col',
-                      'border-r border-border',
-                      'bg-gradient-to-l from-card/30 to-transparent',
-                      showEditor && 'animate-slide-in-left'
+                      'panel-collapse flex flex-col overflow-hidden',
+                      'border-r hairline surface-panel',
+                      leftPanelOpen ? 'w-[272px] min-w-[272px] opacity-100' : 'w-0 min-w-0 opacity-0 border-r-0',
+                      showEditor && leftPanelOpen && 'animate-slide-in-left'
                     )}
                     style={{ animationDelay: '100ms', animationFillMode: 'both' }}
                   >
-                    <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between">
-                      <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        {t('app.subtitles')}
-                      </h2>
-                      <span className="text-xs text-muted-foreground/70 tabular-nums">
-                        {t('app.entriesCount', { count: project?.subtitles.length || 0 })}
-                      </span>
-                    </div>
-                    <div className="flex-1 overflow-y-auto scrollbar-thin">
+                    <div className="w-[272px] h-full">
                       <SubtitleList />
                     </div>
                   </div>
 
-                  {/* Center: video player */}
+                  {/* Center: video stage */}
                   <div className="flex-1 flex flex-col min-w-0">
                     <div
-                      className={cn('flex-1 min-h-0 p-4', showEditor && 'animate-fade-in-up')}
+                      className={cn('flex-1 min-h-0 px-5 py-4', showEditor && 'animate-fade-in-up')}
                       style={{ animationDelay: '150ms', animationFillMode: 'both' }}
                     >
                       <div
@@ -278,25 +280,17 @@ function App() {
                     </div>
                   </div>
 
-                  {/* Right: style editor */}
+                  {/* Right: inspector */}
                   <div
                     className={cn(
-                      'w-80 min-w-[280px] flex flex-col',
-                      'border-l border-border',
-                      'bg-gradient-to-r from-card/30 to-transparent',
-                      showEditor && 'animate-slide-in-right'
+                      'panel-collapse flex flex-col overflow-hidden',
+                      'border-l hairline surface-panel',
+                      rightPanelOpen ? 'w-[300px] min-w-[300px] opacity-100' : 'w-0 min-w-0 opacity-0 border-l-0',
+                      showEditor && rightPanelOpen && 'animate-slide-in-right'
                     )}
                     style={{ animationDelay: '100ms', animationFillMode: 'both' }}
                   >
-                    <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between">
-                      <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        {t('app.styleEditor')}
-                      </h2>
-                      <div className="w-4 h-4 rounded-full bg-secondary flex items-center justify-center">
-                        <div className="w-1.5 h-1.5 rounded-full bg-primary/60" />
-                      </div>
-                    </div>
-                    <div className="flex-1 overflow-y-auto scrollbar-thin">
+                    <div className="w-[300px] h-full">
                       <StyleEditor />
                     </div>
                   </div>
@@ -305,8 +299,7 @@ function App() {
                 {/* Bottom: timeline */}
                 <div
                   className={cn(
-                    'h-36 border-t border-border',
-                    'bg-gradient-to-b from-card/50 to-transparent',
+                    'h-32 border-t hairline surface-panel',
                     showEditor && 'animate-slide-in-up'
                   )}
                   style={{ animationDelay: '200ms', animationFillMode: 'both' }}

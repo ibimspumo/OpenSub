@@ -19,8 +19,10 @@ export default function VideoPlayer() {
   const [isMuted, setIsMuted] = useState(false)
   const [volume, setVolume] = useState(1)
   const [previousVolume, setPreviousVolume] = useState(1)
-  const [playAnimationKey, setPlayAnimationKey] = useState(0)
+  // Transient play/pause flash: shows the action just performed, then fades out
+  const [playFlash, setPlayFlash] = useState<{ icon: 'play' | 'pause'; key: number } | null>(null)
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // Detect if video is portrait format
   const isPortrait = useMemo(() => {
@@ -45,9 +47,18 @@ export default function VideoPlayer() {
 
   // Handle play/pause with animation
   const handleTogglePlay = useCallback(() => {
-    setPlayAnimationKey((prev) => prev + 1)
+    // Flash the icon of the state we're switching TO
+    setPlayFlash({ icon: controller.isPlaying ? 'pause' : 'play', key: Date.now() })
+    if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current)
+    flashTimeoutRef.current = setTimeout(() => setPlayFlash(null), 650)
     controller.toggle()
   }, [controller])
+
+  useEffect(() => {
+    return () => {
+      if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current)
+    }
+  }, [])
 
   // Handle mute toggle
   const toggleMute = useCallback(() => {
@@ -243,7 +254,7 @@ export default function VideoPlayer() {
           onClick={handleTogglePlay}
         />
 
-        {/* Subtitle Canvas Overlay */}
+        {/* Subtitle Canvas Overlay — also forwards background clicks (play/pause) */}
         <SubtitleCanvas
           currentTime={controller.currentTime}
           subtitles={project.subtitles}
@@ -251,37 +262,28 @@ export default function VideoPlayer() {
           videoWidth={project.resolution.width}
           videoHeight={project.resolution.height}
           videoRef={controller.videoRef}
+          onBackgroundClick={handleTogglePlay}
         />
 
-        {/* Play/Pause Center Overlay Animation */}
-        <div
-          key={playAnimationKey}
-          className={`
-            absolute inset-0 flex items-center justify-center
-            pointer-events-none z-20
-            ${playAnimationKey > 0 ? 'animate-fade-out' : 'opacity-0'}
-          `}
-          style={{ animationDuration: '500ms' }}
-        >
+        {/* Play/Pause flash — pops in and fades out, never blocks clicks */}
+        {playFlash && (
           <div
-            className={`
-              w-16 h-16 rounded-full
-              bg-black/40 backdrop-blur-sm
-              flex items-center justify-center
-              ${playAnimationKey > 0 ? 'animate-scale-bounce' : ''}
-            `}
+            key={playFlash.key}
+            className="absolute inset-0 flex items-center justify-center pointer-events-none z-20 animate-play-flash"
           >
-            {controller.isPlaying ? (
-              <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            ) : (
-              <svg className="w-8 h-8 text-primary-foreground" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
-              </svg>
-            )}
+            <div className="w-16 h-16 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center">
+              {playFlash.icon === 'play' ? (
+                <svg className="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              ) : (
+                <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                </svg>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Bottom Gradient Overlay */}
         <div
