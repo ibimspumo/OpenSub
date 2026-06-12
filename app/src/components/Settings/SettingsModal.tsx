@@ -1,11 +1,22 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Settings as SettingsIcon, Key, Globe, Users, Check, Download, Loader2 } from 'lucide-react'
+import { getVersion } from '@tauri-apps/api/app'
+import {
+  Settings as SettingsIcon,
+  Key,
+  Globe,
+  Users,
+  Check,
+  Download,
+  Loader2,
+  RefreshCw
+} from 'lucide-react'
 import type { AppLanguage, ModelStatus } from '@/lib/types'
 import { SUPPORTED_LANGUAGES } from '@/lib/types'
 import { getSettings, setSettings } from '@/lib/settings'
 import { changeLanguage } from '@/i18n'
 import { models } from '@/lib/api'
+import { useUpdateStore } from '@/store/updateStore'
 import {
   Dialog,
   DialogContent,
@@ -44,6 +55,13 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null)
   const [isDownloadingDiarization, setIsDownloadingDiarization] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [appVersion, setAppVersion] = useState('')
+  const updateStatus = useUpdateStore((s) => s.status)
+  const availableVersion = useUpdateStore((s) => s.availableVersion)
+  const downloadPercent = useUpdateStore((s) => s.downloadPercent)
+  const checkForUpdates = useUpdateStore((s) => s.checkForUpdates)
+  const installUpdate = useUpdateStore((s) => s.install)
+  const restartApp = useUpdateStore((s) => s.restart)
 
   // Load current settings when opening
   useEffect(() => {
@@ -54,6 +72,7 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
       setAutoDiarize(settings.autoDiarize ?? false)
     })
     models.status().then(setModelStatus).catch(() => {})
+    getVersion().then(setAppVersion).catch(() => {})
   }, [open])
 
   const persist = useCallback(
@@ -201,6 +220,60 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
               className="h-9 bg-muted/60 font-mono text-xs"
             />
             <p className="text-[11px] text-muted-foreground">{t('settings.apiKeyHint')}</p>
+          </div>
+
+          <Separator />
+
+          {/* App updates */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <RefreshCw className="w-3.5 h-3.5" />
+              {t('updater.sectionTitle')}
+            </Label>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm text-foreground">
+                  {t('updater.currentVersion', { version: appVersion || '–' })}
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {updateStatus === 'checking' && t('updater.checking')}
+                  {updateStatus === 'upToDate' && t('updater.upToDate')}
+                  {updateStatus === 'available' &&
+                    t('updater.available', { version: availableVersion })}
+                  {updateStatus === 'downloading' &&
+                    `${t('updater.downloading')} ${Math.round(downloadPercent)}%`}
+                  {updateStatus === 'ready' && t('updater.ready')}
+                  {updateStatus === 'error' && t('updater.checkFailed')}
+                  {updateStatus === 'idle' && t('updater.autoCheckHint')}
+                </p>
+              </div>
+              {updateStatus === 'available' ? (
+                <Button size="sm" className="h-8 flex-shrink-0" onClick={() => installUpdate()}>
+                  <Download className="w-3.5 h-3.5" />
+                  {t('updater.install')}
+                </Button>
+              ) : updateStatus === 'ready' ? (
+                <Button size="sm" className="h-8 flex-shrink-0" onClick={() => restartApp()}>
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  {t('updater.restart')}
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 flex-shrink-0"
+                  disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
+                  onClick={() => checkForUpdates({ manual: true })}
+                >
+                  {updateStatus === 'checking' || updateStatus === 'downloading' ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  )}
+                  {t('updater.checkNow')}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </DialogContent>

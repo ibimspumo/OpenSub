@@ -35,7 +35,8 @@
     "styleEditor": "Stil-Editor",
     "fatalError": "Kritischer Fehler",
     "fatalErrorDebugHint": "Das Debug-Panel wurde automatisch geöffnet. Drücke Cmd+Shift+D um es anzuzeigen.",
-    "openDebugPanel": "Debug-Panel öffnen"
+    "openDebugPanel": "Debug-Panel öffnen",
+    "transcript": "Transcript"
   },
   "dropZone": {
     "dropToUpload": "Zum Hochladen loslassen",
@@ -61,7 +62,10 @@
     "settings": "Einstellungen",
     "unsavedChanges": "Ungespeicherte Änderungen",
     "unsavedChangesMessage": "Du hast ungespeicherte Änderungen. Möchtest du wirklich fortfahren? Alle Änderungen gehen verloren.",
-    "discard": "Verwerfen"
+    "discard": "Verwerfen",
+    "toggleTranscript": "Transcript ein-/ausblenden",
+    "toggleInspector": "Stil-Panel ein-/ausblenden",
+    "export": "Exportieren"
   },
   "settings": {
     "title": "Einstellungen",
@@ -114,12 +118,14 @@
     "exportWithTimecodes": "Mit Timecodes exportieren (SRT)",
     "noSubtitles": "Keine Untertitel vorhanden",
     "noSubtitlesHint": "Starte eine Transkription, um automatisch Untertitel zu erstellen",
-    "transcribe": "Transkribieren"
+    "transcribe": "Transkribieren",
+    "exportTranscript": "Transcript exportieren"
   },
   "subtitleItem": {
     "confidence": "{{percent}}% Konfidenz",
     "deleteConfirm": "Untertitel wirklich löschen?",
-    "placeholderText": "Untertiteltext eingeben..."
+    "placeholderText": "Untertiteltext eingeben...",
+    "lowConfidence": "Unsichere Transkription"
   },
   "transcription": {
     "loadingAudio": "Lade Audio...",
@@ -219,7 +225,11 @@
     "paddingRight": "Rechts",
     "hex": "Hex",
     "aiCorrection": "KI-Korrektur starten",
-    "aiCorrectionHint": "Gemini analysiert Audio und korrigiert Fehler"
+    "aiCorrectionHint": "Gemini analysiert Audio und korrigiert Fehler",
+    "tabStyle": "Stil",
+    "tabAnimation": "Animation",
+    "tabEffects": "Effekte",
+    "livePreviewHint": "Änderungen siehst du live im Video — beim Anpassen springt die Vorschau automatisch zu einem Untertitel."
   },
   "styleProfiles": {
     "title": "Stil-Profile",
@@ -384,7 +394,11 @@
     "beast": "Comic Punch",
     "clean": "Clean Minimal",
     "glow": "Neon Glow",
-    "podcast": "Podcast"
+    "podcast": "Podcast",
+    "overwrite": "Mit aktuellem Stil überschreiben",
+    "resetOverride": "Original wiederherstellen",
+    "addProfile": "Aktuellen Stil speichern",
+    "namePlaceholder": "Vorlagen-Name"
   },
   "timeline": {
     "zoomIn": "Vergrößern",
@@ -396,6 +410,14 @@
     "later": "Später",
     "downloading": "Update wird geladen...",
     "ready": "Update bereit — Neustart erforderlich",
-    "restart": "Neu starten"
+    "restart": "Neu starten",
+    "badge": "Update",
+    "sectionTitle": "Updates",
+    "currentVersion": "OpenSub {{version}}",
+    "checkNow": "Nach Updates suchen",
+    "checking": "Suche nach Updates...",
+    "upToDate": "Du verwendest die neueste Version.",
+    "checkFailed": "Update-Prüfung fehlgeschlagen. Bitte später erneut versuchen.",
+    "autoCheckHint": "Es wird automatisch stündlich nach Updates gesucht."
   }
 }

@@ -35,7 +35,8 @@
     "styleEditor": "Style Editor",
     "fatalError": "Fatal Error",
     "fatalErrorDebugHint": "The debug panel has been automatically opened. Press Cmd+Shift+D to view it.",
-    "openDebugPanel": "Open Debug Panel"
+    "openDebugPanel": "Open Debug Panel",
+    "transcript": "Transcript"
   },
   "dropZone": {
     "dropToUpload": "Drop to upload",
@@ -61,7 +62,10 @@
     "settings": "Settings",
     "unsavedChanges": "Unsaved Changes",
     "unsavedChangesMessage": "You have unsaved changes. Are you sure you want to continue? All changes will be lost.",
-    "discard": "Discard"
+    "discard": "Discard",
+    "toggleTranscript": "Toggle transcript",
+    "toggleInspector": "Toggle style panel",
+    "export": "Export"
   },
   "settings": {
     "title": "Settings",
@@ -114,12 +118,14 @@
     "exportWithTimecodes": "Export with timecodes (SRT)",
     "noSubtitles": "No subtitles available",
     "noSubtitlesHint": "Start a transcription to automatically create subtitles",
-    "transcribe": "Transcribe"
+    "transcribe": "Transcribe",
+    "exportTranscript": "Export transcript"
   },
   "subtitleItem": {
     "confidence": "{{percent}}% confidence",
     "deleteConfirm": "Are you sure you want to delete this subtitle?",
-    "placeholderText": "Enter subtitle text..."
+    "placeholderText": "Enter subtitle text...",
+    "lowConfidence": "Low transcription confidence"
   },
   "transcription": {
     "loadingAudio": "Loading audio...",
@@ -219,7 +225,11 @@
     "paddingRight": "Right",
     "hex": "Hex",
     "aiCorrection": "Start AI Correction",
-    "aiCorrectionHint": "Gemini analyzes audio and corrects errors"
+    "aiCorrectionHint": "Gemini analyzes audio and corrects errors",
+    "tabStyle": "Style",
+    "tabAnimation": "Animation",
+    "tabEffects": "Effects",
+    "livePreviewHint": "Changes show live in the video — the preview jumps to a subtitle automatically while you adjust."
   },
   "styleProfiles": {
     "title": "Style Profiles",
@@ -384,7 +394,11 @@
     "beast": "Comic Punch",
     "clean": "Clean Minimal",
     "glow": "Neon Glow",
-    "podcast": "Podcast"
+    "podcast": "Podcast",
+    "overwrite": "Overwrite with current style",
+    "resetOverride": "Restore original",
+    "addProfile": "Save current style",
+    "namePlaceholder": "Template name"
   },
   "timeline": {
     "zoomIn": "Zoom in",
@@ -396,6 +410,14 @@
     "later": "Later",
     "downloading": "Downloading update...",
     "ready": "Update ready — restart required",
-    "restart": "Restart"
+    "restart": "Restart",
+    "badge": "Update",
+    "sectionTitle": "Updates",
+    "currentVersion": "OpenSub {{version}}",
+    "checkNow": "Check for updates",
+    "checking": "Checking for updates...",
+    "upToDate": "You're on the latest version.",
+    "checkFailed": "Update check failed. Please try again later.",
+    "autoCheckHint": "Updates are checked automatically every hour."
   }
 }
