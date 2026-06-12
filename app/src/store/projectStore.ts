@@ -296,9 +296,15 @@ export const useProjectStoreBase = create<ProjectState>()(
         })
       },
 
-      updateStyle: (styleUpdates: Partial<SubtitleStyle>) => {
+      updateStyle: (rawUpdates: Partial<SubtitleStyle>) => {
         set((state) => {
           if (!state.project) return state
+
+          // Ignore undefined values so partial styles (e.g. templates without
+          // fontSize) never clobber existing settings
+          const styleUpdates = Object.fromEntries(
+            Object.entries(rawUpdates).filter(([, value]) => value !== undefined)
+          ) as Partial<SubtitleStyle>
 
           const newStyle = { ...state.project.style, ...styleUpdates }
 

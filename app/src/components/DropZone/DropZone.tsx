@@ -188,14 +188,19 @@ export default function DropZone() {
           isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
         )}
       >
-        {/* Ambient glow behind the drop zone */}
+        {/* Ambient glow behind the drop zone.
+            Uses a radial gradient instead of filter:blur — WKWebView clips
+            large blurred layers to a hard rectangle after transitions end. */}
         <div
           className={cn(
-            'absolute -inset-4 rounded-3xl opacity-0 blur-2xl',
-            'bg-gradient-to-br from-primary/30 via-primary/10 to-transparent',
+            'absolute -inset-16 pointer-events-none',
             'transition-opacity duration-500',
             isDragging ? 'opacity-100' : isHovering ? 'opacity-50' : 'opacity-0'
           )}
+          style={{
+            background:
+              'radial-gradient(ellipse 70% 70% at 50% 50%, color-mix(in oklch, var(--primary) 16%, transparent) 0%, transparent 70%)'
+          }}
         />
 
         <Card

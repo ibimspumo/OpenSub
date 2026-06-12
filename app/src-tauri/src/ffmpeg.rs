@@ -47,6 +47,8 @@ pub struct ExportOptions {
     pub target_width: u32,
     pub target_height: u32,
     pub frame_dir: String,
+    /// Sent by the frontend for completeness; timing comes from the manifest
+    #[allow(dead_code)]
     pub fps: f64,
 }
 

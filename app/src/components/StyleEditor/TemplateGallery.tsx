@@ -36,7 +36,10 @@ export default function TemplateGallery({ onApplyTemplate }: TemplateGalleryProp
     const template = STYLE_TEMPLATES.find((tpl) => tpl.id === templateId)
     if (!template) return
     await ensureFontLoaded(template.style.fontFamily).catch(() => {})
-    onApplyTemplate(template.style)
+    // Templates define the look — the font size stays tied to the video
+    // resolution of the current project, so we keep the user's current size.
+    const { fontSize: _templateFontSize, ...styleWithoutSize } = template.style
+    onApplyTemplate(styleWithoutSize as typeof template.style)
     setAppliedId(templateId)
     setTimeout(() => setAppliedId(null), 1500)
   }

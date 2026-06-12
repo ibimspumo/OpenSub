@@ -143,9 +143,14 @@ export const SNAP_THRESHOLD = 0.05
 // Resolution-Based Font Size Calculation
 // ============================================
 
+/**
+ * Calculate the default font size based on video resolution.
+ * Anchored at 50px for FHD (1920px max dimension) and scaled
+ * proportionally — e.g. 4K → 100px, 720p → 33px.
+ */
 export function getDefaultFontSizeForResolution(width: number, height: number): number {
-  const REFERENCE_DIMENSION = 3840
-  const REFERENCE_FONT_SIZE = 96
+  const REFERENCE_DIMENSION = 1920
+  const REFERENCE_FONT_SIZE = 50
   const MIN_FONT_SIZE = 16
 
   const maxDimension = Math.max(width, height)
@@ -157,7 +162,7 @@ export function getDefaultFontSizeForResolution(width: number, height: number): 
 // Default Style (AgentZ style preset)
 export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   fontFamily: 'Poppins, sans-serif',
-  fontSize: 80,
+  fontSize: 50,
   fontWeight: 800,
   textTransform: 'uppercase',
   color: '#FFFFFF',
