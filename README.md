@@ -16,6 +16,17 @@ A professional desktop subtitle editor with on-device AI transcription. Create, 
 
 ---
 
+## Installation
+
+Download the latest `.dmg` from the [Releases page](https://github.com/ibimspumo/OpenSub/releases/latest), open it and drag **OpenSub** into your Applications folder.
+
+> [!IMPORTANT]
+> **"OpenSub is damaged and can't be opened"** — the app is not yet signed with an Apple Developer certificate, so macOS Gatekeeper blocks it with this (misleading) error. The app is fine; remove the quarantine flag once and it starts normally:
+>
+> ```bash
+> xattr -cr /Applications/OpenSub.app
+> ```
+
 ## What is OpenSub?
 
 OpenSub is a macOS desktop app that automatically generates word-precise subtitles from video files and lets you style them like the big creator tools (karaoke highlights, boxes, glows) — then burns them pixel-perfectly into the video.
