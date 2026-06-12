@@ -1,0 +1,756 @@
+/**
+ * SubtitleFrameRenderer - Renders subtitle frames to PNG for video export
+ *
+ * This replicates the exact rendering logic from SubtitleCanvas to ensure
+ * pixel-perfect matching between preview and export.
+ *
+ * Uses Web Workers for parallel rendering on multi-core systems.
+ * M2 Max with 10+ cores can achieve ~8-10x speedup.
+ */
+
+import type { Subtitle, SubtitleStyle } from '@/lib/types'
+import {
+  RENDERING_CONSTANTS,
+  ANIMATION_CONSTANTS
+} from '@/lib/styleConstants'
+import { getWorkerPool, terminateWorkerPool as _terminateWorkerPool } from '@/utils/workerPool'
+import { ensureFontWeightLoaded } from '@/utils/fontLoader'
+
+// Re-export for cleanup
+export const cleanupWorkerPool = _terminateWorkerPool
+
+interface RenderOptions {
+  width: number
+  height: number
+  currentTime: number
+  subtitles: Subtitle[]
+  style: SubtitleStyle
+}
+
+interface FrameInfo {
+  startTime: number
+  endTime: number
+  dataUrl: string
+}
+
+/**
+ * Create an OffscreenCanvas for rendering subtitle frames
+ */
+function createCanvas(width: number, height: number): OffscreenCanvas {
+  return new OffscreenCanvas(width, height)
+}
+
+/**
+ * Find the current subtitle at a given time
+ */
+function getCurrentSubtitle(subtitles: Subtitle[], currentTime: number): Subtitle | undefined {
+  return subtitles.find(
+    (sub) => currentTime >= sub.startTime && currentTime <= sub.endTime
+  )
+}
+
+/**
+ * Get current word index for karaoke animation
+ */
+function getCurrentWordIndex(subtitle: Subtitle, currentTime: number): number {
+  for (let i = 0; i < subtitle.words.length; i++) {
+    const word = subtitle.words[i]
+    if (currentTime >= word.startTime && currentTime <= word.endTime) {
+      return i
+    }
+    if (i < subtitle.words.length - 1) {
+      const nextWord = subtitle.words[i + 1]
+      if (currentTime > word.endTime && currentTime < nextWord.startTime) {
+        return i
+      }
+    }
+  }
+  if (
+    subtitle.words.length > 0 &&
+    currentTime > subtitle.words[subtitle.words.length - 1].endTime
+  ) {
+    return subtitle.words.length - 1
+  }
+  return -1
+}
+
+/**
+ * Convert hex color + opacity to rgba string for Canvas API
+ */
+function getShadowColorWithOpacity(style: SubtitleStyle): string {
+  const hex = style.shadowColor || '#000000'
+  const opacity = (style.shadowOpacity ?? 80) / 100
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`
+}
+
+/**
+ * Convert karaoke glow color + opacity to rgba string for Canvas API
+ */
+function getKaraokeGlowColorWithOpacity(style: SubtitleStyle): string {
+  const hex = style.karaokeGlowColor || '#FFD700'
+  const opacity = (style.karaokeGlowOpacity ?? 100) / 100
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`
+}
+
+/**
+ * Wrap text into multiple lines based on maxWidth and maxLines.
+ * Note: Subtitles are pre-split at the store level, so truncation is no longer needed.
+ * This function now simply wraps text without losing any content.
+ */
+function wrapText(
+  ctx: OffscreenCanvasRenderingContext2D,
+  text: string,
+  maxWidthPx: number,
+  maxLines: number
+): string[] {
+  const words = text.split(' ')
+  const lines: string[] = []
+  let currentLine = ''
+
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word
+    const metrics = ctx.measureText(testLine)
+
+    if (metrics.width > maxWidthPx && currentLine) {
+      lines.push(currentLine)
+      currentLine = word
+
+      // Since subtitles are pre-split, we should rarely exceed maxLines.
+      // But if we do, continue wrapping to avoid losing text.
+      if (lines.length >= maxLines) {
+        const remainingWords = words.slice(words.indexOf(word))
+        lines.push(remainingWords.join(' '))
+        return lines
+      }
+    } else {
+      currentLine = testLine
+    }
+  }
+
+  if (currentLine) {
+    lines.push(currentLine)
+  }
+
+  return lines
+}
+
+/**
+ * Apply text transform (uppercase) if configured
+ */
+function applyTextTransform(text: string, style: SubtitleStyle): string {
+  if (style.textTransform === 'uppercase') {
+    return text.toUpperCase()
+  }
+  return text
+}
+
+/**
+ * Get wrapped lines for a subtitle
+ */
+function getWrappedLines(
+  ctx: OffscreenCanvasRenderingContext2D,
+  subtitle: Subtitle,
+  displayWidth: number,
+  style: SubtitleStyle
+): string[] {
+  const text = applyTextTransform(subtitle.words.map((w) => w.text).join(' '), style)
+  const maxWidthPx = displayWidth * style.maxWidth
+  return wrapText(ctx, text, maxWidthPx, style.maxLines)
+}
+
+/**
+ * Draw a rounded rectangle
+ */
+function drawRoundedRect(
+  ctx: OffscreenCanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+): void {
+  ctx.beginPath()
+  ctx.moveTo(x + radius, y)
+  ctx.lineTo(x + width - radius, y)
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius)
+  ctx.lineTo(x + width, y + height - radius)
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height)
+  ctx.lineTo(x + radius, y + height)
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius)
+  ctx.lineTo(x, y + radius)
+  ctx.quadraticCurveTo(x, y, x + radius, y)
+  ctx.closePath()
+}
+
+/**
+ * Render karaoke animation
+ * Uses two-pass rendering: boxes first, then text (ensures boxes are always behind text)
+ */
+function renderKaraoke(
+  ctx: OffscreenCanvasRenderingContext2D,
+  subtitle: Subtitle,
+  currentWordIndex: number,
+  x: number,
+  y: number,
+  fontSize: number,
+  displayWidth: number,
+  style: SubtitleStyle
+): void {
+  const lines = getWrappedLines(ctx, subtitle, displayWidth, style)
+  const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
+  const totalHeight = lines.length * lineHeight
+  const startY = y - (totalHeight - lineHeight) / 2
+
+  // Build word-to-line mapping
+  const wordLineMap: { line: number; wordInLine: number }[] = []
+
+  lines.forEach((line, lineIndex) => {
+    const lineWords = line.split(' ')
+    lineWords.forEach((_, wordInLineIndex) => {
+      wordLineMap.push({ line: lineIndex, wordInLine: wordInLineIndex })
+    })
+  })
+
+  // PASS 1: Draw all karaoke boxes first (so they're behind all text)
+  if (style.karaokeBoxEnabled) {
+    lines.forEach((line, lineIndex) => {
+      const lineY = startY + lineIndex * lineHeight
+      const lineWords = line.split(' ')
+      const lineWidth = ctx.measureText(line).width
+      let currentX = x - lineWidth / 2
+
+      lineWords.forEach((wordText, wordInLineIndex) => {
+        const globalWordIndex = wordLineMap.findIndex(
+          (w) => w.line === lineIndex && w.wordInLine === wordInLineIndex
+        )
+
+        const wordWidth = ctx.measureText(wordText).width
+        const spaceWidth = wordInLineIndex < lineWords.length - 1 ? ctx.measureText(' ').width : 0
+        const isCurrent = globalWordIndex === currentWordIndex
+
+        if (isCurrent) {
+          ctx.save()
+          const padding = style.karaokeBoxPadding
+          const boxX = currentX - padding.left
+          const boxY = lineY - fontSize / 2 - padding.top
+          const boxWidth = wordWidth + padding.left + padding.right
+          const boxHeight = fontSize + padding.top + padding.bottom
+          const borderRadius = Math.min(style.karaokeBoxBorderRadius, boxHeight / 2, boxWidth / 2)
+
+          ctx.fillStyle = style.karaokeBoxColor
+          // Apply shadow to karaoke box if shadow is enabled
+          if (style.shadowBlur > 0) {
+            ctx.shadowColor = getShadowColorWithOpacity(style)
+            ctx.shadowBlur = style.shadowBlur
+            ctx.shadowOffsetX = style.shadowOffsetX ?? 0
+            ctx.shadowOffsetY = style.shadowOffsetY ?? 0
+          } else {
+            ctx.shadowColor = 'transparent'
+            ctx.shadowBlur = 0
+          }
+
+          drawRoundedRect(ctx, boxX, boxY, boxWidth, boxHeight, borderRadius)
+          ctx.fill()
+          ctx.restore()
+        }
+
+        currentX += wordWidth + spaceWidth
+      })
+    })
+  }
+
+  // PASS 2: Draw all text on top of boxes
+  lines.forEach((line, lineIndex) => {
+    const lineY = startY + lineIndex * lineHeight
+    const lineWords = line.split(' ')
+    const lineWidth = ctx.measureText(line).width
+    let currentX = x - lineWidth / 2
+
+    lineWords.forEach((wordText, wordInLineIndex) => {
+      const globalWordIndex = wordLineMap.findIndex(
+        (w) => w.line === lineIndex && w.wordInLine === wordInLineIndex
+      )
+
+      const wordWidth = ctx.measureText(wordText).width
+      const spaceWidth = wordInLineIndex < lineWords.length - 1 ? ctx.measureText(' ').width : 0
+      const wordX = currentX + wordWidth / 2
+
+      const isPast = globalWordIndex < currentWordIndex
+      const isCurrent = globalWordIndex === currentWordIndex
+
+      ctx.strokeStyle = style.outlineColor
+      ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
+      ctx.lineJoin = 'round'
+
+      if (isCurrent && style.karaokeGlowEnabled) {
+        ctx.shadowColor = getKaraokeGlowColorWithOpacity(style)
+        ctx.shadowBlur = style.karaokeGlowBlur
+      } else if (!isCurrent) {
+        ctx.shadowColor = getShadowColorWithOpacity(style)
+        ctx.shadowBlur = style.shadowBlur
+      } else {
+        // isCurrent but glow disabled
+        ctx.shadowColor = 'transparent'
+        ctx.shadowBlur = 0
+      }
+
+      if (style.outlineWidth > 0) {
+        ctx.strokeText(wordText, wordX, lineY)
+      }
+
+      // Use different colors for past, current, and upcoming words
+      if (isCurrent) {
+        ctx.fillStyle = style.highlightColor
+      } else if (isPast) {
+        ctx.fillStyle = style.color
+      } else {
+        ctx.fillStyle = style.upcomingColor
+      }
+      ctx.fillText(wordText, wordX, lineY)
+
+      ctx.shadowBlur = 0
+      currentX += wordWidth + spaceWidth
+    })
+  })
+}
+
+/**
+ * Render appear animation (words appear one by one)
+ */
+function renderAppear(
+  ctx: OffscreenCanvasRenderingContext2D,
+  subtitle: Subtitle,
+  currentWordIndex: number,
+  x: number,
+  y: number,
+  fontSize: number,
+  displayWidth: number,
+  style: SubtitleStyle
+): void {
+  const visibleWords = subtitle.words.slice(0, currentWordIndex + 1)
+  if (visibleWords.length === 0) return
+
+  const visibleSubtitle = { ...subtitle, words: visibleWords }
+
+  const lines = getWrappedLines(ctx, visibleSubtitle, displayWidth, style)
+  const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
+
+  const fullLines = getWrappedLines(ctx, subtitle, displayWidth, style)
+  const totalHeight = fullLines.length * lineHeight
+  const startY = y - (totalHeight - lineHeight) / 2
+
+  ctx.shadowColor = getShadowColorWithOpacity(style)
+  ctx.shadowBlur = style.shadowBlur
+  ctx.strokeStyle = style.outlineColor
+  ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
+  ctx.lineJoin = 'round'
+
+  lines.forEach((line, index) => {
+    const lineY = startY + index * lineHeight
+    if (style.outlineWidth > 0) {
+      ctx.strokeText(line, x, lineY)
+    }
+    ctx.fillStyle = style.color
+    ctx.fillText(line, x, lineY)
+  })
+
+  ctx.shadowBlur = 0
+}
+
+/**
+ * Render fade animation
+ */
+function renderFade(
+  ctx: OffscreenCanvasRenderingContext2D,
+  subtitle: Subtitle,
+  currentTime: number,
+  x: number,
+  y: number,
+  fontSize: number,
+  displayWidth: number,
+  style: SubtitleStyle
+): void {
+  const lines = getWrappedLines(ctx, subtitle, displayWidth, style)
+  const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
+  const totalHeight = lines.length * lineHeight
+  const startY = y - (totalHeight - lineHeight) / 2
+
+  const fadeInDuration = ANIMATION_CONSTANTS.FADE_DURATION
+  const fadeOutDuration = ANIMATION_CONSTANTS.FADE_DURATION
+
+  let alpha = 1
+  const elapsed = currentTime - subtitle.startTime
+  const remaining = subtitle.endTime - currentTime
+
+  if (elapsed < fadeInDuration) {
+    alpha = elapsed / fadeInDuration
+  } else if (remaining < fadeOutDuration) {
+    alpha = remaining / fadeOutDuration
+  }
+
+  ctx.globalAlpha = alpha
+  ctx.shadowColor = getShadowColorWithOpacity(style)
+  ctx.shadowBlur = style.shadowBlur
+  ctx.strokeStyle = style.outlineColor
+  ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
+  ctx.lineJoin = 'round'
+
+  lines.forEach((line, index) => {
+    const lineY = startY + index * lineHeight
+    if (style.outlineWidth > 0) {
+      ctx.strokeText(line, x, lineY)
+    }
+    ctx.fillStyle = style.color
+    ctx.fillText(line, x, lineY)
+  })
+
+  ctx.globalAlpha = 1
+  ctx.shadowBlur = 0
+}
+
+/**
+ * Render scale animation
+ */
+function renderScale(
+  ctx: OffscreenCanvasRenderingContext2D,
+  subtitle: Subtitle,
+  currentWordIndex: number,
+  currentTime: number,
+  x: number,
+  y: number,
+  fontSize: number,
+  displayWidth: number,
+  style: SubtitleStyle
+): void {
+  const lines = getWrappedLines(ctx, subtitle, displayWidth, style)
+  const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
+  const totalHeight = lines.length * lineHeight
+  const startY = y - (totalHeight - lineHeight) / 2
+
+  const wordLineMap: { line: number; wordInLine: number }[] = []
+
+  lines.forEach((line, lineIndex) => {
+    const lineWords = line.split(' ')
+    lineWords.forEach((_, wordInLineIndex) => {
+      wordLineMap.push({ line: lineIndex, wordInLine: wordInLineIndex })
+    })
+  })
+
+  lines.forEach((line, lineIndex) => {
+    const lineY = startY + lineIndex * lineHeight
+    const lineWords = line.split(' ')
+    const lineWidth = ctx.measureText(line).width
+    let currentX = x - lineWidth / 2
+
+    lineWords.forEach((wordText, wordInLineIndex) => {
+      const globalWordIndex = wordLineMap.findIndex(
+        (w) => w.line === lineIndex && w.wordInLine === wordInLineIndex
+      )
+
+      const wordWidth = ctx.measureText(wordText).width
+      const spaceWidth = wordInLineIndex < lineWords.length - 1 ? ctx.measureText(' ').width : 0
+      const wordX = currentX + wordWidth / 2
+
+      const isCurrent = globalWordIndex === currentWordIndex
+
+      ctx.save()
+
+      if (isCurrent) {
+        const word = subtitle.words[globalWordIndex]
+        if (word) {
+          const scaleProgress = Math.min(1, (currentTime - word.startTime) / ANIMATION_CONSTANTS.SCALE_DURATION)
+          const scale = 1 + ANIMATION_CONSTANTS.SCALE_AMPLITUDE * Math.sin(scaleProgress * Math.PI)
+
+          ctx.translate(wordX, lineY)
+          ctx.scale(scale, scale)
+          ctx.translate(-wordX, -lineY)
+        }
+      }
+
+      ctx.shadowColor = getShadowColorWithOpacity(style)
+      ctx.shadowBlur = style.shadowBlur
+      ctx.strokeStyle = style.outlineColor
+      ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
+      ctx.lineJoin = 'round'
+      if (style.outlineWidth > 0) {
+        ctx.strokeText(wordText, wordX, lineY)
+      }
+
+      ctx.fillStyle = isCurrent ? style.highlightColor : style.color
+      ctx.fillText(wordText, wordX, lineY)
+
+      ctx.restore()
+      currentX += wordWidth + spaceWidth
+    })
+  })
+}
+
+/**
+ * Render static text (no animation)
+ */
+function renderStatic(
+  ctx: OffscreenCanvasRenderingContext2D,
+  subtitle: Subtitle,
+  x: number,
+  y: number,
+  fontSize: number,
+  displayWidth: number,
+  style: SubtitleStyle
+): void {
+  const lines = getWrappedLines(ctx, subtitle, displayWidth, style)
+  const lineHeight = fontSize * RENDERING_CONSTANTS.LINE_HEIGHT_MULTIPLIER
+  const totalHeight = lines.length * lineHeight
+  const startY = y - (totalHeight - lineHeight) / 2
+
+  ctx.shadowColor = getShadowColorWithOpacity(style)
+  ctx.shadowBlur = style.shadowBlur
+  ctx.strokeStyle = style.outlineColor
+  ctx.lineWidth = style.outlineWidth * RENDERING_CONSTANTS.OUTLINE_WIDTH_MULTIPLIER
+  ctx.lineJoin = 'round'
+
+  lines.forEach((line, index) => {
+    const lineY = startY + index * lineHeight
+    if (style.outlineWidth > 0) {
+      ctx.strokeText(line, x, lineY)
+    }
+    ctx.fillStyle = style.color
+    ctx.fillText(line, x, lineY)
+  })
+
+  ctx.shadowBlur = 0
+}
+
+/**
+ * Render a subtitle frame and return as Blob
+ * Renders at video resolution using the same style values as the editor preview
+ */
+export async function renderSubtitleFrameAsBlob(options: RenderOptions): Promise<Blob | null> {
+  const { width, height, currentTime, subtitles, style } = options
+
+  const canvas = createCanvas(width, height)
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+
+  ctx.clearRect(0, 0, width, height)
+
+  const currentSubtitle = getCurrentSubtitle(subtitles, currentTime)
+  if (!currentSubtitle || currentSubtitle.words.length === 0) {
+    return null
+  }
+
+  const currentWordIndex = getCurrentWordIndex(currentSubtitle, currentTime)
+
+  const fontSize = style.fontSize
+  ctx.font = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+
+  const xCenter = width * style.positionX
+  const yPosition = height * style.positionY
+
+  switch (style.animation) {
+    case 'karaoke':
+      renderKaraoke(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, width, style)
+      break
+    case 'appear':
+      renderAppear(ctx, currentSubtitle, currentWordIndex, xCenter, yPosition, fontSize, width, style)
+      break
+    case 'fade':
+      renderFade(ctx, currentSubtitle, currentTime, xCenter, yPosition, fontSize, width, style)
+      break
+    case 'scale':
+      renderScale(ctx, currentSubtitle, currentWordIndex, currentTime, xCenter, yPosition, fontSize, width, style)
+      break
+    default:
+      renderStatic(ctx, currentSubtitle, xCenter, yPosition, fontSize, width, style)
+  }
+
+  return canvas.convertToBlob({ type: 'image/png' })
+}
+
+/**
+ * Calculate all unique frames needed for export
+ * This generates frames at key moments (word changes, subtitle changes)
+ */
+export function calculateFrameTimes(
+  subtitles: Subtitle[],
+  fps: number,
+  animation: string
+): number[] {
+  const frameTimes: Set<number> = new Set()
+  const frameInterval = 1 / fps
+
+  for (const subtitle of subtitles) {
+    // Add frame at subtitle start
+    frameTimes.add(subtitle.startTime)
+
+    if (animation === 'karaoke' || animation === 'appear' || animation === 'scale') {
+      // For word-based animations, add frame at each word change
+      for (const word of subtitle.words) {
+        frameTimes.add(word.startTime)
+        // Add a few frames during word transition for smooth animation
+        const wordDuration = word.endTime - word.startTime
+        const steps = Math.min(5, Math.ceil(wordDuration / frameInterval))
+        for (let i = 1; i <= steps; i++) {
+          frameTimes.add(word.startTime + (wordDuration * i) / steps)
+        }
+      }
+    } else if (animation === 'fade') {
+      // For fade animation, add frames during fade in/out
+      const fadeDuration = ANIMATION_CONSTANTS.FADE_DURATION
+      const fadeSteps = Math.ceil(fadeDuration / frameInterval)
+
+      // Fade in frames
+      for (let i = 0; i <= fadeSteps; i++) {
+        frameTimes.add(subtitle.startTime + (fadeDuration * i) / fadeSteps)
+      }
+
+      // Fade out frames
+      for (let i = 0; i <= fadeSteps; i++) {
+        frameTimes.add(subtitle.endTime - fadeDuration + (fadeDuration * i) / fadeSteps)
+      }
+    }
+
+    // Add frame at subtitle end
+    frameTimes.add(subtitle.endTime)
+  }
+
+  return Array.from(frameTimes).sort((a, b) => a - b)
+}
+
+/**
+ * Generate all subtitle frames for export using parallel Web Workers
+ * Returns an array of frame info with timing and image data
+ *
+ * This uses a worker pool to render frames in parallel, achieving
+ * significant speedup on multi-core systems (8-10x on M2 Max).
+ */
+export async function generateExportFrames(
+  subtitles: Subtitle[],
+  style: SubtitleStyle,
+  width: number,
+  height: number,
+  fps: number,
+  onProgress?: (percent: number) => void
+): Promise<FrameInfo[]> {
+  // IMPORTANT: Ensure font weight is loaded before rendering
+  // Web Workers don't have access to document.fonts, so we load it here first
+  const weight = typeof style.fontWeight === 'number'
+    ? style.fontWeight
+    : style.fontWeight === 'bold' ? 700 : 400
+  console.log(`[FrameRenderer] Ensuring font ${style.fontFamily} weight ${weight} is loaded...`)
+  await ensureFontWeightLoaded(style.fontFamily, weight)
+
+  const frameTimes = calculateFrameTimes(subtitles, fps, style.animation)
+
+  if (frameTimes.length === 0) {
+    return []
+  }
+
+  // Build render tasks for workers
+  const tasks = frameTimes.map((time, index) => {
+    // Determine end time (next frame time or end of current subtitle)
+    const currentSubtitle = getCurrentSubtitle(subtitles, time)
+    const endTime = index < frameTimes.length - 1
+      ? frameTimes[index + 1]
+      : (currentSubtitle?.endTime ?? time + 0.1)
+
+    return {
+      width,
+      height,
+      currentTime: time,
+      subtitles,
+      style,
+      startTime: time,
+      endTime
+    }
+  })
+
+  // Get worker pool and render in parallel
+  const pool = getWorkerPool()
+  console.log(`Rendering ${tasks.length} frames using ${pool.size} workers...`)
+  const startTime = performance.now()
+
+  const results = await pool.renderFrames(tasks, (completed, total) => {
+    if (onProgress) {
+      onProgress((completed / total) * 100)
+    }
+  })
+
+  const elapsed = ((performance.now() - startTime) / 1000).toFixed(2)
+  console.log(`Frame rendering completed in ${elapsed}s (${(tasks.length / parseFloat(elapsed)).toFixed(1)} frames/sec)`)
+
+  // Convert to FrameInfo format
+  const frames: FrameInfo[] = results.map((result) => ({
+    startTime: result.startTime,
+    endTime: result.endTime,
+    dataUrl: result.dataUrl
+  }))
+
+  return frames
+}
+
+/**
+ * Generate frames sequentially (fallback if workers fail)
+ */
+export async function generateExportFramesSequential(
+  subtitles: Subtitle[],
+  style: SubtitleStyle,
+  width: number,
+  height: number,
+  fps: number,
+  onProgress?: (percent: number) => void
+): Promise<FrameInfo[]> {
+  // IMPORTANT: Ensure font weight is loaded before rendering
+  const weight = typeof style.fontWeight === 'number'
+    ? style.fontWeight
+    : style.fontWeight === 'bold' ? 700 : 400
+  console.log(`[FrameRenderer] Ensuring font ${style.fontFamily} weight ${weight} is loaded...`)
+  await ensureFontWeightLoaded(style.fontFamily, weight)
+
+  const frames: FrameInfo[] = []
+  const frameTimes = calculateFrameTimes(subtitles, fps, style.animation)
+
+  for (let i = 0; i < frameTimes.length; i++) {
+    const time = frameTimes[i]
+    const blob = await renderSubtitleFrameAsBlob({
+      width,
+      height,
+      currentTime: time,
+      subtitles,
+      style
+    })
+
+    if (blob) {
+      const dataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.readAsDataURL(blob)
+      })
+
+      // Determine end time (next frame time or end of current subtitle)
+      const currentSubtitle = getCurrentSubtitle(subtitles, time)
+      const endTime = i < frameTimes.length - 1
+        ? frameTimes[i + 1]
+        : (currentSubtitle?.endTime ?? time + 0.1)
+
+      frames.push({
+        startTime: time,
+        endTime,
+        dataUrl
+      })
+    }
+
+    if (onProgress) {
+      onProgress(((i + 1) / frameTimes.length) * 100)
+    }
+  }
+
+  return frames
+}
