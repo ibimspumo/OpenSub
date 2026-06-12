@@ -1,0 +1,352 @@
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Clock, Film, MoreVertical, Pencil, Trash2, Loader2, Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import type { StoredProjectMeta } from '@/lib/types'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
+import { projects as projectsApi, mediaSrc } from '@/lib/api'
+
+const ITEMS_PER_PAGE = 12 // 3 rows × 4 columns
+
+interface ProjectBrowserProps {
+  onOpenProject: (projectId: string) => void
+}
+
+/**
+ * Format duration in seconds to human readable format
+ */
+function formatDuration(seconds: number): string {
+  if (!seconds) return '0:00'
+
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
+/**
+ * Format date to relative time
+ */
+function formatDate(timestamp: number, t: (key: string, options?: Record<string, unknown>) => string, language: string): string {
+  const now = Date.now()
+  const diff = now - timestamp
+
+  const seconds = Math.floor(diff / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+
+  if (days > 7) {
+    return new Date(timestamp).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-US', {
+      day: 'numeric',
+      month: 'short'
+    })
+  }
+  if (days > 0) return t('timeAgo.daysAgo', { count: days })
+  if (hours > 0) return t('timeAgo.hoursAgo', { count: hours })
+  if (minutes > 0) return t('timeAgo.minutesAgo', { count: minutes })
+  return t('timeAgo.justNow')
+}
+
+export default function ProjectBrowser({ onOpenProject }: ProjectBrowserProps) {
+  const { t, i18n } = useTranslation()
+  const [projects, setProjects] = useState<StoredProjectMeta[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [contextMenuId, setContextMenuId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+
+  // Filter and paginate projects
+  const filteredProjects = useMemo(() => {
+    if (!searchQuery.trim()) return projects
+    const query = searchQuery.toLowerCase()
+    return projects.filter((p) => p.name.toLowerCase().includes(query))
+  }, [projects, searchQuery])
+
+  const totalPages = Math.ceil(filteredProjects.length / ITEMS_PER_PAGE)
+  const paginatedProjects = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE
+    return filteredProjects.slice(start, start + ITEMS_PER_PAGE)
+  }, [filteredProjects, currentPage])
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery])
+
+  // Load projects
+  const loadProjects = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      const projectList = await projectsApi.list()
+      setProjects(projectList)
+    } catch (error) {
+      console.error('Failed to load projects:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadProjects()
+  }, [loadProjects])
+
+  // Handle rename
+  const handleStartRename = (project: StoredProjectMeta, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditingId(project.id)
+    setEditName(project.name)
+    setContextMenuId(null)
+  }
+
+  const handleSaveRename = async () => {
+    if (!editingId || !editName.trim()) {
+      setEditingId(null)
+      return
+    }
+
+    try {
+      await projectsApi.rename(editingId, editName.trim())
+      await loadProjects()
+    } catch (error) {
+      console.error('Failed to rename project:', error)
+    } finally {
+      setEditingId(null)
+    }
+  }
+
+  const handleCancelRename = () => {
+    setEditingId(null)
+  }
+
+  // Handle delete
+  const handleDelete = async (projectId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setContextMenuId(null)
+
+    const confirmed = confirm(t('projectBrowser.deleteConfirm'))
+    if (!confirmed) return
+
+    try {
+      await projectsApi.delete(projectId)
+      await loadProjects()
+    } catch (error) {
+      console.error('Failed to delete project:', error)
+    }
+  }
+
+  // Close context menu when clicking outside
+  useEffect(() => {
+    const handleClick = () => setContextMenuId(null)
+    window.addEventListener('click', handleClick)
+    return () => window.removeEventListener('click', handleClick)
+  }, [])
+
+  if (isLoading) {
+    return (
+      <div className="mt-8 flex justify-center">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span className="text-sm">{t('projectBrowser.loadingProjects')}</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (projects.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="mt-8 w-full max-w-4xl mx-auto px-4">
+      {/* Section header with search */}
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <div className="flex items-center gap-2">
+          <Clock className="w-4 h-4 text-muted-foreground" />
+          <h2 className="text-sm font-medium text-muted-foreground">{t('projectBrowser.recentProjects')}</h2>
+        </div>
+
+        {/* Search input */}
+        <div className="relative w-48">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder={t('common.search')}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-8 pl-8 text-sm bg-secondary/50 border-border/50 focus:border-primary/50"
+          />
+        </div>
+      </div>
+
+      {/* Empty search result */}
+      {filteredProjects.length === 0 && searchQuery && (
+        <div className="py-8 text-center text-muted-foreground text-sm">
+          {t('projectBrowser.noProjectsFound', { query: searchQuery })}
+        </div>
+      )}
+
+      {/* Project grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+        {paginatedProjects.map((project) => (
+          <div
+            key={project.id}
+            className="group relative"
+            onClick={() => onOpenProject(project.id)}
+          >
+            {/* Project card */}
+            <Card
+              className={cn(
+                'cursor-pointer overflow-hidden',
+                'transition-all duration-200 ease-out',
+                'hover:border-muted-foreground/30 hover:shadow-lg hover:scale-[1.02]',
+                'active:scale-[0.98]'
+              )}
+            >
+              {/* Thumbnail */}
+              <div className="aspect-video bg-muted relative">
+                {project.thumbnailPath ? (
+                  <img
+                    src={mediaSrc(project.thumbnailPath)}
+                    alt={project.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      // Hide broken images
+                      (e.target as HTMLImageElement).style.display = 'none'
+                    }}
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Film className="w-10 h-10 text-muted-foreground/30" />
+                  </div>
+                )}
+
+                {/* Duration badge */}
+                <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/70 text-xs text-white tabular-nums">
+                  {formatDuration(project.duration)}
+                </div>
+
+                {/* Hover overlay */}
+                <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors duration-200" />
+              </div>
+
+              {/* Project info */}
+              <CardContent className="p-3">
+                {editingId === project.id ? (
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveRename()
+                      if (e.key === 'Escape') handleCancelRename()
+                    }}
+                    onBlur={handleSaveRename}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full px-2 py-1 text-sm bg-muted border border-primary rounded focus:outline-none text-foreground"
+                    autoFocus
+                  />
+                ) : (
+                  <h3 className="text-sm font-medium text-foreground truncate">{project.name}</h3>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  {formatDate(project.updatedAt, t, i18n.language)}
+                </p>
+              </CardContent>
+
+              {/* Context menu button */}
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setContextMenuId(contextMenuId === project.id ? null : project.id)
+                }}
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  'absolute top-2 right-2 h-8 w-8',
+                  'bg-black/50 backdrop-blur-sm',
+                  'text-white/70 hover:text-white hover:bg-black/70',
+                  'opacity-0 group-hover:opacity-100',
+                  'transition-all duration-200'
+                )}
+              >
+                <MoreVertical className="w-4 h-4" />
+              </Button>
+
+              {/* Context menu */}
+              {contextMenuId === project.id && (
+                <Card
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute top-10 right-2 z-10 py-1 min-w-[120px] shadow-lg"
+                >
+                  <Button
+                    onClick={(e) => handleStartRename(project, e)}
+                    variant="ghost"
+                    className="w-full justify-start px-3 py-1.5 h-auto text-sm font-normal"
+                  >
+                    <Pencil className="w-4 h-4 mr-2" />
+                    {t('projectBrowser.rename')}
+                  </Button>
+                  <Button
+                    onClick={(e) => handleDelete(project.id, e)}
+                    variant="ghost"
+                    className="w-full justify-start px-3 py-1.5 h-auto text-sm font-normal text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    {t('common.delete')}
+                  </Button>
+                </Card>
+              )}
+            </Card>
+          </div>
+        ))}
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-6">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+
+          <div className="flex items-center gap-1">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              <Button
+                key={page}
+                variant={currentPage === page ? 'default' : 'ghost'}
+                size="icon"
+                className={cn(
+                  'h-8 w-8 text-sm',
+                  currentPage === page && 'pointer-events-none'
+                )}
+                onClick={() => setCurrentPage(page)}
+              >
+                {page}
+              </Button>
+            ))}
+          </div>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+          >
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
