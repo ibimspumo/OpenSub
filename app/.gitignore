@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Bundled static ffmpeg binaries (downloaded by scripts/download-ffmpeg.sh)
+src-tauri/binaries/
